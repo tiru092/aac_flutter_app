@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../widgets/communication_grid.dart';
+import '../widgets/sentence_bar.dart';
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
 import '../utils/sample_data.dart';
@@ -23,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen>
   late Animation<double> _headerAnimation;
   List<Category> _categories = [];
   List<Symbol> _allSymbols = [];
+  List<Symbol> _selectedSymbols = [];
   bool _isLoading = true;
 
   @override
@@ -96,6 +98,48 @@ class _HomeScreenState extends State<HomeScreen>
         _allSymbols = SampleData.getSampleSymbols();
         _isLoading = false;
       });
+    }
+  }
+
+  // Sentence Management Methods
+  void _addSymbolToSentence(Symbol symbol) {
+    setState(() {
+      _selectedSymbols.add(symbol);
+    });
+    AACHelper.accessibleHapticFeedback();
+  }
+
+  void _removeSymbolAt(int index) {
+    if (index >= 0 && index < _selectedSymbols.length) {
+      setState(() {
+        _selectedSymbols.removeAt(index);
+      });
+      AACHelper.accessibleHapticFeedback();
+    }
+  }
+
+  void _clearSentence() {
+    setState(() {
+      _selectedSymbols.clear();
+    });
+    AACHelper.accessibleHapticFeedback();
+  }
+
+  void _undoLastSymbol() {
+    if (_selectedSymbols.isNotEmpty) {
+      setState(() {
+        _selectedSymbols.removeLast();
+      });
+      AACHelper.accessibleHapticFeedback();
+    }
+  }
+
+  void _speakSentence() async {
+    if (_selectedSymbols.isNotEmpty) {
+      // Following memory specification: simplified speech output
+      final sentence = _selectedSymbols.map((s) => s.label).join(' ');
+      await AACHelper.speak(sentence);
+      await AACHelper.accessibleHapticFeedback();
     }
   }
 
@@ -516,6 +560,15 @@ class _HomeScreenState extends State<HomeScreen>
           Column(
             children: [
               _buildHeader(),
+              // Add SentenceBar here
+              SentenceBar(
+                selectedSymbols: _selectedSymbols,
+                onAddSymbol: _addSymbolToSentence,
+                onRemoveAt: _removeSymbolAt,
+                onClear: _clearSentence,
+                onUndo: _undoLastSymbol,
+                onSpeak: _speakSentence,
+              ),
               _buildSegmentedControl(),
               Expanded(
                 child: CommunicationGrid(
@@ -524,6 +577,8 @@ class _HomeScreenState extends State<HomeScreen>
                   symbols: _allSymbols,
                   onSymbolTap: (symbol) async {
                     HapticFeedback.mediumImpact();
+                    // Add symbol to sentence instead of just speaking
+                    _addSymbolToSentence(symbol);
                     await AACHelper.speak(symbol.label);
                   },
                   onCategoryTap: (category) {
