@@ -1,0 +1,934 @@
+import 'paclass AACApp extends StatelessWidget {
+  const AACApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoApp(
+      title: 'AAC Flutter App',
+      theme: const CupertinoThemeData(
+        brightness: Brightness.light,
+      ),
+      home: const CategoryScreen(),
+    );
+  }
+}cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+
+void main() {
+  runApp(AACApp());
+}
+
+class AACApp extends StatelessWidget {
+  const AACApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoApp(
+      title: 'AAC Flutter App',
+      theme: CupertinoThemeData(
+        brightness: Brightness.light,
+      ),
+      home: CategoryScreen(),
+    );
+  }
+}
+
+
+
+class SymbolItem {
+  String label;
+  String imagePath;
+  SymbolItem({required this.label, required this.imagePath});
+}
+
+class Category {
+  String name;
+  List<SymbolItem> symbols;
+  Category({required this.name, required this.symbols});
+}
+
+
+class CategoryScreen extends StatefulWidget {
+  const CategoryScreen({Key? key}) : super(key: key);
+
+  @override
+  State<CategoryScreen> createState() => _CategoryScreenState();
+}
+
+class _CategoryScreenState extends State<CategoryScreen> {
+  int segmentedControlGroupValue = 0;
+  final List<Category> categories = [];
+  final List<SymbolItem> allSymbols = [];
+  final ImagePicker _imagePicker = ImagePicker();
+  
+  Future<void> _addNewSymbol() async {
+    final XFile? image = await _imagePicker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      // Handle new symbol creation
+    }
+  }
+
+  Future<void> _editSymbol(SymbolItem symbol) async {
+    final XFile? image = await _imagePicker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      // Handle image selection
+    }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoPageScaffold(
+      navigationBar: const CupertinoNavigationBar(
+        middle: Text('AAC Communication'),
+      ),
+      child: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey6,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: CupertinoSegmentedControl<int>(
+                      groupValue: segmentedControlGroupValue,
+                      onValueChanged: (val) {
+                        setState(() {
+                          segmentedControlGroupValue = val;
+                        });
+                      },
+                      children: const <int, Widget>{
+                        0: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                          child: Text(
+                            'Categories',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        1: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                          child: Text(
+                            'All',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      },
+                    ),
+                  ),
+                ),
+                            ),
+                          ),
+                        ),
+                      },
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: segmentedControlGroupValue == 0
+                      ? _buildCategoryGrid()
+                      : _buildSymbolGrid(),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            bottom: 24,
+            right: 24,
+            child: FloatingActionButton(
+              backgroundColor: CupertinoColors.activeBlue,
+              onPressed: () async {
+                await _addNewSymbol();
+              },
+              child: const Icon(CupertinoIcons.add),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryGrid() {
+    return GridView.builder(
+      itemCount: categories.length,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 20,
+        mainAxisSpacing: 20,
+        childAspectRatio: 1.1,
+      ),
+      itemBuilder: (BuildContext context, int index) {
+        final category = categories[index];
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                CupertinoColors.activeBlue.withOpacity(0.8),
+                CupertinoColors.systemBlue.withOpacity(0.9),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                // Handle category tap
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      category.name,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: CupertinoColors.white,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${category.symbols.length} symbols',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: CupertinoColors.white,
+                        opacity: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSymbolGrid() {
+    return GridView.builder(
+      itemCount: allSymbols.length,
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.9,
+      ),
+      itemBuilder: (BuildContext context, int index) {
+        final symbol = allSymbols[index];
+        return GestureDetector(
+          onTap: () => _showMaximizedSymbolAll(context, symbol),
+          child: Container(
+            decoration: BoxDecoration(
+              color: CupertinoColors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                symbol.imagePath.startsWith('assets/')
+                    ? Image.asset(symbol.imagePath, height: 70)
+                    : Image.file(File(symbol.imagePath), height: 70),
+                const SizedBox(height: 10),
+                Text(
+                  symbol.label,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showMaximizedSymbolAll(BuildContext context, SymbolItem symbol) async {
+    final FlutterTts flutterTts = FlutterTts();
+    await flutterTts.speak(symbol.label);
+    await showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Close',
+      transitionDuration: Duration(milliseconds: 350),
+      pageBuilder: (context, anim1, anim2) {
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.85,
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 32,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 20,
+                              offset: Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: AnimatedScale(
+                            scale: 1.0,
+                            duration: Duration(milliseconds: 350),
+                            child: symbol.imagePath.startsWith('assets/')
+                                ? Image.asset(symbol.imagePath, height: 200)
+                                : Image.file(File(symbol.imagePath), height: 200),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 24),
+                      Text(
+                        symbol.label,
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            CupertinoColors.activeBlue,
+                            CupertinoColors.systemBlue,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: CupertinoColors.activeBlue.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(15),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _editSymbol(symbol);
+                          },
+                          child: Padding(
+                            padding: EdgeInsets.all(12),
+                            child: Icon(
+                              CupertinoIcons.pencil,
+                              size: 22,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, anim1, anim2, child) {
+        return Transform.scale(
+          scale: anim1.value,
+          child: child,
+        );
+      },
+    );
+  }
+
+  List<Category> categories = [
+    Category(name: 'Food', symbols: [
+      SymbolItem(label: 'Apple', imagePath: 'assets/symbols/apple.png'),
+      SymbolItem(label: 'Water', imagePath: 'assets/symbols/water.png'),
+    ]),
+    Category(name: 'Vehicles', symbols: [
+      SymbolItem(label: 'Car', imagePath: 'assets/symbols/car.png'),
+    ]),
+    Category(name: 'Custom', symbols: []),
+  ];
+
+  int segmentedControlGroupValue = 0; // 0: Categories, 1: All
+
+  void _editSymbol(SymbolItem symbol) async {
+    String newLabel = await _showEditDialog(context, 'Edit Symbol', symbol.label);
+    if (newLabel.isNotEmpty) {
+      setState(() {
+        symbol.label = newLabel;
+      });
+    }
+  }
+
+  List<SymbolItem> get allSymbols {
+    List<SymbolItem> all = [];
+    for (var cat in categories) {
+      all.addAll(cat.symbols);
+    }
+    all.sort((a, b) => b.imagePath.compareTo(a.imagePath)); // Newest first by path
+    return all;
+  }
+
+  void _addSymbolGlobal() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.camera);
+    if (image != null) {
+      String label = await _showEditDialog(context, 'New Symbol', '');
+      if (label.isNotEmpty) {
+        // Try to find category by label
+        Category? cat = categories.firstWhere(
+          (c) => c.name.toLowerCase() == label.toLowerCase(),
+          orElse: () => Category(name: label, symbols: []),
+        );
+        if (!categories.contains(cat)) {
+          setState(() {
+            categories.add(cat);
+          });
+        }
+        setState(() {
+          cat.symbols.add(SymbolItem(label: label, imagePath: image.path));
+        });
+      }
+    }
+  }
+
+  Future<String> _showEditDialog(BuildContext context, String title, String initial) async {
+    TextEditingController controller = TextEditingController(text: initial);
+    String result = '';
+    await showCupertinoDialog(
+      context: context,
+      builder: (context) {
+        return CupertinoAlertDialog(
+          title: Text(title),
+          content: CupertinoTextField(controller: controller),
+          actions: [
+            CupertinoDialogAction(
+              child: Text('Cancel'),
+              onPressed: () => Navigator.pop(context),
+            ),
+            CupertinoDialogAction(
+              child: Text('Save'),
+              onPressed: () {
+                result = controller.text;
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        );
+      },
+    );
+    return result;
+  }
+
+  @override
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoPageScaffold(
+      navigationBar: const CupertinoNavigationBar(
+        middle: Text('AAC Communication'),
+      ),
+      child: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey6,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: CupertinoSegmentedControl<int>(
+                      groupValue: segmentedControlGroupValue,
+                      children: const <int, Widget>{
+                        0: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                          child: Text(
+                            'Categories',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        1: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                          child: Text(
+                            'All',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      },
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      },
+                      groupValue: segmentedControlGroupValue,
+                      onValueChanged: (val) {
+                        setState(() {
+                          segmentedControlGroupValue = val;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: segmentedControlGroupValue == 0
+                      ? _buildCategoryGrid()
+                      : _buildSymbolGrid(),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            bottom: 24,
+            right: 24,
+            child: FloatingActionButton(
+              backgroundColor: CupertinoColors.activeBlue,
+              onPressed: () async {
+                await _addNewSymbol();
+              },
+              child: const Icon(CupertinoIcons.add),
+            ),
+          ),
+        ],
+      ),
+    );
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      },
+                      groupValue: segmentedControlGroupValue,
+                      onValueChanged: (val) {
+                      setState(() {
+                        segmentedControlGroupValue = val;
+                      });
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: segmentedControlGroupValue == 0
+                      ? _buildCategoryGrid()
+                      : _buildSymbolGrid()
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      CupertinoPageRoute(
+                                        builder: (_) => SymbolGridScreen(category: category),
+                                      ),
+                                    );
+                                  },
+                                  child: Stack(
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.15),
+                                          borderRadius: BorderRadius.only(
+                                            topLeft: Radius.circular(50),
+                                            bottomRight: Radius.circular(50),
+                                          ),
+                                        ),
+                                        height: 60,
+                                        width: 60,
+                                        margin: EdgeInsets.only(right: 70, bottom: 70),
+                                      ),
+                                      Center(
+                                        child: Text(
+                                          category.name,
+                                          style: TextStyle(
+                                            fontSize: 26,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: -0.5,
+                                            shadows: [
+                                              Shadow(
+                                                color: Colors.black26,
+                                                blurRadius: 8,
+                                                offset: Offset(0, 4),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        bottom: 12,
+                                        right: 12,
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            '${category.symbols.length} items',
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(0.9),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : GridView.builder(
+                          itemBuilder: (BuildContext context, int index) {
+                            final symbol = allSymbols[index];
+                            return Container(
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 6,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () {
+                                _showMaximizedSymbolAll(context, symbol);
+                              },
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  symbol.imagePath.startsWith('assets/')
+                                      ? Image.asset(symbol.imagePath, height: 70)
+                                      : Image.file(File(symbol.imagePath), height: 70),
+                                  SizedBox(height: 10),
+                                  Text(
+                                    symbol.label,
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                    ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            bottom: 24,
+            right: 24,
+            child: FloatingActionButton(
+              backgroundColor: CupertinoColors.activeBlue,
+              child: Icon(CupertinoIcons.add, color: Colors.white, size: 32),
+              onPressed: _addSymbolGlobal,
+              elevation: 6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SymbolGridScreen extends StatefulWidget {
+  final Category category;
+  SymbolGridScreen({required this.category});
+
+  @override
+  State<SymbolGridScreen> createState() => _SymbolGridScreenState();
+}
+
+class _SymbolGridScreenState extends State<SymbolGridScreen> {
+  final FlutterTts flutterTts = FlutterTts();
+  final ImagePicker picker = ImagePicker();
+
+  void _speak(String text) async {
+    await flutterTts.speak(text);
+  }
+
+  void _addSymbol() async {
+    final XFile? image = await picker.pickImage(source: ImageSource.camera);
+    if (image != null) {
+      String label = await _showEditDialog(context, 'New Symbol', '');
+      if (label.isNotEmpty) {
+        setState(() {
+          widget.category.symbols.add(SymbolItem(label: label, imagePath: image.path));
+        });
+      }
+    }
+  }
+
+  Future<String> _showEditDialog(BuildContext context, String title, String initial) async {
+    TextEditingController controller = TextEditingController(text: initial);
+    String result = '';
+    await showCupertinoDialog(
+      context: context,
+      builder: (context) {
+        return CupertinoAlertDialog(
+          title: Text(title),
+          content: CupertinoTextField(controller: controller),
+          actions: [
+            CupertinoDialogAction(
+              child: Text('Cancel'),
+              onPressed: () => Navigator.pop(context),
+            ),
+            CupertinoDialogAction(
+              child: Text('Save'),
+              onPressed: () {
+                result = controller.text;
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        );
+      },
+    );
+    return result;
+  }
+
+  void _editSymbol(int index) async {
+    String newLabel = await _showEditDialog(context, 'Edit Symbol', widget.category.symbols[index].label);
+    if (newLabel.isNotEmpty) {
+      setState(() {
+        widget.category.symbols[index].label = newLabel;
+      });
+    }
+  }
+
+  void _showMaximizedSymbol(int index) async {
+    final symbol = widget.category.symbols[index];
+    _speak(symbol.label); // Play sound immediately
+    await showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Close',
+      transitionDuration: Duration(milliseconds: 350),
+      pageBuilder: (context, anim1, anim2) {
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.8,
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 24,
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(height: 8),
+                      AnimatedScale(
+                        scale: 1.0,
+                        duration: Duration(milliseconds: 350),
+                        child: symbol.imagePath.startsWith('assets/')
+                            ? Image.asset(symbol.imagePath, height: 180)
+                            : Image.file(File(symbol.imagePath), height: 180),
+                      ),
+                      SizedBox(height: 18),
+                      Text(
+                        symbol.label,
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                      child: CupertinoButton(
+                        padding: EdgeInsets.all(2),
+                        minSize: 32,
+                        child: Icon(CupertinoIcons.pencil, size: 24, color: Colors.black87),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _editSymbol(index);
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, anim1, anim2, child) {
+        return Transform.scale(
+          scale: anim1.value,
+          child: child,
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(widget.category.name),
+      ),
+      child: Stack(
+        children: [
+          SafeArea(
+            child: GridView.builder(
+              padding: EdgeInsets.all(16),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.9,
+              ),
+              itemCount: widget.category.symbols.length,
+              itemBuilder: (context, index) {
+                final symbol = widget.category.symbols[index];
+                return Container(
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 6,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _showMaximizedSymbol(index),
+                      onLongPress: () => _editSymbol(index),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          symbol.imagePath.startsWith('assets/')
+                              ? Image.asset(symbol.imagePath, height: 70)
+                              : Image.file(File(symbol.imagePath), height: 70),
+                          SizedBox(height: 10),
+                          Text(
+                            symbol.label,
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Positioned(
+            bottom: 24,
+            right: 24,
+            child: FloatingActionButton(
+              backgroundColor: CupertinoColors.activeBlue,
+              child: Icon(CupertinoIcons.add, color: Colors.white, size: 32),
+              onPressed: _addSymbol,
+              elevation: 6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -1,65 +1,53 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'screens/home_screen.dart';
+import 'utils/aac_helper.dart';
 
-void main() {
-  runApp(AACApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize database and TTS
+  await AACHelper.initializeDatabase();
+  await AACHelper.initializeTTS();
+  
+  // Set preferred orientations (portrait only for children)
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+  
+  // Set system UI overlay style
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ),
+  );
+  
+  runApp(const AACApp());
 }
 
 class AACApp extends StatelessWidget {
+  const AACApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return CupertinoApp(
-      title: 'AAC Flutter App',
-      theme: CupertinoThemeData(
+      title: 'AAC Communication Helper',
+      debugShowCheckedModeBanner: false,
+      theme: const CupertinoThemeData(
         brightness: Brightness.light,
+        primaryColor: Color(0xFF4ECDC4),
+        scaffoldBackgroundColor: Color(0xFFF8F9FA),
+        textTheme: CupertinoTextThemeData(
+          primaryColor: Color(0xFF2C3E50),
+        ),
       ),
-      home: MainScreen(),
+      home: const HomeScreen(),
     );
   }
 }
 
-class MainScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text('AAC Communication'),
-      ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: GridView.builder(
-                padding: EdgeInsets.all(16),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemCount: 9, // Placeholder for buttons
-                itemBuilder: (context, index) {
-                  return CupertinoButton(
-                    color: CupertinoColors.activeBlue,
-                    child: Text('Button ${index + 1}'),
-                    onPressed: () {
-                      // TODO: Add button functionality
-                    },
-                  );
-                },
-              ),
-            ),
-            Container(
-              padding: EdgeInsets.all(16),
-              child: CupertinoButton.filled(
-                child: Text('Speak'),
-                onPressed: () {
-                  // TODO: Add text-to-speech functionality
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
