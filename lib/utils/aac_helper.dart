@@ -35,9 +35,74 @@ class AACHelper {
   static FlutterTts? _flutterTts;
   static final AudioPlayer _audioPlayer = AudioPlayer();
   
-  // Sound effect settings
-  static const String _soundEffectsKey = 'sound_effects_enabled';
-  static const String _soundVolumeKey = 'sound_volume';
+  // Therapy-tested category colors (Avaz & Jellow approach)
+  static const Map<String, Color> categoryColors = {
+    // People/Pronouns → Yellow
+    'People': Color(0xFFFFC107),
+    'Pronouns': Color(0xFFFFC107),
+    'Family': Color(0xFFFFC107),
+    
+    // Actions/Verbs → Green  
+    'Actions': Color(0xFF4CAF50),
+    'Verbs': Color(0xFF4CAF50),
+    'Activities': Color(0xFF4CAF50),
+    
+    // Describing words → Blue
+    'Describing': Color(0xFF2196F3),
+    'Adjectives': Color(0xFF2196F3),
+    'Emotions': Color(0xFF2196F3),
+    
+    // Social phrases → Pink/Purple
+    'Social': Color(0xFFE91E63),
+    'Greetings': Color(0xFFE91E63),
+    'Politeness': Color(0xFF9C27B0),
+    
+    // Food/Things → Orange
+    'Food & Drinks': Color(0xFFFF9800),
+    'Food': Color(0xFFFF9800),
+    'Objects': Color(0xFFFF9800),
+    'Vehicles': Color(0xFFFF9800),
+    
+    // Misc → Gray
+    'Misc': Color(0xFF607D8B),
+    'Custom': Color(0xFF607D8B),
+    'Other': Color(0xFF607D8B),
+  };
+  
+  // High contrast colors for accessibility
+  static const Map<String, Color> highContrastColors = {
+    'People': Color(0xFFFFD54F),      // Darker yellow
+    'Pronouns': Color(0xFFFFD54F),
+    'Family': Color(0xFFFFD54F),
+    
+    'Actions': Color(0xFF388E3C),     // Darker green
+    'Verbs': Color(0xFF388E3C),
+    'Activities': Color(0xFF388E3C),
+    
+    'Describing': Color(0xFF1976D2),  // Darker blue
+    'Adjectives': Color(0xFF1976D2),
+    'Emotions': Color(0xFF1976D2),
+    
+    'Social': Color(0xFFC2185B),      // Darker pink
+    'Greetings': Color(0xFFC2185B),
+    'Politeness': Color(0xFF7B1FA2),  // Darker purple
+    
+    'Food & Drinks': Color(0xFFF57C00),  // Darker orange
+    'Food': Color(0xFFF57C00),
+    'Objects': Color(0xFFF57C00),
+    'Vehicles': Color(0xFFF57C00),
+    
+    'Misc': Color(0xFF455A64),        // Darker gray
+    'Custom': Color(0xFF455A64),
+    'Other': Color(0xFF455A64),
+  };
+  
+  // Get category color
+  static Color getCategoryColor(String categoryName) {
+    final isHighContrast = getSetting<bool>('high_contrast', defaultValue: false) ?? false;
+    final colorMap = isHighContrast ? highContrastColors : categoryColors;
+    return colorMap[categoryName] ?? (isHighContrast ? highContrastColors['Misc']! : categoryColors['Misc']!);
+  }
 
   // Initialize Hive database
   static Future<void> initializeDatabase() async {
@@ -382,19 +447,30 @@ class AACHelper {
     }
   }
   
-  // High contrast color schemes for accessibility
-  static const List<Color> highContrastColors = [
-    Color(0xFF000000), // Black
-    Color(0xFFFFFFFF), // White  
-    Color(0xFF0000FF), // Blue
-    Color(0xFFFFFF00), // Yellow
-    Color(0xFF00FF00), // Green
-    Color(0xFFFF0000), // Red
-  ];
-  
   // Get appropriate color scheme based on accessibility settings
   static List<Color> getAccessibleColors() {
-    return isHighContrastEnabled ? highContrastColors : childFriendlyColors;
+    if (isHighContrastEnabled) {
+      return [
+        Color(0xFF000000), // Black
+        Color(0xFFFFFFFF), // White  
+        Color(0xFF1976D2), // High contrast blue
+        Color(0xFFFFD54F), // High contrast yellow
+        Color(0xFF388E3C), // High contrast green
+        Color(0xFFC2185B), // High contrast pink
+        Color(0xFFF57C00), // High contrast orange
+        Color(0xFF455A64), // High contrast gray
+      ];
+    }
+    
+    // Return therapy-tested category colors
+    return [
+      categoryColors['People']!,      // Yellow
+      categoryColors['Actions']!,     // Green  
+      categoryColors['Describing']!,  // Blue
+      categoryColors['Social']!,      // Pink
+      categoryColors['Food']!,        // Orange
+      categoryColors['Misc']!,        // Gray
+    ];
   }
   
   // Get accessible text size multiplier
@@ -630,6 +706,9 @@ class AACHelper {
   }
   
   // Sound effects settings
+  static const String _soundEffectsKey = 'sound_effects_enabled';
+  static const String _soundVolumeKey = 'sound_volume';
+  
   static bool get isSoundEffectsEnabled => 
       getSetting<bool>(_soundEffectsKey, defaultValue: true)!;
       

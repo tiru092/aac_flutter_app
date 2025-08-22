@@ -22,31 +22,49 @@ class Symbol extends HiveObject {
   @HiveField(5)
   String? description;
 
+  @HiveField(6)
+  String? id;
+
+  @HiveField(7)
+  String? speechText;
+
+  @HiveField(8)
+  int? colorCode;
+
   Symbol({
+    this.id,
     required this.label,
     required this.imagePath,
     required this.category,
     DateTime? dateCreated,
     this.isDefault = false,
     this.description,
+    this.speechText,
+    this.colorCode,
   }) : dateCreated = dateCreated ?? DateTime.now();
 
   // Copy constructor for editing
   Symbol copyWith({
+    String? id,
     String? label,
     String? imagePath,
     String? category,
     DateTime? dateCreated,
     bool? isDefault,
     String? description,
+    String? speechText,
+    int? colorCode,
   }) {
     return Symbol(
+      id: id ?? this.id,
       label: label ?? this.label,
       imagePath: imagePath ?? this.imagePath,
       category: category ?? this.category,
       dateCreated: dateCreated ?? this.dateCreated,
       isDefault: isDefault ?? this.isDefault,
       description: description ?? this.description,
+      speechText: speechText ?? this.speechText,
+      colorCode: colorCode ?? this.colorCode,
     );
   }
 
@@ -54,6 +72,30 @@ class Symbol extends HiveObject {
   String toString() {
     return 'Symbol(label: $label, category: $category, imagePath: $imagePath)';
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'label': label,
+    'imagePath': imagePath,
+    'category': category,
+    'dateCreated': dateCreated.toIso8601String(),
+    'isDefault': isDefault,
+    'description': description,
+    'speechText': speechText,
+    'colorCode': colorCode,
+  };
+
+  factory Symbol.fromJson(Map<String, dynamic> json) => Symbol(
+    id: json['id'],
+    label: json['label'],
+    imagePath: json['imagePath'],
+    category: json['category'],
+    dateCreated: DateTime.parse(json['dateCreated']),
+    isDefault: json['isDefault'] ?? false,
+    description: json['description'],
+    speechText: json['speechText'],
+    colorCode: json['colorCode'],
+  );
 }
 
 @HiveType(typeId: 1)
@@ -101,4 +143,20 @@ class Category extends HiveObject {
   String toString() {
     return 'Category(name: $name, iconPath: $iconPath)';
   }
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'iconPath': iconPath,
+    'colorCode': colorCode,
+    'dateCreated': dateCreated.toIso8601String(),
+    'isDefault': isDefault,
+  };
+
+  factory Category.fromJson(Map<String, dynamic> json) => Category(
+    name: json['name'],
+    iconPath: json['iconPath'],
+    colorCode: json['colorCode'],
+    dateCreated: DateTime.parse(json['dateCreated']),
+    isDefault: json['isDefault'] ?? false,
+  );
 }

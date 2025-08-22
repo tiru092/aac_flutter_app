@@ -1,6 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../utils/aac_helper.dart';
+import '../services/language_service.dart';
+import 'language_settings_screen.dart';
+import 'backup_management_screen.dart';
+import 'cloud_sync_screen.dart';
 
 class AccessibilitySettingsScreen extends StatefulWidget {
   const AccessibilitySettingsScreen({super.key});
@@ -10,6 +14,8 @@ class AccessibilitySettingsScreen extends StatefulWidget {
 }
 
 class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScreen> {
+  final LanguageService _languageService = LanguageService();
+  
   bool _highContrast = false;
   bool _largeText = false;
   bool _voiceFeedback = false;
@@ -258,6 +264,14 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
                     },
                   ),
                 ]),
+
+                const SizedBox(height: 20),
+                _buildSectionHeader('🌍 Language Settings'),
+                _buildLanguageSection(),
+
+                const SizedBox(height: 20),
+                _buildSectionHeader('💾 Data Management'),
+                _buildBackupSection(),
 
                 const SizedBox(height: 30),
                 _buildTestSection(),
@@ -526,6 +540,195 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
                 );
               },
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AACHelper.isHighContrastEnabled 
+            ? Colors.white 
+            : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: AACHelper.isHighContrastEnabled
+            ? Border.all(color: Colors.black, width: 2)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: AACHelper.getAccessibleColors()[1].withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Text(
+              _languageService.getLanguageFlag(),
+              style: const TextStyle(fontSize: 24),
+            ),
+          ),
+        ),
+        title: Text(
+          'Language & Voice',
+          style: TextStyle(
+            fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+            fontWeight: FontWeight.w600,
+            color: AACHelper.isHighContrastEnabled 
+                ? Colors.black 
+                : Colors.black87,
+          ),
+        ),
+        subtitle: Text(
+          '${_languageService.getLanguageName()} • Configure voice settings',
+          style: TextStyle(
+            fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+            color: AACHelper.isHighContrastEnabled 
+                ? Colors.black54 
+                : Colors.grey[600],
+          ),
+        ),
+        trailing: const Icon(
+          CupertinoIcons.chevron_right,
+          color: Colors.grey,
+        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            CupertinoPageRoute(
+              builder: (context) => const LanguageSettingsScreen(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBackupSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AACHelper.isHighContrastEnabled 
+            ? Colors.white 
+            : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: AACHelper.isHighContrastEnabled
+            ? Border.all(color: Colors.black, width: 2)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            leading: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: AACHelper.getAccessibleColors()[2].withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                CupertinoIcons.archivebox_fill,
+                color: Color(0xFF6C63FF),
+                size: 24,
+              ),
+            ),
+            title: Text(
+              'Backup & Restore',
+              style: TextStyle(
+                fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+                fontWeight: FontWeight.w600,
+                color: AACHelper.isHighContrastEnabled 
+                    ? Colors.black 
+                    : Colors.black87,
+              ),
+            ),
+            subtitle: Text(
+              'Save and restore your app data locally',
+              style: TextStyle(
+                fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+                color: AACHelper.isHighContrastEnabled 
+                    ? Colors.black54 
+                    : Colors.grey[600],
+              ),
+            ),
+            trailing: const Icon(
+              CupertinoIcons.chevron_right,
+              color: Colors.grey,
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                CupertinoPageRoute(
+                  builder: (context) => const BackupManagementScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            leading: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4ECDC4).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                CupertinoIcons.cloud,
+                color: Color(0xFF4ECDC4),
+                size: 24,
+              ),
+            ),
+            title: Text(
+              'Cloud Sync',
+              style: TextStyle(
+                fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+                fontWeight: FontWeight.w600,
+                color: AACHelper.isHighContrastEnabled 
+                    ? Colors.black 
+                    : Colors.black87,
+              ),
+            ),
+            subtitle: Text(
+              'Sync data across all your devices',
+              style: TextStyle(
+                fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+                color: AACHelper.isHighContrastEnabled 
+                    ? Colors.black54 
+                    : Colors.grey[600],
+              ),
+            ),
+            trailing: const Icon(
+              CupertinoIcons.chevron_right,
+              color: Colors.grey,
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                CupertinoPageRoute(
+                  builder: (context) => const CloudSyncScreen(),
+                ),
+              );
+            },
           ),
         ],
       ),
