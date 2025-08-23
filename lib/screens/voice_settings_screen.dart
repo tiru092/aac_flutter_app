@@ -13,7 +13,7 @@ class VoiceSettingsScreen extends StatefulWidget {
 }
 
 class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
-  final VoiceService _voiceService = VoiceService();
+  final VoiceService _voiceService = VoiceService(); // Singleton instance
   late List<CustomVoice> _availableVoices;
   CustomVoice? _selectedVoice;
   bool _isRecording = false;
@@ -30,6 +30,10 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
   @override
   void dispose() {
     _voiceNameController.dispose();
+    // Stop any ongoing recording or playback
+    if (_isRecording) {
+      _stopRecording();
+    }
     super.dispose();
   }
 
@@ -47,8 +51,6 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
     }
 
     try {
-      // Flutter Sound handles permissions automatically
-
       final success = await _voiceService.startRecording(_newVoiceName);
       if (success) {
         setState(() {
@@ -121,9 +123,11 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
       // If we deleted the current voice, select the first available
       if (_selectedVoice?.id == voice.id) {
         setState(() {
-          _selectedVoice = _availableVoices.first;
+          _selectedVoice = _availableVoices.isNotEmpty ? _availableVoices.first : null;
         });
-        _voiceService.setCurrentVoice(_selectedVoice!);
+        if (_selectedVoice != null) {
+          _voiceService.setCurrentVoice(_selectedVoice!);
+        }
       }
     } else {
       _showMessage('Failed to delete voice');

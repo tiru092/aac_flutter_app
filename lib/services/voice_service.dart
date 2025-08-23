@@ -11,8 +11,8 @@ class VoiceService {
   factory VoiceService() => _instance;
   VoiceService._internal();
 
-  final FlutterSoundRecorder _audioRecorder = FlutterSoundRecorder();
-  final FlutterSoundPlayer _audioPlayer = FlutterSoundPlayer();
+  FlutterSoundRecorder? _audioRecorder;
+  FlutterSoundPlayer? _audioPlayer;
   final AudioPlayer _defaultAudioPlayer = AudioPlayer();
   
   // Current recording file path
@@ -60,6 +60,10 @@ class VoiceService {
   
   // Initialize the voice service
   Future<void> initialize() async {
+    // Initialize audio recorder and player
+    _audioRecorder = FlutterSoundRecorder();
+    _audioPlayer = FlutterSoundPlayer();
+    
     // Load saved voice preference
     final savedVoiceId = AACHelper.getSetting<String>('current_voice_id');
     if (savedVoiceId != null) {
@@ -108,13 +112,26 @@ class VoiceService {
   }
   
   // Check if recording is currently active
-  bool get isRecording => _audioRecorder.isRecording;
+  bool get isRecording {
+    if (_audioRecorder == null) return false;
+    return _audioRecorder!.isRecording;
+  }
   
   // Start recording a custom voice
   Future<bool> startRecording(String voiceName) async {
     try {
+      // Ensure recorder is initialized
+      _audioRecorder ??= FlutterSoundRecorder();
+      
+      // Close any existing session
+      try {
+        await _audioRecorder!.closeRecorder();
+      } catch (e) {
+        debugPrint('Error closing existing recorder: $e');
+      }
+      
       // Open audio session
-      await _audioRecorder.openRecorder();
+      await _audioRecorder!.openRecorder();
       
       // Get directory for voice recordings
       final dir = await getApplicationDocumentsDirectory();
@@ -129,7 +146,7 @@ class VoiceService {
       _currentRecordingPath = '${voicesDir.path}/$voiceName.m4a';
       
       // Start recording
-      await _audioRecorder.startRecorder(toFile: _currentRecordingPath);
+      await _audioRecorder!.startRecorder(toFile: _currentRecordingPath);
       return true;
     } catch (e) {
       debugPrint('Error starting recording: $e');
@@ -140,13 +157,12 @@ class VoiceService {
   // Stop recording and save the custom voice
   Future<CustomVoice?> stopRecording() async {
     try {
-      if (!isRecording) {
+      if (_audioRecorder == null || !isRecording) {
         return null;
       }
       
       // Stop recording
-      await _audioRecorder.stopRecorder();
-      await _audioRecorder.closeRecorder();
+      await _audioRecorder!.stopRecorder();
       
       // Create custom voice object
       if (_currentRecordingPath != null) {
@@ -176,6 +192,13 @@ class VoiceService {
     } catch (e) {
       debugPrint('Error stopping recording: $e');
       return null;
+    } finally {
+      // Always close the recorder
+      try {
+        await _audioRecorder?.closeRecorder();
+      } catch (e) {
+        debugPrint('Error closing recorder: $e');
+      }
     }
   }
   
@@ -230,7 +253,9 @@ class VoiceService {
   Future<bool> playCustomVoice(CustomVoice voice) async {
     try {
       if (voice.isDefault) {
-        // For default voices, we use TTS
+        // For default voices, we use TTS through AACHelper
+        // We don't directly call AACHelper.speak here to avoid recursion
+        // Instead, we return true and let the caller handle TTS
         debugPrint('Playing default voice through TTS');
         return true;
       }
@@ -239,8 +264,19 @@ class VoiceService {
       if (voice.filePath.isNotEmpty) {
         final file = File(voice.filePath);
         if (await file.exists()) {
-          await _audioPlayer.openPlayer();
-          await _audioPlayer.startPlayer(fromURI: voice.filePath);
+          // Ensure player is initialized
+          _audioPlayer ??= FlutterSoundPlayer();
+          
+          // Close any existing session
+          try {
+            await _audioPlayer!.closePlayer();
+          } catch (e) {
+            debugPrint('Error closing existing player: $e');
+          }
+          
+          // Open player and play
+          await _audioPlayer!.openPlayer();
+          await _audioPlayer!.startPlayer(fromURI: voice.filePath);
           return true;
         }
       }
@@ -250,37 +286,60 @@ class VoiceService {
     } catch (e) {
       debugPrint('Error playing custom voice: $e');
       return false;
+    } finally {
+      // Close player after a delay to allow playback to complete
+      Future.delayed(const Duration(seconds: 5), () async {
+        try {
+          await _audioPlayer?.closePlayer();
+        } catch (e) {
+          debugPrint('Error closing player: $e');
+        }
+      });
     }
   }
   
   // Stop current playback
   Future<void> stopPlayback() async {
     try {
-      await _audioPlayer.stopPlayer();
-      await _audioPlayer.closePlayer();
+      await _audioPlayer?.stopPlayer();
+      await _audioPlayer?.closePlayer();
     } catch (e) {
       debugPrint('Error stopping playback: $e');
     }
   }
   
-  // Speak text using the current voice
+  // Speak text using the current voice - FIXED to avoid recursion
   Future<void> speakWithCurrentVoice(String text) async {
     if (_currentVoice.isDefault) {
-      // Use TTS for default voices
-      await AACHelper.speak(text);
+      // For default voices, use Flutter TTS directly to avoid recursion
+      await _speakWithFlutterTts(text);
     } else {
       // For custom voices, play the recorded audio if it matches the text
       // In a full implementation, you might have recorded phrases
       // For now, we'll fall back to TTS
-      await AACHelper.speak(text);
+      await _speakWithFlutterTts(text);
+    }
+  }
+  
+  // Internal method to speak using Flutter TTS directly
+  Future<void> _speakWithFlutterTts(String text) async {
+    try {
+      // Use AACHelper's FlutterTts instance directly
+      final flutterTts = AACHelper.getFlutterTtsInstance();
+      if (flutterTts != null) {
+        await flutterTts.speak(text);
+      }
+    } catch (e) {
+      debugPrint('Error speaking with Flutter TTS: $e');
     }
   }
   
   // Dispose resources
   Future<void> dispose() async {
     try {
-      await _audioRecorder.closeRecorder();
-      await _audioPlayer.closePlayer();
+      await _audioRecorder?.closeRecorder();
+      await _audioPlayer?.closePlayer();
+      await _defaultAudioPlayer.dispose();
     } catch (e) {
       debugPrint('Error disposing voice service: $e');
     }

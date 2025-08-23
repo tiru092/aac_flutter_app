@@ -142,6 +142,11 @@ class AACHelper {
     await _voiceService.initialize();
   }
 
+  // Expose FlutterTts instance for direct access (needed to avoid recursion)
+  static FlutterTts? getFlutterTtsInstance() {
+    return _flutterTts;
+  }
+
   // Text-to-Speech functionality (Enhanced with accessibility)
   static Future<void> speak(String text) async {
     // Use the voice service to speak with the current voice
