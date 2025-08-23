@@ -42,18 +42,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkProfile() async {
-    // Check if there's an active profile, otherwise create one
-    final activeProfile = await UserProfileService.getActiveProfile();
-    
-    if (activeProfile == null) {
-      // Create a default profile for the user
-      await UserProfileService.createProfile(
-        name: 'Default User',
-      );
+    try {
+      // Check if there's an active profile, otherwise create one
+      final activeProfile = await UserProfileService.getActiveProfile();
+      
+      if (activeProfile == null) {
+        // Create a default profile for the user
+        await UserProfileService.createProfile(
+          name: 'Default User',
+        );
+      }
+    } catch (e) {
+      print('Error checking profile: $e');
+    } finally {
+      // Now load the data - always proceed even if profile check fails
+      _loadData();
     }
-    
-    // Now load the data
-    _loadData();
   }
 
   Future<void> _loadData() async {
@@ -61,23 +65,42 @@ class _HomeScreenState extends State<HomeScreen> {
       _isLoading = true;
     });
     
-    // Load default sample data
-    final defaultCategories = SampleData.getSampleCategories();
-    final defaultSymbols = SampleData.getSampleSymbols();
-    
-    // Load user-specific data
-    final userSymbols = await UserProfileService.getUserSymbols();
-    final userCategories = await UserProfileService.getUserCategories();
-    
-    setState(() {
-      _categories = defaultCategories;
-      _customCategories = userCategories;
-      _allSymbols = [...defaultSymbols, ...userSymbols];
-      _isLoading = false;
-    });
-    
-    // Load speech settings
-    _loadSpeechSettings();
+    try {
+      // Load default sample data
+      final defaultCategories = SampleData.getSampleCategories();
+      final defaultSymbols = SampleData.getSampleSymbols();
+      
+      // Load user-specific data - with fallback to empty lists on failure
+      List<Symbol> userSymbols = [];
+      List<Category> userCategories = [];
+      
+      try {
+        userSymbols = await UserProfileService.getUserSymbols();
+        userCategories = await UserProfileService.getUserCategories(); 
+      } catch (e) {
+        print('Error loading user data: $e');
+        // Continue with empty user data
+      }
+      
+      setState(() {
+        _categories = defaultCategories;
+        _customCategories = userCategories;
+        _allSymbols = [...defaultSymbols, ...userSymbols];
+        _isLoading = false;
+      });
+      
+      // Load speech settings
+      _loadSpeechSettings();
+    } catch (e) {
+      print('Error in _loadData: $e');
+      setState(() {
+        // Fallback to just sample data if something goes wrong
+        _categories = SampleData.getSampleCategories();
+        _allSymbols = SampleData.getSampleSymbols();
+        _customCategories = [];
+        _isLoading = false;
+      });
+    }
   }
   
   void _loadSpeechSettings() {

@@ -11,29 +11,40 @@ class UserProfileService {
   
   /// Get the active user profile
   static Future<UserProfile?> getActiveProfile() async {
-    if (_activeProfile != null) {
-      return _activeProfile;
-    }
-    
-    final prefs = await SharedPreferences.getInstance();
-    final currentProfileId = prefs.getString(_currentProfileKey);
-    
-    if (currentProfileId == null) {
+    try {
+      if (_activeProfile != null) {
+        return _activeProfile;
+      }
+      
+      final prefs = await SharedPreferences.getInstance();
+      final currentProfileId = prefs.getString(_currentProfileKey);
+      
+      if (currentProfileId == null) {
+        return null;
+      }
+      
+      return await _loadProfileById(currentProfileId);
+    } catch (e) {
+      print('Error in getActiveProfile: $e');
       return null;
     }
-    
-    return await _loadProfileById(currentProfileId);
   }
   
   /// Set the active user profile
   static Future<void> setActiveProfile(UserProfile profile) async {
-    _activeProfile = profile;
-    
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_currentProfileKey, profile.id);
-    
-    // Save the updated profile
-    await saveUserProfile(profile);
+    try {
+      _activeProfile = profile;
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_currentProfileKey, profile.id);
+      
+      // Save the updated profile
+      await saveUserProfile(profile);
+    } catch (e) {
+      print('Error in setActiveProfile: $e');
+      // Still set the active profile in memory even if storage fails
+      _activeProfile = profile;
+    }
   }
   
   /// Create a new user profile
@@ -42,56 +53,76 @@ class UserProfileService {
     String? email,
     String? phoneNumber,
   }) async {
-    final id = 'profile_${DateTime.now().millisecondsSinceEpoch}';
-    
-    final newProfile = UserProfile(
-      id: id,
-      name: name,
-      email: email,
-      phoneNumber: phoneNumber,
-      createdAt: DateTime.now(),
-      lastActiveAt: DateTime.now(),
-      subscription: const Subscription(
-        plan: SubscriptionPlan.free,
-        price: 0.0,
-      ),
-      settings: const ProfileSettings(),
-      userSymbols: [],
-      userCategories: [],
-    );
-    
-    await saveUserProfile(newProfile);
-    await setActiveProfile(newProfile);
-    
-    return newProfile;
+    try {
+      final id = 'profile_${DateTime.now().millisecondsSinceEpoch}';
+      
+      final newProfile = UserProfile(
+        id: id,
+        name: name,
+        email: email,
+        phoneNumber: phoneNumber,
+        createdAt: DateTime.now(),
+        lastActiveAt: DateTime.now(),
+        subscription: const Subscription(
+          plan: SubscriptionPlan.free,
+          price: 0.0,
+        ),
+        settings: const ProfileSettings(),
+        userSymbols: [],
+        userCategories: [],
+      );
+      
+      await saveUserProfile(newProfile);
+      await setActiveProfile(newProfile);
+      
+      return newProfile;
+    } catch (e) {
+      print('Error in createProfile: $e');
+      // Create a fallback profile that doesn't require storage
+      return UserProfile(
+        id: 'fallback_${DateTime.now().millisecondsSinceEpoch}',
+        name: name,
+        createdAt: DateTime.now(),
+        subscription: const Subscription(
+          plan: SubscriptionPlan.free,
+          price: 0.0,
+        ),
+        settings: const ProfileSettings(),
+      );
+    }
   }
   
   /// Save a user profile
   static Future<void> saveUserProfile(UserProfile profile) async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    // Get existing profiles
-    final profilesJson = prefs.getStringList(_profilesKey) ?? [];
-    final profiles = profilesJson
-        .map((json) => jsonDecode(json) as Map<String, dynamic>)
-        .toList();
-    
-    // Find and update or add the profile
-    final index = profiles.indexWhere((p) => p['id'] == profile.id);
-    final profileMap = profile.toJson();
-    
-    if (index >= 0) {
-      profiles[index] = profileMap;
-    } else {
-      profiles.add(profileMap);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Get existing profiles
+      final profilesJson = prefs.getStringList(_profilesKey) ?? [];
+      final profiles = profilesJson
+          .map((json) => jsonDecode(json) as Map<String, dynamic>)
+          .toList();
+      
+      // Find and update or add the profile
+      final index = profiles.indexWhere((p) => p['id'] == profile.id);
+      final profileMap = profile.toJson();
+      
+      if (index >= 0) {
+        profiles[index] = profileMap;
+      } else {
+        profiles.add(profileMap);
+      }
+      
+      // Save the updated profiles list
+      final updatedProfilesJson = profiles
+          .map((p) => jsonEncode(p))
+          .toList();
+      
+      await prefs.setStringList(_profilesKey, updatedProfilesJson);
+    } catch (e) {
+      print('Error in saveUserProfile: $e');
+      // We'll continue even if saving fails
     }
-    
-    // Save the updated profiles list
-    final updatedProfilesJson = profiles
-        .map((p) => jsonEncode(p))
-        .toList();
-    
-    await prefs.setStringList(_profilesKey, updatedProfilesJson);
   }
   
   /// Get all user profiles
@@ -198,13 +229,23 @@ class UserProfileService {
   
   /// Get user-specific symbols
   static Future<List<Symbol>> getUserSymbols() async {
-    final profile = await getActiveProfile();
-    return profile?.userSymbols ?? [];
+    try {
+      final profile = await getActiveProfile();
+      return profile?.userSymbols ?? [];
+    } catch (e) {
+      print('Error in getUserSymbols: $e');
+      return [];
+    }
   }
   
   /// Get user-specific categories
   static Future<List<Category>> getUserCategories() async {
-    final profile = await getActiveProfile();
-    return profile?.userCategories ?? [];
+    try {
+      final profile = await getActiveProfile();
+      return profile?.userCategories ?? [];
+    } catch (e) {
+      print('Error in getUserCategories: $e');
+      return [];
+    }
   }
 }

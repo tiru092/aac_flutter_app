@@ -8,28 +8,33 @@ import 'utils/aac_helper.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize database and TTS
-  await AACHelper.initializeDatabase();
-  await AACHelper.initializeTTS();
-  
-  // Initialize SharedPreferences
-  await SharedPreferences.getInstance();
-  
-  // Set preferred orientations (portrait only for children)
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-  
-  // Set system UI overlay style
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Colors.white,
-      systemNavigationBarIconBrightness: Brightness.dark,
-    ),
-  );
+  try {
+    // Initialize database and TTS
+    await AACHelper.initializeDatabase();
+    await AACHelper.initializeTTS();
+    
+    // Initialize SharedPreferences
+    await SharedPreferences.getInstance();
+    
+    // Set preferred orientations (portrait only for children)
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    
+    // Set system UI overlay style
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+    );
+  } catch (e) {
+    print('Error during initialization: $e');
+    // Continue with app startup even if initialization fails
+  }
   
   runApp(const AACApp());
 }
