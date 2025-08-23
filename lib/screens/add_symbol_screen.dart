@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
 import '../utils/sample_data.dart';
+import '../services/user_profile_service.dart';
 
 class AddSymbolScreen extends StatefulWidget {
   const AddSymbolScreen({super.key});
@@ -16,23 +17,37 @@ class AddSymbolScreen extends StatefulWidget {
 class _AddSymbolScreenState extends State<AddSymbolScreen> {
   final TextEditingController _labelController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _customCategoryController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
   
   File? _selectedImage;
   String _selectedCategory = 'Food & Drinks';
   bool _isLoading = false;
   List<Category> _categories = [];
+  List<Category> _customCategories = [];
+  bool _isCreatingCustomCategory = false;
 
   @override
   void initState() {
     super.initState();
     _categories = SampleData.getSampleCategories();
+    _loadCustomCategories();
+  }
+
+  void _loadCustomCategories() async {
+    // Load user-specific categories from their profile
+    final userCategories = await UserProfileService.getUserCategories();
+    
+    setState(() {
+      _customCategories = userCategories;
+    });
   }
 
   @override
   void dispose() {
     _labelController.dispose();
     _descriptionController.dispose();
+    _customCategoryController.dispose();
     super.dispose();
   }
 
@@ -349,6 +364,9 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
   }
 
   Widget _buildCategorySelectionCard() {
+    // Combine default and custom categories
+    final allCategories = [..._categories, ..._customCategories];
+    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -365,15 +383,15 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(
+              const Icon(
                 CupertinoIcons.folder,
                 color: Color(0xFF4ECDC4),
                 size: 24,
               ),
-              SizedBox(width: 12),
-              Text(
+              const SizedBox(width: 12),
+              const Text(
                 'Select Category',
                 style: TextStyle(
                   fontSize: 20,
@@ -381,57 +399,171 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
                   color: Color(0xFF2D3748),
                 ),
               ),
-            ],
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Category Grid
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: _categories.map((category) {
-              final isSelected = _selectedCategory == category.name;
-              final categoryColor = Color(category.colorCode);
-              
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedCategory = category.name;
-                  });
-                },
+              const Spacer(),
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: _showCreateCategoryDialog,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: isSelected ? categoryColor : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: categoryColor,
-                      width: 2,
-                    ),
+                    color: const Color(0xFF6C63FF),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        _getCategoryEmoji(category.name),
-                        style: const TextStyle(fontSize: 16),
+                      Icon(
+                        CupertinoIcons.add,
+                        color: Colors.white,
+                        size: 16,
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 4),
                       Text(
-                        category.name,
+                        'New',
                         style: TextStyle(
-                          fontSize: 14,
+                          color: Colors.white,
                           fontWeight: FontWeight.w600,
-                          color: isSelected ? Colors.white : categoryColor,
+                          fontSize: 12,
                         ),
                       ),
                     ],
                   ),
                 ),
-              );
-            }).toList(),
+              ),
+            ],
           ),
+          
+          const SizedBox(height: 16),
+          
+          // Default Categories Header
+          if (_categories.isNotEmpty) ... [
+            const Text(
+              'Default Categories',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF6B7280),
+              ),
+            ),
+            const SizedBox(height: 12),
+            
+            // Default Category Grid
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: _categories.map((category) {
+                final isSelected = _selectedCategory == category.name;
+                final categoryColor = Color(category.colorCode);
+                
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedCategory = category.name;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? categoryColor : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: categoryColor,
+                        width: 2,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _getCategoryEmoji(category.name),
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          category.name,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected ? Colors.white : categoryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+          
+          // Custom Categories Section
+          if (_customCategories.isNotEmpty) ... [
+            const SizedBox(height: 20),
+            const Text(
+              'Your Custom Categories',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF6B7280),
+              ),
+            ),
+            const SizedBox(height: 12),
+            
+            // Custom Category Grid
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: _customCategories.map((category) {
+                final isSelected = _selectedCategory == category.name;
+                final categoryColor = Color(category.colorCode);
+                
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedCategory = category.name;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? categoryColor : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: categoryColor,
+                        width: 2,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '🎨', // Custom category emoji
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          category.name,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected ? Colors.white : categoryColor,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => _deleteCustomCategory(category),
+                          child: Icon(
+                            CupertinoIcons.delete,
+                            size: 16,
+                            color: isSelected ? Colors.white70 : categoryColor.withOpacity(0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ],
       ),
     );
@@ -503,16 +635,19 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
     try {
       // Create new symbol
       final newSymbol = Symbol(
+        id: 'symbol_${DateTime.now().millisecondsSinceEpoch}',
         label: _labelController.text.trim(),
         imagePath: _selectedImage!.path, // Will be saved to app directory later
         category: _selectedCategory,
         description: _descriptionController.text.trim(),
+        isDefault: false,
+        dateCreated: DateTime.now(),
       );
 
-      // Add to sample data (in a real app, this would be saved to database)
-      // For now, we'll just show success and return
+      // Save to user profile
+      await UserProfileService.addSymbolToActiveProfile(newSymbol);
       
-      await AACHelper.speak('New symbol ${newSymbol.label} added successfully');
+      await AACHelper.speak('New symbol ${newSymbol.label} added successfully to ${_selectedCategory} category');
       
       if (mounted) {
         Navigator.pop(context, newSymbol);
@@ -540,6 +675,151 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
         ],
       ),
     );
+  }
+
+  void _showCreateCategoryDialog() {
+    _customCategoryController.clear();
+    
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Create Custom Category'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            const Text(
+              'Enter a name for your new category:',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            CupertinoTextField(
+              controller: _customCategoryController,
+              placeholder: 'e.g., School, Sports, Music',
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: const Color(0xFFE2E8F0),
+                ),
+              ),
+              style: const TextStyle(
+                fontSize: 16,
+                color: Color(0xFF2D3748),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          CupertinoDialogAction(
+            child: const Text(
+              'Create',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onPressed: () {
+              final categoryName = _customCategoryController.text.trim();
+              if (categoryName.isNotEmpty) {
+                _createCustomCategory(categoryName);
+                Navigator.pop(context);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _createCustomCategory(String name) {
+    // Check if category already exists
+    final allCategories = [..._categories, ..._customCategories];
+    final exists = allCategories.any((cat) => cat.name.toLowerCase() == name.toLowerCase());
+    
+    if (exists) {
+      _showErrorDialog('A category with this name already exists.');
+      return;
+    }
+
+    // Generate a random color for the custom category
+    final colors = [
+      0xFF9F7AEA, // Purple
+      0xFFED8936, // Orange
+      0xFF38B2AC, // Teal
+      0xFFE53E3E, // Red
+      0xFF3182CE, // Blue
+      0xFF38A169, // Green
+      0xFFD69E2E, // Yellow
+      0xFFAD4E99, // Pink
+    ];
+    final randomColor = colors[DateTime.now().millisecond % colors.length];
+
+    final newCategory = Category(
+      name: name,
+      iconPath: 'custom', // Custom categories use emoji icon
+      colorCode: randomColor,
+    );
+
+    setState(() {
+      _customCategories.add(newCategory);
+      _selectedCategory = name; // Auto-select the new category
+    });
+
+    // In a real app, save to database/storage
+    _saveCustomCategories();
+
+    // Show success message
+    AACHelper.speak('Custom category $name created successfully');
+  }
+
+  void _deleteCustomCategory(Category category) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Delete Category'),
+        content: Text(
+          'Are you sure you want to delete the "${category.name}" category?\n\nThis action cannot be undone.',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('Delete'),
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _customCategories.remove(category);
+                // If the deleted category was selected, select the first default category
+                if (_selectedCategory == category.name) {
+                  _selectedCategory = _categories.first.name;
+                }
+              });
+              
+              // In a real app, remove from database/storage
+              _saveCustomCategories();
+              
+              AACHelper.speak('Category ${category.name} deleted');
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _saveCustomCategories() async {
+    // Save the custom category to the user's profile
+    for (final category in _customCategories) {
+      await UserProfileService.addCategoryToActiveProfile(category);
+    }
   }
 
   String _getCategoryEmoji(String categoryName) {

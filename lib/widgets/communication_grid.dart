@@ -496,46 +496,45 @@ class _CommunicationGridState extends State<CommunicationGrid>
       barrierDismissible: true,
       barrierLabel: 'Dismiss symbol view',
       barrierColor: Colors.black.withOpacity(0.6),
-      transitionDuration: const Duration(milliseconds: 250),
+      transitionDuration: const Duration(milliseconds: 450), // Slower animation
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        // Custom transition builder for both entry and exit animations
+        final scaleAnimation = Tween<double>(
+          begin: 0.2,
+          end: 1.0,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutQuint,
+        ));
+        
+        final fadeAnimation = Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        ));
+        
+        return ScaleTransition(
+          scale: scaleAnimation,
+          child: FadeTransition(
+            opacity: fadeAnimation,
+            child: child,
+          ),
+        );
+      },
       pageBuilder: (context, animation, secondaryAnimation) {
-        return AnimatedBuilder(
-          animation: animation,
-          builder: (context, child) {
-            final scaleAnimation = Tween<double>(
-              begin: 0.8,
-              end: 1.0,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutBack,
-            ));
-            
-            final fadeAnimation = Tween<double>(
-              begin: 0.0,
-              end: 1.0,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOut,
-            ));
-            
-            return GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Scaffold(
-                backgroundColor: Colors.transparent,
-                body: Center(
-                  child: Transform.scale(
-                    scale: scaleAnimation.value,
-                    child: Opacity(
-                      opacity: fadeAnimation.value,
-                      child: GestureDetector(
-                        onTap: () {}, // Prevent tap from propagating
-                        child: _SymbolMaximizedView(symbol: symbol),
-                      ),
-                    ),
-                  ),
-                ),
+        return GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: Center(
+              child: GestureDetector(
+                onTap: () {}, // Prevent tap from propagating
+                child: _SymbolMaximizedView(symbol: symbol),
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );

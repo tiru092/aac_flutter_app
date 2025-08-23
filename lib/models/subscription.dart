@@ -1,3 +1,5 @@
+import '../models/symbol.dart';
+
 enum SubscriptionPlan {
   free,
   monthly,
@@ -157,6 +159,8 @@ class UserProfile {
   final Subscription subscription;
   final List<PaymentTransaction> paymentHistory;
   final ProfileSettings settings;
+  final List<Symbol> userSymbols; // User-specific symbols
+  final List<Category> userCategories; // User-specific categories
 
   const UserProfile({
     required this.id,
@@ -168,6 +172,8 @@ class UserProfile {
     required this.subscription,
     this.paymentHistory = const [],
     required this.settings,
+    this.userSymbols = const [],
+    this.userCategories = const [],
   });
 
   bool get isPremium => subscription.isActive && !subscription.isExpired;
@@ -183,6 +189,8 @@ class UserProfile {
       'subscription': subscription.toJson(),
       'paymentHistory': paymentHistory.map((p) => p.toJson()).toList(),
       'settings': settings.toJson(),
+      'userSymbols': userSymbols.map((s) => s.toJson()).toList(),
+      'userCategories': userCategories.map((c) => c.toJson()).toList(),
     };
   }
 
@@ -201,6 +209,12 @@ class UserProfile {
               ?.map((p) => PaymentTransaction.fromJson(p))
               .toList() ?? [],
       settings: ProfileSettings.fromJson(json['settings']),
+      userSymbols: (json['userSymbols'] as List<dynamic>?)
+              ?.map((s) => Symbol.fromJson(s))
+              .toList() ?? [],
+      userCategories: (json['userCategories'] as List<dynamic>?)
+              ?.map((c) => Category.fromJson(c))
+              .toList() ?? [],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'utils/aac_helper.dart';
 
@@ -10,6 +11,9 @@ void main() async {
   // Initialize database and TTS
   await AACHelper.initializeDatabase();
   await AACHelper.initializeTTS();
+  
+  // Initialize SharedPreferences
+  await SharedPreferences.getInstance();
   
   // Set preferred orientations (portrait only for children)
   await SystemChrome.setPreferredOrientations([

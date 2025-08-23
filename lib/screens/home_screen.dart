@@ -7,6 +7,7 @@ import '../widgets/quick_phrases_bar.dart';
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
 import '../utils/sample_data.dart';
+import '../services/user_profile_service.dart';
 import 'accessibility_settings_screen.dart';
 import 'add_symbol_screen.dart';
 import 'profile_screen.dart';
@@ -23,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Symbol> _selectedSymbols = [];
   List<Symbol> _allSymbols = [];
   List<Category> _categories = [];
+  List<Category> _customCategories = [];
   bool _isLoading = true;
   bool _showQuickPhrases = false;
   bool _showSpeechControls = false;
@@ -36,14 +38,41 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _checkProfile();
+  }
+
+  Future<void> _checkProfile() async {
+    // Check if there's an active profile, otherwise create one
+    final activeProfile = await UserProfileService.getActiveProfile();
+    
+    if (activeProfile == null) {
+      // Create a default profile for the user
+      await UserProfileService.createProfile(
+        name: 'Default User',
+      );
+    }
+    
+    // Now load the data
     _loadData();
   }
 
   Future<void> _loadData() async {
-    // Load sample data
     setState(() {
-      _categories = SampleData.getSampleCategories();
-      _allSymbols = SampleData.getSampleSymbols();
+      _isLoading = true;
+    });
+    
+    // Load default sample data
+    final defaultCategories = SampleData.getSampleCategories();
+    final defaultSymbols = SampleData.getSampleSymbols();
+    
+    // Load user-specific data
+    final userSymbols = await UserProfileService.getUserSymbols();
+    final userCategories = await UserProfileService.getUserCategories();
+    
+    setState(() {
+      _categories = defaultCategories;
+      _customCategories = userCategories;
+      _allSymbols = [...defaultSymbols, ...userSymbols];
       _isLoading = false;
     });
     
@@ -120,6 +149,139 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _showProfileSwitcher() async {
+    // Get all available profiles
+    final profiles = await UserProfileService.getAllProfiles();
+    final currentProfile = await UserProfileService.getActiveProfile();
+    
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Switch Profile'),
+        message: const Text('Select a user profile or create a new one'),
+        actions: [
+          // Show existing profiles
+          ...profiles.map((profile) => CupertinoActionSheetAction(
+            onPressed: () async {
+              Navigator.pop(context);
+              if (profile.id != currentProfile?.id) {
+                await UserProfileService.setActiveProfile(profile);
+                // Reload data with the new profile
+                _loadData();
+              }
+            },
+            isDefaultAction: profile.id == currentProfile?.id,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  CupertinoIcons.person_fill,
+                  color: Color(0xFF4ECDC4),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  profile.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (profile.id == currentProfile?.id) ...[  
+                  const SizedBox(width: 8),
+                  const Icon(
+                    CupertinoIcons.checkmark_circle_fill,
+                    color: Color(0xFF38A169),
+                    size: 16,
+                  ),
+                ],
+              ],
+            ),
+          )),
+          
+          // Create new profile option
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _showCreateProfileDialog();
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  CupertinoIcons.person_badge_plus_fill,
+                  color: Color(0xFF6C63FF),
+                  size: 24,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Create New Profile',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+  
+  void _showCreateProfileDialog() {
+    final nameController = TextEditingController();
+    
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Create New Profile'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            CupertinoTextField(
+              controller: nameController,
+              placeholder: 'Enter user name',
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey6,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              if (name.isNotEmpty) {
+                Navigator.pop(context);
+                
+                // Create new profile
+                await UserProfileService.createProfile(name: name);
+                
+                // Reload data with the new profile
+                _loadData();
+              }
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+  
   void _openSettings() {
     showCupertinoModalPopup(
       context: context,
@@ -133,6 +295,30 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         message: const Text('Choose an option'),
         actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _showProfileSwitcher();
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  CupertinoIcons.person_2_fill,
+                  color: Color(0xFF38A169),
+                  size: 24,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Switch Profile',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(context);
@@ -448,6 +634,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.only(right: 12),
                       child: _buildCategoryTab(category.name),
                     )),
+                    
+                    // Divider between default and custom categories
+                    if (_customCategories.isNotEmpty) ... [
+                      Container(
+                        height: 30,
+                        width: 1,
+                        margin: const EdgeInsets.symmetric(horizontal: 8),
+                        color: Colors.grey.shade300,
+                      ),
+                      
+                      // Custom categories
+                      ..._customCategories.map((category) => Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: _buildCategoryTab(category.name, isCustom: true),
+                      )),
+                    ],
                   ],
                 ),
               ),
@@ -503,6 +705,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Add the new symbol to the list
                       setState(() {
                         _allSymbols.add(newSymbol);
+                        
+                        // Check if this is a new custom category
+                        final existingCategories = [
+                          ..._categories.map((c) => c.name),
+                          ..._customCategories.map((c) => c.name),
+                        ];
+                        
+                        if (!existingCategories.contains(newSymbol.category)) {
+                          // Create new custom category
+                          final newCategory = Category(
+                            name: newSymbol.category,
+                            iconPath: 'custom',
+                            colorCode: 0xFF9F7AEA, // Default purple
+                          );
+                          _customCategories.add(newCategory);
+                          
+                          // Save custom categories (in a real app)
+                          _saveCustomCategories();
+                        }
                       });
                       
                       // Show success message
@@ -774,11 +995,20 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCategoryTab(String categoryName) {
+  void _saveCustomCategories() async {
+    // Save custom categories to the user's profile
+    for (final category in _customCategories) {
+      await UserProfileService.addCategoryToActiveProfile(category);
+    }
+  }
+
+  Widget _buildCategoryTab(String categoryName, {bool isCustom = false}) {
     final isSelected = _currentCategory == categoryName;
     final categoryColor = categoryName == 'All' 
         ? const Color(0xFF4ECDC4)
-        : AACHelper.getCategoryColor(categoryName);
+        : isCustom
+            ? _findCustomCategoryColor(categoryName)
+            : AACHelper.getCategoryColor(categoryName);
     
     return GestureDetector(
       onTap: () => _changeCategory(categoryName),
@@ -803,7 +1033,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              _getCategoryEmoji(categoryName),
+              isCustom ? '🎨' : _getCategoryEmoji(categoryName),
               style: const TextStyle(fontSize: 18),
             ),
             const SizedBox(width: 6),
@@ -819,6 +1049,18 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+  
+  Color _findCustomCategoryColor(String categoryName) {
+    final customCategory = _customCategories.firstWhere(
+      (cat) => cat.name == categoryName,
+      orElse: () => Category(
+        name: categoryName,
+        iconPath: 'custom',
+        colorCode: 0xFF9F7AEA, // Default purple
+      ),
+    );
+    return Color(customCategory.colorCode);
   }
   
   String _getCategoryEmoji(String categoryName) {
