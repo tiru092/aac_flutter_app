@@ -299,9 +299,9 @@ class _CommunicationGridState extends State<CommunicationGrid>
               onTapUp: (_) => _pressAnimationController.reverse(),
               onTapCancel: () => _pressAnimationController.reverse(),
               onTap: () async {
-                await AACHelper.speak(symbol.label);
-                await AACHelper.accessibleHapticFeedback();
+                // Only speak once and add to sentence
                 widget.onSymbolTap(symbol);
+                await AACHelper.accessibleHapticFeedback();
                 _showSymbolPopup(symbol);
               },
               onLongPress: () async {
@@ -482,18 +482,18 @@ class _CommunicationGridState extends State<CommunicationGrid>
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Dismiss symbol view',
-      barrierColor: Colors.black.withOpacity(0.8),
-      transitionDuration: const Duration(milliseconds: 400),
+      barrierColor: Colors.black.withOpacity(0.6),
+      transitionDuration: const Duration(milliseconds: 250),
       pageBuilder: (context, animation, secondaryAnimation) {
         return AnimatedBuilder(
           animation: animation,
           builder: (context, child) {
             final scaleAnimation = Tween<double>(
-              begin: 0.0,
+              begin: 0.8,
               end: 1.0,
             ).animate(CurvedAnimation(
               parent: animation,
-              curve: Curves.elasticOut,
+              curve: Curves.easeOutBack,
             ));
             
             final fadeAnimation = Tween<double>(
@@ -501,14 +501,25 @@ class _CommunicationGridState extends State<CommunicationGrid>
               end: 1.0,
             ).animate(CurvedAnimation(
               parent: animation,
-              curve: Curves.easeInOut,
+              curve: Curves.easeOut,
             ));
             
-            return Transform.scale(
-              scale: scaleAnimation.value,
-              child: Opacity(
-                opacity: fadeAnimation.value,
-                child: _SymbolMaximizedView(symbol: symbol),
+            return GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Scaffold(
+                backgroundColor: Colors.transparent,
+                body: Center(
+                  child: Transform.scale(
+                    scale: scaleAnimation.value,
+                    child: Opacity(
+                      opacity: fadeAnimation.value,
+                      child: GestureDetector(
+                        onTap: () {}, // Prevent tap from propagating
+                        child: _SymbolMaximizedView(symbol: symbol),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             );
           },
@@ -587,10 +598,8 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
     // Start pulse animation
     _pulseController.repeat(reverse: true);
     
-    // Auto-speak the symbol when maximized
-    Future.delayed(const Duration(milliseconds: 300), () {
-      AACHelper.speak(widget.symbol.label);
-    });
+    // Speak the symbol immediately when maximized
+    AACHelper.speak(widget.symbol.label);
   }
 
   @override
@@ -598,158 +607,146 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
     final categoryColor = AACHelper.getCategoryColor(widget.symbol.category);
     final isHighContrast = AACHelper.isHighContrastEnabled;
     
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: GestureDetector(
-        onTap: () => Navigator.pop(context),
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          child: Center(
-            child: Container(
-              margin: const EdgeInsets.all(40),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
-                border: isHighContrast ? Border.all(
-                  color: categoryColor,
-                  width: 6,
-                ) : null,
-                boxShadow: isHighContrast ? [] : [
-                  BoxShadow(
-                    color: categoryColor.withOpacity(0.3),
-                    blurRadius: 30,
-                    offset: const Offset(0, 10),
-                    spreadRadius: 5,
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Header with category color
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    decoration: BoxDecoration(
-                      color: categoryColor,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(30),
-                        topRight: Radius.circular(30),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          widget.symbol.category,
-                          style: TextStyle(
-                            fontSize: 16 * AACHelper.getTextSizeMultiplier(),
-                            color: Colors.white.withOpacity(0.9),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          widget.symbol.label,
-                          style: TextStyle(
-                            fontSize: 28 * AACHelper.getTextSizeMultiplier(),
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Symbol image with pulse animation
-                  Padding(
-                    padding: const EdgeInsets.all(40),
-                    child: AnimatedBuilder(
-                      animation: _pulseAnimation,
-                      builder: (context, child) {
-                        return Transform.scale(
-                          scale: _pulseAnimation.value,
-                          child: Container(
-                            width: 250,
-                            height: 250,
-                            decoration: BoxDecoration(
-                              color: categoryColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(25),
-                              border: Border.all(
-                                color: categoryColor.withOpacity(0.3),
-                                width: 3,
-                              ),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(22),
-                              child: widget.symbol.imagePath.startsWith('assets/')
-                                  ? Image.asset(
-                                      widget.symbol.imagePath,
-                                      fit: BoxFit.contain,
-                                      semanticLabel: widget.symbol.label,
-                                    )
-                                  : Image.file(
-                                      File(widget.symbol.imagePath),
-                                      fit: BoxFit.contain,
-                                      semanticLabel: widget.symbol.label,
-                                    ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  
-                  // Description if available
-                  if (widget.symbol.description != null && widget.symbol.description!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 30),
-                      child: Text(
-                        widget.symbol.description!,
-                        style: TextStyle(
-                          fontSize: 18 * AACHelper.getTextSizeMultiplier(),
-                          color: Colors.grey[700],
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  
-                  const SizedBox(height: 30),
-                  
-                  // Action buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildActionButton(
-                        icon: CupertinoIcons.speaker_3_fill,
-                        label: 'Speak Again',
-                        color: categoryColor,
-                        onTap: () async {
-                          _bounceController.forward().then((_) {
-                            _bounceController.reverse();
-                          });
-                          await AACHelper.accessibleHapticFeedback();
-                          await AACHelper.speak(widget.symbol.label);
-                        },
-                      ),
-                      _buildActionButton(
-                        icon: CupertinoIcons.xmark_circle_fill,
-                        label: 'Close',
-                        color: Colors.grey[600]!,
-                        onTap: () {
-                          Navigator.pop(context);
-                        },
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 40),
-                ],
+    return Container(
+      margin: const EdgeInsets.all(40),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        border: isHighContrast ? Border.all(
+          color: categoryColor,
+          width: 6,
+        ) : null,
+        boxShadow: isHighContrast ? [] : [
+          BoxShadow(
+            color: categoryColor.withOpacity(0.3),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+            spreadRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header with category color
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            decoration: BoxDecoration(
+              color: categoryColor,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(30),
+                topRight: Radius.circular(30),
               ),
             ),
+            child: Column(
+              children: [
+                Text(
+                  widget.symbol.category,
+                  style: TextStyle(
+                    fontSize: 16 * AACHelper.getTextSizeMultiplier(),
+                    color: Colors.white.withOpacity(0.9),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.symbol.label,
+                  style: TextStyle(
+                    fontSize: 28 * AACHelper.getTextSizeMultiplier(),
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+          
+          // Symbol image with pulse animation
+          Padding(
+            padding: const EdgeInsets.all(40),
+            child: AnimatedBuilder(
+              animation: _pulseAnimation,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _pulseAnimation.value,
+                  child: Container(
+                    width: 250,
+                    height: 250,
+                    decoration: BoxDecoration(
+                      color: categoryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(25),
+                      border: Border.all(
+                        color: categoryColor.withOpacity(0.3),
+                        width: 3,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(22),
+                      child: widget.symbol.imagePath.startsWith('assets/')
+                          ? Image.asset(
+                              widget.symbol.imagePath,
+                              fit: BoxFit.contain,
+                              semanticLabel: widget.symbol.label,
+                            )
+                          : Image.file(
+                              File(widget.symbol.imagePath),
+                              fit: BoxFit.contain,
+                              semanticLabel: widget.symbol.label,
+                            ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          // Description if available
+          if (widget.symbol.description != null && widget.symbol.description!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 30),
+              child: Text(
+                widget.symbol.description!,
+                style: TextStyle(
+                  fontSize: 18 * AACHelper.getTextSizeMultiplier(),
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          
+          const SizedBox(height: 30),
+          
+          // Action buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildActionButton(
+                icon: CupertinoIcons.speaker_3_fill,
+                label: 'Speak Again',
+                color: categoryColor,
+                onTap: () async {
+                  _bounceController.forward().then((_) {
+                    _bounceController.reverse();
+                  });
+                  await AACHelper.accessibleHapticFeedback();
+                  await AACHelper.speak(widget.symbol.label);
+                },
+              ),
+              _buildActionButton(
+                icon: CupertinoIcons.xmark_circle_fill,
+                label: 'Close',
+                color: Colors.grey[600]!,
+                onTap: () {
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 40),
+        ],
       ),
     );
   }

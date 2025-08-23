@@ -564,53 +564,56 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
           ),
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: AACHelper.getAccessibleColors()[1].withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Center(
-            child: Text(
-              _languageService.getLanguageFlag(),
-              style: const TextStyle(fontSize: 24),
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          leading: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AACHelper.getAccessibleColors()[1].withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Text(
+                _languageService.getLanguageFlag(),
+                style: const TextStyle(fontSize: 24),
+              ),
             ),
           ),
-        ),
-        title: Text(
-          'Language & Voice',
-          style: TextStyle(
-            fontSize: 17 * AACHelper.getTextSizeMultiplier(),
-            fontWeight: FontWeight.w600,
-            color: AACHelper.isHighContrastEnabled 
-                ? Colors.black 
-                : Colors.black87,
-          ),
-        ),
-        subtitle: Text(
-          '${_languageService.getLanguageName()} • Configure voice settings',
-          style: TextStyle(
-            fontSize: 14 * AACHelper.getTextSizeMultiplier(),
-            color: AACHelper.isHighContrastEnabled 
-                ? Colors.black54 
-                : Colors.grey[600],
-          ),
-        ),
-        trailing: const Icon(
-          CupertinoIcons.chevron_right,
-          color: Colors.grey,
-        ),
-        onTap: () {
-          Navigator.push(
-            context,
-            CupertinoPageRoute(
-              builder: (context) => const LanguageSettingsScreen(),
+          title: Text(
+            'Language & Voice',
+            style: TextStyle(
+              fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+              fontWeight: FontWeight.w600,
+              color: AACHelper.isHighContrastEnabled 
+                  ? Colors.black 
+                  : Colors.black87,
             ),
-          );
-        },
+          ),
+          subtitle: Text(
+            '${_languageService.getLanguageName()} • Configure voice settings',
+            style: TextStyle(
+              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+              color: AACHelper.isHighContrastEnabled 
+                  ? Colors.black54 
+                  : Colors.grey[600],
+            ),
+          ),
+          trailing: const Icon(
+            CupertinoIcons.chevron_right,
+            color: Colors.grey,
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              CupertinoPageRoute(
+                builder: (context) => const LanguageSettingsScreen(),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -633,118 +636,122 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
           ),
         ],
       ),
-      child: Column(
-        children: [
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            leading: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AACHelper.getAccessibleColors()[2].withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                CupertinoIcons.archivebox_fill,
-                color: Color(0xFF6C63FF),
-                size: 24,
-              ),
-            ),
-            title: Text(
-              'Backup & Restore',
-              style: TextStyle(
-                fontSize: 17 * AACHelper.getTextSizeMultiplier(),
-                fontWeight: FontWeight.w600,
-                color: AACHelper.isHighContrastEnabled 
-                    ? Colors.black 
-                    : Colors.black87,
-              ),
-            ),
-            subtitle: Text(
-              'Save and restore your app data locally',
-              style: TextStyle(
-                fontSize: 14 * AACHelper.getTextSizeMultiplier(),
-                color: AACHelper.isHighContrastEnabled 
-                    ? Colors.black54 
-                    : Colors.grey[600],
-              ),
-            ),
-            trailing: const Icon(
-              CupertinoIcons.chevron_right,
-              color: Colors.grey,
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                CupertinoPageRoute(
-                  builder: (context) => const BackupManagementScreen(),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              leading: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AACHelper.getAccessibleColors()[2].withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              );
-            },
-          ),
-          const Divider(height: 1),
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            leading: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xFF4ECDC4).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                CupertinoIcons.cloud,
-                color: Color(0xFF4ECDC4),
-                size: 24,
-              ),
-            ),
-            title: Text(
-              'Cloud Sync',
-              style: TextStyle(
-                fontSize: 17 * AACHelper.getTextSizeMultiplier(),
-                fontWeight: FontWeight.w600,
-                color: AACHelper.isHighContrastEnabled 
-                    ? Colors.black 
-                    : Colors.black87,
-              ),
-            ),
-            subtitle: Text(
-              'Sync data across all your devices',
-              style: TextStyle(
-                fontSize: 14 * AACHelper.getTextSizeMultiplier(),
-                color: AACHelper.isHighContrastEnabled 
-                    ? Colors.black54 
-                    : Colors.grey[600],
-              ),
-            ),
-            trailing: const Icon(
-              CupertinoIcons.chevron_right,
-              color: Colors.grey,
-            ),
-            onTap: () {
-              // Navigator.push(
-              //   context,
-              //   CupertinoPageRoute(
-              //     builder: (context) => const CloudSyncScreen(),
-              //   ),
-              // );
-              // Temporarily disabled - Cloud sync coming soon
-              showCupertinoDialog(
-                context: context,
-                builder: (context) => CupertinoAlertDialog(
-                  title: const Text('Coming Soon'),
-                  content: const Text('Cloud sync feature will be available in a future update.'),
-                  actions: [
-                    CupertinoDialogAction(
-                      child: const Text('OK'),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
+                child: const Icon(
+                  CupertinoIcons.archivebox_fill,
+                  color: Color(0xFF6C63FF),
+                  size: 24,
                 ),
-              );
-            },
-          ),
-        ],
+              ),
+              title: Text(
+                'Backup & Restore',
+                style: TextStyle(
+                  fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+                  fontWeight: FontWeight.w600,
+                  color: AACHelper.isHighContrastEnabled 
+                      ? Colors.black 
+                      : Colors.black87,
+                ),
+              ),
+              subtitle: Text(
+                'Save and restore your app data locally',
+                style: TextStyle(
+                  fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+                  color: AACHelper.isHighContrastEnabled 
+                      ? Colors.black54 
+                      : Colors.grey[600],
+                ),
+              ),
+              trailing: const Icon(
+                CupertinoIcons.chevron_right,
+                color: Colors.grey,
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  CupertinoPageRoute(
+                    builder: (context) => const BackupManagementScreen(),
+                  ),
+                );
+              },
+            ),
+            const Divider(height: 1),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              leading: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4ECDC4).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  CupertinoIcons.cloud,
+                  color: Color(0xFF4ECDC4),
+                  size: 24,
+                ),
+              ),
+              title: Text(
+                'Cloud Sync',
+                style: TextStyle(
+                  fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+                  fontWeight: FontWeight.w600,
+                  color: AACHelper.isHighContrastEnabled 
+                      ? Colors.black 
+                      : Colors.black87,
+                ),
+              ),
+              subtitle: Text(
+                'Sync data across all your devices',
+                style: TextStyle(
+                  fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+                  color: AACHelper.isHighContrastEnabled 
+                      ? Colors.black54 
+                      : Colors.grey[600],
+                ),
+              ),
+              trailing: const Icon(
+                CupertinoIcons.chevron_right,
+                color: Colors.grey,
+              ),
+              onTap: () {
+                // Navigator.push(
+                //   context,
+                //   CupertinoPageRoute(
+                //     builder: (context) => const CloudSyncScreen(),
+                //   ),
+                // );
+                // Temporarily disabled - Cloud sync coming soon
+                showCupertinoDialog(
+                  context: context,
+                  builder: (context) => CupertinoAlertDialog(
+                    title: const Text('Coming Soon'),
+                    content: const Text('Cloud sync feature will be available in a future update.'),
+                    actions: [
+                      CupertinoDialogAction(
+                        child: const Text('OK'),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
