@@ -15,6 +15,7 @@ class CommunicationGrid extends StatefulWidget {
   final Function(Category) onCategoryTap;
   final Function(Symbol)? onSymbolEdit;
   final Function(Symbol)? onSymbolUpdate;
+  final VoidCallback? onAddSymbol;
   final ViewType viewType;
 
   const CommunicationGrid({
@@ -26,6 +27,7 @@ class CommunicationGrid extends StatefulWidget {
     required this.viewType,
     this.onSymbolEdit,
     this.onSymbolUpdate,
+    this.onAddSymbol,
   });
 
   @override
@@ -255,7 +257,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
             mainAxisSpacing: 16,
             childAspectRatio: 1.0,
           ),
-          itemCount: widget.symbols.length + 1, // +1 for add tile
+          itemCount: widget.symbols.length, // Remove +1 for add tile
           itemBuilder: (context, index) {
             final delay = index * 0.05;
             
@@ -268,9 +270,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
                 
                 return Transform.scale(
                   scale: animationValue,
-                  child: index >= widget.symbols.length 
-                      ? _buildAddTile(index) 
-                      : _buildSymbolCard(widget.symbols[index], index),
+                  child: _buildSymbolCard(widget.symbols[index], index),
                 );
               },
             );
@@ -414,114 +414,26 @@ class _CommunicationGridState extends State<CommunicationGrid>
     );
   }
 
-  Widget _buildAddTile(int index) {
-    return Semantics(
-      label: 'Add new symbol, Double tap to add',
-      button: true,
-      enabled: true,
-      child: AnimatedBuilder(
-        animation: _pressAnimation,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _pressAnimation.value,
-            child: GestureDetector(
-              onTapDown: (_) => _pressAnimationController.forward(),
-              onTapUp: (_) => _pressAnimationController.reverse(),
-              onTapCancel: () => _pressAnimationController.reverse(),
-              onTap: () async {
-                await AACHelper.accessibleHapticFeedback();
-                _showAddSymbolDialog();
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFF6C63FF).withOpacity(0.1),
-                      const Color(0xFF4ECDC4).withOpacity(0.1),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                    color: const Color(0xFF6C63FF).withOpacity(0.3),
-                    width: 3,
-                    style: BorderStyle.solid,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6C63FF).withOpacity(0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              const Color(0xFF6C63FF),
-                              const Color(0xFF4ECDC4),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        margin: const EdgeInsets.all(8),
-                        child: const Icon(
-                          CupertinoIcons.add_circled_solid,
-                          size: 50,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 1,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              const Color(0xFF6C63FF).withOpacity(0.1),
-                              const Color(0xFF4ECDC4).withOpacity(0.1),
-                            ],
-                          ),
-                          borderRadius: const BorderRadius.only(
-                            bottomLeft: Radius.circular(25),
-                            bottomRight: Radius.circular(25),
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            'Add Symbol',
-                            style: TextStyle(
-                              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF6C63FF),
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
+  String _getCategoryEmoji(String categoryName) {
+    switch (categoryName.toLowerCase()) {
+      case 'food & drinks':
+      case 'food':
+        return '🍎';
+      case 'vehicles':
+        return '🚗';
+      case 'emotions':
+        return '😊';
+      case 'actions':
+        return '🏃';
+      case 'family':
+        return '👨‍👩‍👧‍👦';
+      case 'basic needs':
+        return '🙏';
+      case 'custom':
+        return '⭐';
+      default:
+        return '📝';
+    }
   }
 
   Widget _buildEmptyState() {
@@ -572,7 +484,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
       barrierLabel: 'Dismiss symbol view',
       barrierColor: Colors.black.withOpacity(0.8),
       transitionDuration: const Duration(milliseconds: 400),
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
+      pageBuilder: (context, animation, secondaryAnimation) {
         return AnimatedBuilder(
           animation: animation,
           builder: (context, child) {
@@ -602,9 +514,6 @@ class _CommunicationGridState extends State<CommunicationGrid>
           },
         );
       },
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return Container(); // This won't be used due to transitionBuilder
-      },
     );
   }
 
@@ -621,43 +530,6 @@ class _CommunicationGridState extends State<CommunicationGrid>
         },
       ),
     );
-  }
-
-  void _showAddSymbolDialog() {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => EditTileDialog(
-        symbol: null, // null means creating a new symbol
-        onSave: (createdSymbol) {
-          widget.onSymbolUpdate?.call(createdSymbol);
-        },
-        onDelete: () {
-          // No delete action for new symbols
-        },
-      ),
-    );
-  }
-
-  String _getCategoryEmoji(String categoryName) {
-    switch (categoryName.toLowerCase()) {
-      case 'food & drinks':
-      case 'food':
-        return '🍎';
-      case 'vehicles':
-        return '🚗';
-      case 'emotions':
-        return '😊';
-      case 'actions':
-        return '🏃';
-      case 'family':
-        return '👨‍👩‍👧‍👦';
-      case 'basic needs':
-        return '🙏';
-      case 'custom':
-        return '⭐';
-      default:
-        return '📝';
-    }
   }
 
   @override

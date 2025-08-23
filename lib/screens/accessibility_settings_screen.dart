@@ -4,7 +4,7 @@ import '../utils/aac_helper.dart';
 import '../services/language_service.dart';
 import 'language_settings_screen.dart';
 import 'backup_management_screen.dart';
-import 'cloud_sync_screen.dart';
+// import 'cloud_sync_screen.dart';
 
 class AccessibilitySettingsScreen extends StatefulWidget {
   const AccessibilitySettingsScreen({super.key});
@@ -722,10 +722,24 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
               color: Colors.grey,
             ),
             onTap: () {
-              Navigator.push(
-                context,
-                CupertinoPageRoute(
-                  builder: (context) => const CloudSyncScreen(),
+              // Navigator.push(
+              //   context,
+              //   CupertinoPageRoute(
+              //     builder: (context) => const CloudSyncScreen(),
+              //   ),
+              // );
+              // Temporarily disabled - Cloud sync coming soon
+              showCupertinoDialog(
+                context: context,
+                builder: (context) => CupertinoAlertDialog(
+                  title: const Text('Coming Soon'),
+                  content: const Text('Cloud sync feature will be available in a future update.'),
+                  actions: [
+                    CupertinoDialogAction(
+                      child: const Text('OK'),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
                 ),
               );
             },

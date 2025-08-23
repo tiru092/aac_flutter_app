@@ -70,9 +70,9 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
+    return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      child: SlideTransition(
+      body: SlideTransition(
         position: _slideAnimation,
         child: Column(
           children: [
@@ -121,7 +121,7 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Icon(
-                    CupertinoIcons.back,
+                    Icons.arrow_back,
                     color: Colors.white,
                     size: 24,
                   ),

@@ -139,7 +139,30 @@ class AACHelper {
 
   // Text-to-Speech functionality (Enhanced with accessibility)
   static Future<void> speak(String text) async {
-    await speakWithAccessibility(text);
+    if (_flutterTts != null && text.isNotEmpty) {
+      try {
+        // Stop any current speech
+        await _flutterTts!.stop();
+        
+        // Apply current settings
+        final speechRate = getSetting<double>('speech_rate', defaultValue: 0.6) ?? 0.6;
+        final speechPitch = getSetting<double>('speech_pitch', defaultValue: 1.2) ?? 1.2;
+        final speechVolume = getSetting<double>('speech_volume', defaultValue: 1.0) ?? 1.0;
+        
+        await _flutterTts!.setSpeechRate(speechRate);
+        await _flutterTts!.setPitch(speechPitch);
+        await _flutterTts!.setVolume(speechVolume);
+        
+        // Speak the text
+        await _flutterTts!.speak(text);
+        
+        print('Speaking: $text'); // Debug output
+      } catch (e) {
+        print('TTS Error: $e');
+      }
+    } else {
+      print('TTS not initialized or empty text');
+    }
   }
 
   static Future<void> stopSpeaking() async {

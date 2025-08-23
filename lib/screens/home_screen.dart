@@ -30,13 +30,17 @@ class _HomeScreenState extends State<HomeScreen>
   int _selectedIndex = 0;
   late AnimationController _buttonAnimationController;
   late AnimationController _headerAnimationController;
+  late AnimationController _maximizeAnimationController;
   late Animation<double> _buttonAnimation;
   late Animation<double> _headerAnimation;
+  late Animation<double> _maximizeAnimation;
   List<Category> _categories = [];
   List<Symbol> _allSymbols = [];
   List<Symbol> _selectedSymbols = [];
   bool _isLoading = true;
-  bool _showQuickPhrases = false; // Professional AAC apps hide this by default
+  bool _showQuickPhrases = false;
+  Symbol? _maximizedSymbol;
+  bool _isMaximized = false;
   final PhraseHistoryService _historyService = PhraseHistoryService();
   final SymbolDatabaseService _databaseService = SymbolDatabaseService();
   final ProfileService _profileService = ProfileService();
@@ -46,27 +50,21 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
     _initializeAnimations();
-    _loadData();
-    _initializeAccessibility();
+    _initializeApp();
+  }
+  
+  Future<void> _initializeApp() async {
+    await _initializeAccessibility();
+    await _loadData();
   }
 
   Future<void> _initializeAccessibility() async {
-    // Initialize enhanced TTS with accessibility features
     await AACHelper.initializeAccessibleTTS();
-    
-    // Initialize phrase history service
     await _historyService.initialize();
-    
-    // Initialize symbol database service
     await _databaseService.initialize();
-    
-    // Initialize profile service
     await _profileService.initialize();
-    
-    // Initialize language service
     await _languageService.initialize();
     
-    // Announce app ready to screen readers
     Future.delayed(const Duration(milliseconds: 1000), () {
       AACHelper.announceToScreenReader('AAC Communication app is ready. Navigate through categories and symbols to communicate.');
     });
@@ -79,6 +77,10 @@ class _HomeScreenState extends State<HomeScreen>
     );
     _headerAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    _maximizeAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
     
@@ -96,19 +98,26 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
     
+    _maximizeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _maximizeAnimationController,
+        curve: Curves.elasticOut,
+      ),
+    );
+    
     _headerAnimationController.forward();
   }
 
   Future<void> _loadData() async {
     try {
-      // Load data from database service
+      await _databaseService.initialize();
+      
       setState(() {
         _categories = _databaseService.categories;
         _allSymbols = _databaseService.symbols;
         _isLoading = false;
       });
     } catch (e) {
-      // On error, fallback to sample data
       setState(() {
         _categories = SampleData.getSampleCategories();
         _allSymbols = SampleData.getSampleSymbols();
@@ -117,7 +126,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // Sentence Management Methods
   void _addSymbolToSentence(Symbol symbol) {
     setState(() {
       _selectedSymbols.add(symbol);
@@ -152,18 +160,14 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _speakSentence() async {
     if (_selectedSymbols.isNotEmpty) {
-      // Following memory specification: simplified speech output
       final sentence = _selectedSymbols.map((s) => s.label).join(' ');
       await AACHelper.speak(sentence);
       await AACHelper.accessibleHapticFeedback();
-      
-      // Add to phrase history
       await _historyService.addToHistory(sentence);
     }
   }
 
   void _onQuickPhraseSpeak(String phraseText) async {
-    // Quick phrases are spoken immediately and added to history
     await _historyService.addToHistory(phraseText);
   }
 
@@ -188,7 +192,6 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _onSymbolEdit(Symbol symbol) async {
-    // Handle symbol deletion
     if (symbol.id != null) {
       await _databaseService.deleteSymbol(symbol.id!);
       setState(() {
@@ -198,12 +201,9 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _onSymbolUpdate(Symbol updatedSymbol) async {
-    // Handle symbol update or creation
     if (updatedSymbol.id == null || updatedSymbol.id!.isEmpty) {
-      // New symbol
       await _databaseService.addSymbol(updatedSymbol);
     } else {
-      // Update existing symbol
       await _databaseService.updateSymbol(updatedSymbol);
     }
     
@@ -240,7 +240,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // PROFESSIONAL TOP BAR - Minimal like real AAC apps
   Widget _buildProfessionalTopBar() {
     return Container(
       height: 60,
@@ -258,7 +257,6 @@ class _HomeScreenState extends State<HomeScreen>
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
-            // App title - minimal
             Row(
               children: [
                 Text(
@@ -274,10 +272,8 @@ class _HomeScreenState extends State<HomeScreen>
             
             const Spacer(),
             
-            // Essential actions only - like professional AAC apps
             Row(
               children: [
-                // Quick Phrases toggle
                 _buildTopBarButton(
                   icon: CupertinoIcons.chat_bubble_2,
                   onPressed: () {
@@ -287,7 +283,6 @@ class _HomeScreenState extends State<HomeScreen>
                   },
                 ),
                 const SizedBox(width: 12),
-                // Settings
                 _buildTopBarButton(
                   icon: CupertinoIcons.gear,
                   onPressed: () => Navigator.push(
@@ -305,7 +300,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // Category chip for horizontal scrolling
   Widget _buildCategoryChip(String name, bool isSelected, VoidCallback onTap) {
     return Container(
       margin: const EdgeInsets.only(right: 8),
@@ -332,190 +326,795 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-
-  // Big symbol tile - professional AAC style
-  Widget _buildBigSymbolTile(Symbol symbol) {
-    final categoryColor = AACHelper.getCategoryColor(symbol.category);
-    
-    return GestureDetector(
-      onTap: () {
-        _addSymbolToSentence(symbol);
-        AACHelper.speak(symbol.label);
-        AACHelper.accessibleHapticFeedback();
-      },
+  Widget _buildTopBarButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onPressed,
       child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: categoryColor,
-            width: 3,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: categoryColor.withOpacity(0.15),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            // Image area - large
-            Expanded(
-              flex: 3,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: symbol.imagePath.startsWith('assets/')
-                      ? Image.asset(
-                          symbol.imagePath,
-                          fit: BoxFit.contain,
-                        )
-                      : Image.file(
-                          File(symbol.imagePath),
-                          fit: BoxFit.contain,
-                        ),
-                ),
-              ),
-            ),
-            // Label area - with category color
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: categoryColor,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(13),
-                  bottomRight: Radius.circular(13),
-                ),
-              ),
-              child: Text(
-                symbol.label,
-                style: TextStyle(
-                  fontSize: 16 * AACHelper.getTextSizeMultiplier(),
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Add symbol tile
-  Widget _buildAddSymbolTile() {
-    return GestureDetector(
-      onTap: _onAddButtonPressed,
-      child: Container(
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
           color: const Color(0xFFF7FAFC),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: const Color(0xFFE2E8F0),
-            width: 2,
-            style: BorderStyle.solid,
+            width: 1,
           ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xFF4299E1),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: const Icon(
-                CupertinoIcons.add,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Add Symbol',
-              style: TextStyle(
-                fontSize: 14 * AACHelper.getTextSizeMultiplier(),
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF4A5568),
-              ),
-            ),
-          ],
+        child: Icon(
+          icon,
+          color: const Color(0xFF4A5568),
+          size: 20,
         ),
       ),
     );
   }
 
-  // Empty state when no symbols
-  Widget _buildEmptyState() {
-    return Center(
+  Widget _buildCompactSentenceBar() {
+    return Container(
+      margin: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 80,
-            height: 80,
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            child: _selectedSymbols.isEmpty
+                ? Text(
+                    'Tap symbols to communicate',
+                    style: TextStyle(
+                      color: const Color(0xFF718096),
+                      fontSize: 16 * AACHelper.getTextSizeMultiplier(),
+                    ),
+                    textAlign: TextAlign.center,
+                  )
+                : Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: _selectedSymbols.asMap().entries.map((entry) {
+                      final categoryColor = AACHelper.getCategoryColor(entry.value.category);
+                      return GestureDetector(
+                        onTap: () => _removeSymbolAt(entry.key),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: categoryColor,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            entry.value.label,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+          ),
+          
+          if (_selectedSymbols.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: CupertinoButton(
+                      color: const Color(0xFF38A169),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      onPressed: _speakSentence,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(CupertinoIcons.speaker_2, color: Colors.white, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Speak',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16 * AACHelper.getTextSizeMultiplier(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  CupertinoButton(
+                    color: const Color(0xFFED8936),
+                    padding: const EdgeInsets.all(12),
+                    onPressed: _undoLastSymbol,
+                    child: const Icon(CupertinoIcons.back, color: Colors.white, size: 16),
+                  ),
+                  const SizedBox(width: 6),
+                  CupertinoButton(
+                    color: const Color(0xFFE53E3E),
+                    padding: const EdgeInsets.all(12),
+                    onPressed: _clearSentence,
+                    child: const Icon(CupertinoIcons.clear, color: Colors.white, size: 16),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainCommunicationArea() {
+    return Column(
+      children: [
+        if (_showQuickPhrases) 
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF7FAFC),
-              borderRadius: BorderRadius.circular(40),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: const Icon(
-              CupertinoIcons.chat_bubble_2,
-              size: 40,
-              color: Color(0xFF4A5568),
-            ),
+            child: QuickPhrasesBar(onPhraseSpeak: _onQuickPhraseSpeak),
           ),
-          const SizedBox(height: 20),
-          Text(
-            'No symbols yet!',
-            style: TextStyle(
-              fontSize: 24 * AACHelper.getTextSizeMultiplier(),
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF2D3748),
+        
+        if (_showQuickPhrases) const SizedBox(height: 12),
+        
+        Expanded(
+          child: _buildBigTileGrid(),
+        ),
+        
+        _buildFixedBottomBar(),
+      ],
+    );
+  }
+
+  Widget _buildBigTileGrid() {
+    final displaySymbols = _allSymbols.isNotEmpty ? _allSymbols : _createDefaultSymbols();
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        children: [
+          if (_categories.isNotEmpty)
+            Container(
+              height: 50,
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _categories.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return _buildCategoryChip('All', _selectedIndex == 0, () {
+                      setState(() => _selectedIndex = 0);
+                    });
+                  }
+                  final category = _categories[index - 1];
+                  return _buildCategoryChip(
+                    category.name,
+                    _selectedIndex == index,
+                    () => setState(() => _selectedIndex = index),
+                  );
+                },
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Tap the + button to add your first symbol',
-            style: TextStyle(
-              fontSize: 16 * AACHelper.getTextSizeMultiplier(),
-              color: const Color(0xFF718096),
+          
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.only(bottom: 20),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: displaySymbols.length,
+              itemBuilder: (context, index) {
+                return _buildBigSymbolTile(displaySymbols[index]);
+              },
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  // Create default symbols if none exist
+  Widget _buildBigSymbolTile(Symbol symbol) {
+    final categoryColor = AACHelper.getCategoryColor(symbol.category);
+    final isHighContrast = AACHelper.isHighContrastEnabled;
+
+    return GestureDetector(
+      onTap: () {
+        // Add to sentence first
+        _addSymbolToSentence(symbol);
+        // Speak the symbol
+        AACHelper.speak(symbol.label);
+        // Show maximize animation with popup
+        _showMaximizedSymbol(symbol);
+      },
+      onLongPress: () {
+        _showEditSymbolDialog(symbol);
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: categoryColor,
+            width: isHighContrast ? 4 : 3,
+          ),
+          boxShadow: isHighContrast ? [] : [
+            BoxShadow(
+              color: categoryColor.withOpacity(0.25),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: symbol.imagePath.startsWith('assets/')
+                      ? Image.asset(
+                          symbol.imagePath,
+                          fit: BoxFit.contain,
+                          semanticLabel: symbol.label,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildErrorIcon();
+                          },
+                        )
+                      : Image.file(
+                          File(symbol.imagePath),
+                          fit: BoxFit.contain,
+                          semanticLabel: symbol.label,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildErrorIcon();
+                          },
+                        ),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 1,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: categoryColor,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(17),
+                    bottomRight: Radius.circular(17),
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    symbol.label,
+                    style: TextStyle(
+                      fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          offset: const Offset(0.5, 0.5),
+                          blurRadius: 1,
+                          color: Colors.black.withOpacity(0.3),
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorIcon() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Icon(
+        CupertinoIcons.photo,
+        size: 40,
+        color: Colors.grey,
+      ),
+    );
+  }
+
+  void _showMaximizedSymbol(Symbol symbol) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss symbol view',
+      barrierColor: Colors.black.withOpacity(0.8),
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return AnimatedBuilder(
+          animation: animation,
+          builder: (context, child) {
+            final scaleAnimation = Tween<double>(
+              begin: 0.0,
+              end: 1.0,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.elasticOut,
+            ));
+            
+            return Transform.scale(
+              scale: scaleAnimation.value,
+              child: _SymbolMaximizedView(symbol: symbol),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showEditSymbolDialog(Symbol symbol) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => EditTileDialog(
+        symbol: symbol,
+        onSave: (updatedSymbol) {
+          _onSymbolUpdate(updatedSymbol);
+        },
+        onDelete: () {
+          _onSymbolEdit(symbol);
+        },
+      ),
+    );
+  }
+
+  Widget _buildFixedBottomBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: _onAddButtonPressed,
+                child: Container(
+                  height: 60,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF6C63FF),
+                        Color(0xFF4ECDC4),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF6C63FF).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.add_circled_solid,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Add Symbol',
+                        style: TextStyle(
+                          fontSize: 18 * AACHelper.getTextSizeMultiplier(),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _onAddButtonPressed() async {
+    await AACHelper.accessibleHapticFeedback();
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Add Symbol'),
+        content: const Text('Symbol creation feature available!'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('OK'),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<Symbol> _createDefaultSymbols() {
     return [
       Symbol(
         label: 'Hello',
         imagePath: 'assets/symbols/hello.png',
         category: 'Social',
+        speechText: 'Hello',
         isDefault: true,
       ),
       Symbol(
         label: 'Please',
         imagePath: 'assets/symbols/please.png',
         category: 'Social',
+        speechText: 'Please',
         isDefault: true,
       ),
       Symbol(
         label: 'Thank You',
         imagePath: 'assets/symbols/thank_you.png',
         category: 'Social',
+        speechText: 'Thank you',
+        isDefault: true,
+      ),
+      Symbol(
+        label: 'Apple',
+        imagePath: 'assets/symbols/apple.png',
+        category: 'Food & Drinks',
+        speechText: 'Apple',
+        isDefault: true,
+      ),
+      Symbol(
+        label: 'Water',
+        imagePath: 'assets/symbols/water.png',
+        category: 'Food & Drinks',
+        speechText: 'Water',
+        isDefault: true,
+      ),
+      Symbol(
+        label: 'Eat',
+        imagePath: 'assets/symbols/eat.png',
+        category: 'Actions',
+        speechText: 'I want to eat',
+        isDefault: true,
+      ),
+      Symbol(
+        label: 'Custom',
+        imagePath: 'assets/symbols/custom.png',
+        category: 'Custom',
+        speechText: 'Custom',
+        isDefault: true,
+      ),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF7FAFC),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CupertinoActivityIndicator(
+                radius: 20,
+                color: Color(0xFF4299E1),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Loading AAC Communicator...',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Color(0xFF4A5568),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7FAFC),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildProfessionalTopBar(),
+            _buildCompactSentenceBar(),
+            Expanded(
+              child: _buildMainCommunicationArea(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _buttonAnimationController.dispose();
+    _headerAnimationController.dispose();
+    _maximizeAnimationController.dispose();
+    super.dispose();
+  }
+}
+
+class _SymbolMaximizedView extends StatefulWidget {
+  final Symbol symbol;
+
+  const _SymbolMaximizedView({required this.symbol});
+
+  @override
+  State<_SymbolMaximizedView> createState() => _SymbolMaximizedViewState();
+}
+
+class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
+    with TickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.1,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+    
+    _pulseController.repeat(reverse: true);
+    
+    // Auto-speak the symbol when maximized
+    Future.delayed(const Duration(milliseconds: 300), () {
+      AACHelper.speak(widget.symbol.label);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categoryColor = AACHelper.getCategoryColor(widget.symbol.category);
+    
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          child: Center(
+            child: Container(
+              margin: const EdgeInsets.all(40),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: categoryColor.withOpacity(0.3),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    decoration: BoxDecoration(
+                      color: categoryColor,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(30),
+                        topRight: Radius.circular(30),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          widget.symbol.category,
+                          style: TextStyle(
+                            fontSize: 16 * AACHelper.getTextSizeMultiplier(),
+                            color: Colors.white.withOpacity(0.9),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          widget.symbol.label,
+                          style: TextStyle(
+                            fontSize: 28 * AACHelper.getTextSizeMultiplier(),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  Padding(
+                    padding: const EdgeInsets.all(40),
+                    child: AnimatedBuilder(
+                      animation: _pulseAnimation,
+                      builder: (context, child) {
+                        return Transform.scale(
+                          scale: _pulseAnimation.value,
+                          child: Container(
+                            width: 250,
+                            height: 250,
+                            decoration: BoxDecoration(
+                              color: categoryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(25),
+                              border: Border.all(
+                                color: categoryColor.withOpacity(0.3),
+                                width: 3,
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(22),
+                              child: widget.symbol.imagePath.startsWith('assets/')
+                                  ? Image.asset(
+                                      widget.symbol.imagePath,
+                                      fit: BoxFit.contain,
+                                      semanticLabel: widget.symbol.label,
+                                    )
+                                  : Image.file(
+                                      File(widget.symbol.imagePath),
+                                      fit: BoxFit.contain,
+                                      semanticLabel: widget.symbol.label,
+                                    ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  CupertinoButton(
+                    color: categoryColor,
+                    onPressed: () async {
+                      await AACHelper.accessibleHapticFeedback();
+                      await AACHelper.speak(widget.symbol.label);
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(CupertinoIcons.speaker_3_fill, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Speak Again',
+                          style: TextStyle(
+                            fontSize: 18 * AACHelper.getTextSizeMultiplier(),
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+}
+        imagePath: 'assets/symbols/apple.png',
+        category: 'Food',
+        speechText: 'Apple',
+        isDefault: true,
+      ),
+      Symbol(
+        label: 'Water',
+        imagePath: 'assets/symbols/water.png',
+        category: 'Food',
+        speechText: 'Water',
+        isDefault: true,
+      ),
+      Symbol(
+        label: 'Milk',
+        imagePath: 'assets/symbols/milk.png',
+        category: 'Food',
+        speechText: 'Milk',
+        isDefault: true,
+      ),
+      // Actions
+      Symbol(
+        label: 'Eat',
+        imagePath: 'assets/symbols/eat.png',
+        category: 'Actions',
+        speechText: 'I want to eat',
+        isDefault: true,
+      ),
+      Symbol(
+        label: 'Drink',
+        imagePath: 'assets/symbols/drink.png',
+        category: 'Actions',
+        speechText: 'I want to drink',
+        isDefault: true,
+      ),
+      Symbol(
+        label: 'Help',
+        imagePath: 'assets/symbols/help.png',
+        category: 'Social',
+        speechText: 'Help me please',
         isDefault: true,
       ),
     ];
@@ -804,6 +1403,9 @@ class _HomeScreenState extends State<HomeScreen>
         Expanded(
           child: _buildBigTileGrid(),
         ),
+        
+        // FIXED BOTTOM BAR - Add Symbol Button
+        _buildFixedBottomBar(),
       ],
     );
   }
@@ -841,33 +1443,247 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
           
-          // Big symbol tiles
+          // Big symbol tiles - always show displaySymbols (either loaded or default)
           Expanded(
-            child: _allSymbols.isEmpty 
-                ? _buildEmptyState()
-                : GridView.builder(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3, // Professional AAC apps use 3 columns
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.0,
-                    ),
-                    itemCount: displaySymbols.length + 1, // +1 for add button
-                    itemBuilder: (context, index) {
-                      if (index >= displaySymbols.length) {
-                        return _buildAddSymbolTile();
-                      }
-                      return _buildBigSymbolTile(displaySymbols[index]);
-                    },
-                  ),
+            child: GridView.builder(
+              padding: const EdgeInsets.only(bottom: 20),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3, // Professional AAC apps use 3 columns
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: displaySymbols.length, // Remove +1 for add button - now in bottom bar
+              itemBuilder: (context, index) {
+                return _buildBigSymbolTile(displaySymbols[index]);
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
+  // FIXED BOTTOM BAR - Professional AAC App Style
+  Widget _buildFixedBottomBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Add Symbol Button - Full width
+            Expanded(
+              child: GestureDetector(
+                onTap: _onAddButtonPressed,
+                child: Container(
+                  height: 60,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF6C63FF),
+                        const Color(0xFF4ECDC4),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF6C63FF).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.add_circled_solid,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Add Symbol',
+                        style: TextStyle(
+                          fontSize: 18 * AACHelper.getTextSizeMultiplier(),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
+  // BIG SYMBOL TILE - The missing method that's needed for symbol functionality!
+  Widget _buildBigSymbolTile(Symbol symbol) {
+    final categoryColor = AACHelper.getCategoryColor(symbol.category);
+    final isHighContrast = AACHelper.isHighContrastEnabled;
+
+    return GestureDetector(
+      onTap: () {
+        // Add to sentence
+        _addSymbolToSentence(symbol);
+        // Speak the symbol
+        AACHelper.speak(symbol.label);
+        // Show maximize animation
+        setState(() {
+          _maximizedSymbol = symbol;
+          _isMaximized = true;
+        });
+        _maximizeAnimationController.forward();
+      },
+      onLongPress: () {
+        // Show edit dialog for long press
+        _showEditSymbolDialog(symbol);
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: categoryColor,
+            width: isHighContrast ? 4 : 3,
+          ),
+          boxShadow: isHighContrast ? [] : [
+            BoxShadow(
+              color: categoryColor.withOpacity(0.25),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: symbol.imagePath.startsWith('assets/')
+                      ? Image.asset(
+                          symbol.imagePath,
+                          fit: BoxFit.contain,
+                          semanticLabel: symbol.label,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                CupertinoIcons.photo,
+                                size: 40,
+                                color: Colors.grey,
+                              ),
+                            );
+                          },
+                        )
+                      : Image.file(
+                          File(symbol.imagePath),
+                          fit: BoxFit.contain,
+                          semanticLabel: symbol.label,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                CupertinoIcons.photo,
+                                size: 40,
+                                color: Colors.grey,
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 1,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: categoryColor,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(17),
+                    bottomRight: Radius.circular(17),
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    symbol.label,
+                    style: TextStyle(
+                      fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          offset: const Offset(0.5, 0.5),
+                          blurRadius: 1,
+                          color: Colors.black.withOpacity(0.3),
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditSymbolDialog(Symbol symbol) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => EditTileDialog(
+        symbol: symbol,
+        onSave: (updatedSymbol) {
+          _onSymbolUpdate(updatedSymbol);
+        },
+        onDelete: () {
+          _onSymbolEdit(symbol);
+        },
+      ),
+    );
+  }
 
   // Add button handler
   void _onAddButtonPressed() async {
@@ -1306,9 +2122,228 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-
-
-
+  Widget _buildMaximizedSymbolOverlay() {
+    if (_maximizedSymbol == null) return Container();
+    
+    final categoryColor = AACHelper.getCategoryColor(_maximizedSymbol!.category);
+    final isHighContrast = AACHelper.isHighContrastEnabled;
+    
+    return AnimatedBuilder(
+      animation: _maximizeAnimation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _maximizeAnimation.value,
+          child: GestureDetector(
+            onTap: () {
+              // Hide maximized symbol when tapped
+              setState(() {
+                _maximizedSymbol = null;
+                _isMaximized = false;
+              });
+              _maximizeAnimationController.reverse();
+            },
+            child: Container(
+              color: Colors.black.withOpacity(0.8),
+              child: Center(
+                child: Transform.scale(
+                  scale: _maximizeAnimation.value,
+                  child: Container(
+                    margin: const EdgeInsets.all(40),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                      border: isHighContrast ? Border.all(
+                        color: categoryColor,
+                        width: 6,
+                      ) : null,
+                      boxShadow: isHighContrast ? [] : [
+                        BoxShadow(
+                          color: categoryColor.withOpacity(0.3),
+                          blurRadius: 30,
+                          offset: const Offset(0, 10),
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Header with category color
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          decoration: BoxDecoration(
+                            color: categoryColor,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(30),
+                              topRight: Radius.circular(30),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                _maximizedSymbol!.category,
+                                style: TextStyle(
+                                  fontSize: 16 * AACHelper.getTextSizeMultiplier(),
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _maximizedSymbol!.label,
+                                style: TextStyle(
+                                  fontSize: 28 * AACHelper.getTextSizeMultiplier(),
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        // Symbol image
+                        Padding(
+                          padding: const EdgeInsets.all(40),
+                          child: Container(
+                            width: 250,
+                            height: 250,
+                            decoration: BoxDecoration(
+                              color: categoryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(25),
+                              border: Border.all(
+                                color: categoryColor.withOpacity(0.3),
+                                width: 3,
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(22),
+                              child: _maximizedSymbol!.imagePath.startsWith('assets/')
+                                  ? Image.asset(
+                                      _maximizedSymbol!.imagePath,
+                                      fit: BoxFit.contain,
+                                      semanticLabel: _maximizedSymbol!.label,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade200,
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Icon(
+                                            CupertinoIcons.photo,
+                                            size: 40,
+                                            color: Colors.grey,
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : Image.file(
+                                      File(_maximizedSymbol!.imagePath),
+                                      fit: BoxFit.contain,
+                                      semanticLabel: _maximizedSymbol!.label,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade200,
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Icon(
+                                            CupertinoIcons.photo,
+                                            size: 40,
+                                            color: Colors.grey,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ),
+                        ),
+                        
+                        // Action buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            GestureDetector(
+                              onTap: () {
+                                AACHelper.speak(_maximizedSymbol!.label);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                                decoration: BoxDecoration(
+                                  color: categoryColor,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      CupertinoIcons.speaker_3_fill,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Speak Again',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12 * AACHelper.getTextSizeMultiplier(),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _maximizedSymbol = null;
+                                  _isMaximized = false;
+                                });
+                                _maximizeAnimationController.reverse();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[600]!,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      CupertinoIcons.xmark_circle_fill,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Close',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12 * AACHelper.getTextSizeMultiplier(),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        const SizedBox(height: 40),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1343,18 +2378,27 @@ class _HomeScreenState extends State<HomeScreen>
       home: Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
         body: SafeArea(
-          child: Column(
+          child: Stack(
             children: [
-              // MINIMAL TOP BAR - Clean and professional
-              _buildProfessionalTopBar(),
-              
-              // COMPACT SENTENCE BAR - Always visible but minimal
-              _buildCompactSentenceBar(),
-              
-              // MAIN COMMUNICATION AREA - Big tiles front and center
-              Expanded(
-                child: _buildMainCommunicationArea(),
+              // Main app content
+              Column(
+                children: [
+                  // MINIMAL TOP BAR - Clean and professional
+                  _buildProfessionalTopBar(),
+                  
+                  // COMPACT SENTENCE BAR - Always visible but minimal
+                  _buildCompactSentenceBar(),
+                  
+                  // MAIN COMMUNICATION AREA - Big tiles front and center
+                  Expanded(
+                    child: _buildMainCommunicationArea(),
+                  ),
+                ],
               ),
+              
+              // MAXIMIZED SYMBOL OVERLAY
+              if (_isMaximized && _maximizedSymbol != null)
+                _buildMaximizedSymbolOverlay(),
             ],
           ),
         ),
@@ -1366,6 +2410,7 @@ class _HomeScreenState extends State<HomeScreen>
   void dispose() {
     _buttonAnimationController.dispose();
     _headerAnimationController.dispose();
+    _maximizeAnimationController.dispose();
     super.dispose();
   }
 }
