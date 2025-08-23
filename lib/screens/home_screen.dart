@@ -8,6 +8,9 @@ import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
 import '../utils/sample_data.dart';
 import 'accessibility_settings_screen.dart';
+import 'add_symbol_screen.dart';
+import 'profile_screen.dart';
+import 'subscription_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -118,10 +121,116 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openSettings() {
-    Navigator.push(
-      context,
-      CupertinoPageRoute(
-        builder: (context) => const AccessibilitySettingsScreen(),
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text(
+          'Menu',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        message: const Text('Choose an option'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                CupertinoPageRoute(
+                  builder: (context) => const ProfileScreen(),
+                ),
+              );
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  CupertinoIcons.person_circle,
+                  color: Color(0xFF4ECDC4),
+                  size: 24,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Profile',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                CupertinoPageRoute(
+                  builder: (context) => const SubscriptionScreen(),
+                ),
+              );
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  CupertinoIcons.star_fill,
+                  color: Color(0xFFFFD700),
+                  size: 24,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Premium Plans',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                CupertinoPageRoute(
+                  builder: (context) => const AccessibilitySettingsScreen(),
+                ),
+              );
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  CupertinoIcons.settings,
+                  color: Color(0xFF6C63FF),
+                  size: 24,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Accessibility Settings',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -381,21 +490,36 @@ class _HomeScreenState extends State<HomeScreen> {
               child: SafeArea(
                 top: false,
                 child: GestureDetector(
-                  onTap: () {
-                    // Add symbol functionality
-                    showCupertinoDialog(
-                      context: context,
-                      builder: (context) => CupertinoAlertDialog(
-                        title: const Text('Add Symbol'),
-                        content: const Text('Add symbol functionality here!'),
-                        actions: [
-                          CupertinoDialogAction(
-                            child: const Text('OK'),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
+                  onTap: () async {
+                    // Navigate to Add Symbol screen
+                    final newSymbol = await Navigator.push<Symbol>(
+                      context,
+                      CupertinoPageRoute(
+                        builder: (context) => const AddSymbolScreen(),
                       ),
                     );
+                    
+                    if (newSymbol != null) {
+                      // Add the new symbol to the list
+                      setState(() {
+                        _allSymbols.add(newSymbol);
+                      });
+                      
+                      // Show success message
+                      showCupertinoDialog(
+                        context: context,
+                        builder: (context) => CupertinoAlertDialog(
+                          title: const Text('Symbol Added'),
+                          content: Text('"${newSymbol.label}" has been added to ${newSymbol.category} category.'),
+                          actions: [
+                            CupertinoDialogAction(
+                              child: const Text('Great!'),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
                   },
                   child: Container(
                     height: 60,

@@ -33,8 +33,21 @@ class QuickPhrase {
     label: json['label'],
     speechText: json['speechText'],
     color: Color(json['color']),
-    icon: IconData(json['icon'], fontFamily: 'CupertinoIcons'),
+    icon: _getIconFromCode(json['icon']),
   );
+  
+  static IconData _getIconFromCode(int codePoint) {
+    // Map common icon codes to constant icons for release builds
+    switch (codePoint) {
+      case 0xf37d: return CupertinoIcons.hand_raised_fill;
+      case 0xf443: return CupertinoIcons.heart_fill;
+      case 0xf4b6: return CupertinoIcons.star_fill;
+      case 0xf37e: return CupertinoIcons.hand_raised_slash_fill;
+      case 0xf4aa: return CupertinoIcons.stop_fill;
+      case 0xf489: return CupertinoIcons.plus_circle_fill;
+      default: return CupertinoIcons.star_fill; // Fallback icon
+    }
+  }
 }
 
 class QuickPhrasesBar extends StatefulWidget {
