@@ -335,23 +335,36 @@ class _CommunicationGridState extends State<CommunicationGrid>
                         padding: const EdgeInsets.all(8),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: symbol.imagePath.startsWith('assets/')
-                              ? Image.asset(
-                                  symbol.imagePath,
-                                  fit: BoxFit.contain,
-                                  semanticLabel: symbol.label,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return _buildErrorIcon();
-                                  },
+                          child: symbol.imagePath.startsWith('emoji:')
+                              ? Container(
+                                  decoration: BoxDecoration(
+                                    color: categoryColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      symbol.imagePath.substring(6), // Remove 'emoji:' prefix
+                                      style: const TextStyle(fontSize: 48),
+                                    ),
+                                  ),
                                 )
-                              : Image.file(
-                                  File(symbol.imagePath),
-                                  fit: BoxFit.contain,
-                                  semanticLabel: symbol.label,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return _buildErrorIcon();
-                                  },
-                                ),
+                              : symbol.imagePath.startsWith('assets/')
+                                  ? Image.asset(
+                                      symbol.imagePath,
+                                      fit: BoxFit.contain,
+                                      semanticLabel: symbol.label,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return _buildErrorIcon();
+                                      },
+                                    )
+                                  : Image.file(
+                                      File(symbol.imagePath),
+                                      fit: BoxFit.contain,
+                                      semanticLabel: symbol.label,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return _buildErrorIcon();
+                                      },
+                                    ),
                         ),
                       ),
                     ),
@@ -683,17 +696,24 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(22),
-                      child: widget.symbol.imagePath.startsWith('assets/')
-                          ? Image.asset(
-                              widget.symbol.imagePath,
-                              fit: BoxFit.contain,
-                              semanticLabel: widget.symbol.label,
+                      child: widget.symbol.imagePath.startsWith('emoji:')
+                          ? Center(
+                              child: Text(
+                                widget.symbol.imagePath.substring(6), // Remove 'emoji:' prefix
+                                style: const TextStyle(fontSize: 120),
+                              ),
                             )
-                          : Image.file(
-                              File(widget.symbol.imagePath),
-                              fit: BoxFit.contain,
-                              semanticLabel: widget.symbol.label,
-                            ),
+                          : widget.symbol.imagePath.startsWith('assets/')
+                              ? Image.asset(
+                                  widget.symbol.imagePath,
+                                  fit: BoxFit.contain,
+                                  semanticLabel: widget.symbol.label,
+                                )
+                              : Image.file(
+                                  File(widget.symbol.imagePath),
+                                  fit: BoxFit.contain,
+                                  semanticLabel: widget.symbol.label,
+                                ),
                     ),
                   ),
                 );

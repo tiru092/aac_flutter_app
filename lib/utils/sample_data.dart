@@ -38,214 +38,250 @@ class SampleData {
 
   static List<Symbol> getSampleSymbols() {
     return [
-      // Food & Drinks
+      // Food & Drinks (with emoji fallbacks)
       Symbol(
         label: 'Apple',
-        imagePath: 'assets/symbols/Apple.png',
+        imagePath: 'assets/symbols/Apple.png', // Real image available
         category: 'Food & Drinks',
         description: 'Red apple fruit',
       ),
       Symbol(
         label: 'Water',
-        imagePath: 'assets/symbols/Water.png',
+        imagePath: 'assets/symbols/Water.png', // Real image available
         category: 'Food & Drinks',
         description: 'Glass of water',
       ),
       Symbol(
         label: 'Milk',
-        imagePath: 'assets/symbols/milk.png',
+        imagePath: 'emoji:🥛', // Emoji fallback
         category: 'Food & Drinks',
         description: 'Glass of milk',
       ),
       Symbol(
         label: 'Bread',
-        imagePath: 'assets/symbols/bread.png',
+        imagePath: 'emoji:🍞', // Emoji fallback
         category: 'Food & Drinks',
         description: 'Slice of bread',
       ),
       Symbol(
         label: 'Banana',
-        imagePath: 'assets/symbols/banana.png',
+        imagePath: 'emoji:🍌', // Emoji fallback
         category: 'Food & Drinks',
         description: 'Yellow banana',
       ),
       Symbol(
         label: 'Cookie',
-        imagePath: 'assets/symbols/cookie.png',
+        imagePath: 'emoji:🍪', // Emoji fallback
         category: 'Food & Drinks',
         description: 'Chocolate chip cookie',
       ),
+      Symbol(
+        label: 'Pizza',
+        imagePath: 'emoji:🍕', // Emoji fallback
+        category: 'Food & Drinks',
+        description: 'Slice of pizza',
+      ),
+      Symbol(
+        label: 'Ice Cream',
+        imagePath: 'emoji:🍦', // Emoji fallback
+        category: 'Food & Drinks',
+        description: 'Ice cream cone',
+      ),
+      Symbol(
+        label: 'Juice',
+        imagePath: 'emoji:🧃', // Emoji fallback
+        category: 'Food & Drinks',
+        description: 'Juice box',
+      ),
 
-      // Vehicles
+      // Vehicles (with emoji fallbacks)
       Symbol(
         label: 'Car',
-        imagePath: 'assets/symbols/Car.png',
+        imagePath: 'assets/symbols/Car.png', // Real image available
         category: 'Vehicles',
         description: 'Red car',
       ),
       Symbol(
         label: 'Bus',
-        imagePath: 'assets/symbols/bus.png',
+        imagePath: 'emoji:🚌', // Emoji fallback
         category: 'Vehicles',
         description: 'Yellow school bus',
       ),
       Symbol(
         label: 'Train',
-        imagePath: 'assets/symbols/train.png',
+        imagePath: 'emoji:🚂', // Emoji fallback
         category: 'Vehicles',
         description: 'Blue train',
       ),
       Symbol(
         label: 'Airplane',
-        imagePath: 'assets/symbols/airplane.png',
+        imagePath: 'emoji:✈️', // Emoji fallback
         category: 'Vehicles',
         description: 'White airplane',
       ),
       Symbol(
         label: 'Bike',
-        imagePath: 'assets/symbols/bike.png',
+        imagePath: 'emoji:🚲', // Emoji fallback
         category: 'Vehicles',
         description: 'Red bicycle',
       ),
-
-      // Emotions
       Symbol(
-        label: 'Happy',
-        imagePath: 'assets/symbols/happy.png',
-        category: 'Emotions',
-        description: 'Happy face',
+        label: 'Truck',
+        imagePath: 'emoji:🚚', // Emoji fallback
+        category: 'Vehicles',
+        description: 'Delivery truck',
       ),
       Symbol(
-        label: 'Sad',
-        imagePath: 'assets/symbols/sad.png',
-        category: 'Emotions',
-        description: 'Sad face',
+        label: 'Boat',
+        imagePath: 'emoji:🚤', // Emoji fallback
+        category: 'Vehicles',
+        description: 'Speed boat',
       ),
       Symbol(
-        label: 'Angry',
-        imagePath: 'assets/symbols/angry.png',
-        category: 'Emotions',
-        description: 'Angry face',
-      ),
-      Symbol(
-        label: 'Excited',
-        imagePath: 'assets/symbols/excited.png',
-        category: 'Emotions',
-        description: 'Excited face',
-      ),
-      Symbol(
-        label: 'Sleepy',
-        imagePath: 'assets/symbols/sleepy.png',
-        category: 'Emotions',
-        description: 'Sleepy face',
+        label: 'Helicopter',
+        imagePath: 'emoji:🚁', // Emoji fallback
+        category: 'Vehicles',
+        description: 'Helicopter',
       ),
 
-      // Actions
+      // Basic Needs (using existing images and emojis)
+      Symbol(
+        label: 'I need',
+        imagePath: 'emoji:🙋', // Emoji fallback
+        category: 'Basic Needs',
+        description: 'I need something',
+      ),
+      Symbol(
+        label: 'Help',
+        imagePath: 'emoji:🆘', // Emoji fallback
+        category: 'Basic Needs',
+        description: 'I need help',
+      ),
+      Symbol(
+        label: 'More',
+        imagePath: 'emoji:➕', // Emoji fallback
+        category: 'Basic Needs',
+        description: 'I want more',
+      ),
+      Symbol(
+        label: 'Stop',
+        imagePath: 'emoji:🛑', // Emoji fallback
+        category: 'Basic Needs',
+        description: 'Stop please',
+      ),
+      Symbol(
+        label: 'Thank You',
+        imagePath: 'emoji:🙏', // Emoji fallback
+        category: 'Basic Needs',
+        description: 'Thank you',
+      ),
+      Symbol(
+        label: 'Please',
+        imagePath: 'emoji:🥺', // Emoji fallback
+        category: 'Basic Needs',
+        description: 'Please',
+      ),
+
+      // Actions (using emojis for kids to learn)
       Symbol(
         label: 'Eat',
-        imagePath: 'assets/symbols/eat.png',
+        imagePath: 'emoji:🍽️', // Emoji fallback
         category: 'Actions',
-        description: 'Eating',
+        description: 'Eating food',
       ),
       Symbol(
         label: 'Drink',
-        imagePath: 'assets/symbols/drink.png',
+        imagePath: 'emoji:🥤', // Emoji fallback
         category: 'Actions',
         description: 'Drinking',
       ),
       Symbol(
-        label: 'Play',
-        imagePath: 'assets/symbols/play.png',
-        category: 'Actions',
-        description: 'Playing',
-      ),
-      Symbol(
         label: 'Sleep',
-        imagePath: 'assets/symbols/sleep.png',
+        imagePath: 'emoji:😴', // Emoji fallback
         category: 'Actions',
         description: 'Sleeping',
       ),
       Symbol(
+        label: 'Play',
+        imagePath: 'emoji:🎮', // Emoji fallback
+        category: 'Actions',
+        description: 'Playing games',
+      ),
+      Symbol(
         label: 'Walk',
-        imagePath: 'assets/symbols/walk.png',
+        imagePath: 'emoji:🚶', // Emoji fallback
         category: 'Actions',
         description: 'Walking',
       ),
       Symbol(
         label: 'Run',
-        imagePath: 'assets/symbols/run.png',
+        imagePath: 'emoji:🏃', // Emoji fallback
         category: 'Actions',
         description: 'Running',
       ),
 
-      // Family
+      // Family (using emojis for kids)
       Symbol(
         label: 'Mom',
-        imagePath: 'assets/symbols/mom.png',
+        imagePath: 'emoji:👩', // Emoji fallback
         category: 'Family',
         description: 'Mother',
       ),
       Symbol(
         label: 'Dad',
-        imagePath: 'assets/symbols/dad.png',
+        imagePath: 'emoji:👨', // Emoji fallback
         category: 'Family',
         description: 'Father',
       ),
       Symbol(
-        label: 'Brother',
-        imagePath: 'assets/symbols/brother.png',
-        category: 'Family',
-        description: 'Brother',
-      ),
-      Symbol(
-        label: 'Sister',
-        imagePath: 'assets/symbols/sister.png',
-        category: 'Family',
-        description: 'Sister',
-      ),
-      Symbol(
         label: 'Baby',
-        imagePath: 'assets/symbols/baby.png',
+        imagePath: 'emoji:👶', // Emoji fallback
         category: 'Family',
         description: 'Baby',
       ),
+      Symbol(
+        label: 'Grandma',
+        imagePath: 'emoji:👵', // Emoji fallback
+        category: 'Family',
+        description: 'Grandmother',
+      ),
+      Symbol(
+        label: 'Grandpa',
+        imagePath: 'emoji:👴', // Emoji fallback
+        category: 'Family',
+        description: 'Grandfather',
+      ),
 
-      // Basic Needs
+      // Emotions (using emojis for kids to learn)
       Symbol(
-        label: 'Toilet',
-        imagePath: 'assets/symbols/toilet.png',
-        category: 'Basic Needs',
-        description: 'Bathroom',
+        label: 'Happy',
+        imagePath: 'emoji:😊', // Emoji fallback
+        category: 'Emotions',
+        description: 'Happy feeling',
       ),
       Symbol(
-        label: 'Help',
-        imagePath: 'assets/symbols/help.png',
-        category: 'Basic Needs',
-        description: 'Need help',
+        label: 'Sad',
+        imagePath: 'emoji:😢', // Emoji fallback
+        category: 'Emotions',
+        description: 'Sad feeling',
       ),
       Symbol(
-        label: 'More',
-        imagePath: 'assets/symbols/more.png',
-        category: 'Basic Needs',
-        description: 'Want more',
+        label: 'Angry',
+        imagePath: 'emoji:😡', // Emoji fallback
+        category: 'Emotions',
+        description: 'Angry feeling',
       ),
       Symbol(
-        label: 'Stop',
-        imagePath: 'assets/symbols/stop.png',
-        category: 'Basic Needs',
-        description: 'Stop',
+        label: 'Excited',
+        imagePath: 'emoji:🤩', // Emoji fallback
+        category: 'Emotions',
+        description: 'Excited feeling',
       ),
       Symbol(
-        label: 'Please',
-        imagePath: 'assets/symbols/please.png',
-        category: 'Basic Needs',
-        description: 'Please',
-      ),
-      Symbol(
-        label: 'Thank You',
-        imagePath: 'assets/symbols/thankyou.png',
-        category: 'Basic Needs',
-        description: 'Thank you',
+        label: 'Tired',
+        imagePath: 'emoji:😴', // Emoji fallback
+        category: 'Emotions',
+        description: 'Tired feeling',
       ),
     ];
   }
