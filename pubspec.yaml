@@ -24,10 +24,11 @@ dependencies:
   crypto: ^3.0.3
   archive: ^3.4.10
   share_plus: ^7.2.2
-  # firebase_core: ^2.24.2
-  # firebase_auth: ^4.15.3
-  # cloud_firestore: ^4.13.6
-  # firebase_storage: ^11.5.6
+  flutter_sound: ^9.2.13
+  firebase_core: ^2.24.2
+  firebase_auth: ^4.15.3
+  cloud_firestore: ^4.13.6
+  firebase_storage: ^11.5.6
 
 dev_dependencies:
   flutter_test:

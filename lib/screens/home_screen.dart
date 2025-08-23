@@ -653,26 +653,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     _buildCategoryTab('All'),
                     const SizedBox(width: 12),
-                    ..._categories.map((category) => Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: _buildCategoryTab(category.name),
-                    )),
                     
-                    // Divider between default and custom categories
+                    // Custom categories
                     if (_customCategories.isNotEmpty) ... [
+                      ..._customCategories.map((category) => Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: _buildCategoryTab(category.name, isCustom: true),
+                      )),
+                      
+                      // Divider between custom and default categories
                       Container(
                         height: 30,
                         width: 1,
                         margin: const EdgeInsets.symmetric(horizontal: 8),
                         color: Colors.grey.shade300,
                       ),
-                      
-                      // Custom categories
-                      ..._customCategories.map((category) => Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: _buildCategoryTab(category.name, isCustom: true),
-                      )),
                     ],
+                    
+                    // Default categories
+                    ..._categories.map((category) => Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: _buildCategoryTab(category.name),
+                    )),
                   ],
                 ),
               ),

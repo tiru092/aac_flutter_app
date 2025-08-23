@@ -4,6 +4,7 @@ import '../utils/aac_helper.dart';
 import '../services/language_service.dart';
 import 'language_settings_screen.dart';
 import 'backup_management_screen.dart';
+import 'voice_settings_screen.dart';
 // import 'cloud_sync_screen.dart';
 
 class AccessibilitySettingsScreen extends StatefulWidget {
@@ -268,6 +269,10 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
                 const SizedBox(height: 20),
                 _buildSectionHeader('🌍 Language Settings'),
                 _buildLanguageSection(),
+
+                const SizedBox(height: 20),
+                _buildSectionHeader('🎙️ Voice Settings'),
+                _buildVoiceSettingsSection(),
 
                 const SizedBox(height: 20),
                 _buildSectionHeader('💾 Data Management'),
@@ -618,6 +623,77 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
     );
   }
 
+  Widget _buildVoiceSettingsSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AACHelper.isHighContrastEnabled 
+            ? Colors.white 
+            : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: AACHelper.isHighContrastEnabled
+            ? Border.all(color: Colors.black, width: 2)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          leading: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFF4ECDC4).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              CupertinoIcons.mic,
+              color: Color(0xFF4ECDC4),
+              size: 24,
+            ),
+          ),
+          title: Text(
+            'Custom Voices',
+            style: TextStyle(
+              fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+              fontWeight: FontWeight.w600,
+              color: AACHelper.isHighContrastEnabled 
+                  ? Colors.black 
+                  : Colors.black87,
+            ),
+          ),
+          subtitle: Text(
+            'Record and manage custom voices',
+            style: TextStyle(
+              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+              color: AACHelper.isHighContrastEnabled 
+                  ? Colors.black54 
+                  : Colors.grey[600],
+            ),
+          ),
+          trailing: const Icon(
+            CupertinoIcons.chevron_right,
+            color: Colors.grey,
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              CupertinoPageRoute(
+                builder: (context) => const VoiceSettingsScreen(),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildBackupSection() {
     return Container(
       decoration: BoxDecoration(
@@ -638,7 +714,6 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
         child: Column(
           children: [
             ListTile(

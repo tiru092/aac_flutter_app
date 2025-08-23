@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/semantics.dart';
 import 'package:audioplayers/audioplayers.dart';
+import '../services/voice_service.dart';
 
 // Sound effect types for children
 enum SoundEffect {
@@ -34,6 +35,7 @@ class AACHelper {
   static late Box _settingsBox;
   static FlutterTts? _flutterTts;
   static final AudioPlayer _audioPlayer = AudioPlayer();
+  static final VoiceService _voiceService = VoiceService();
   
   // Therapy-tested category colors (Avaz & Jellow approach)
   static const Map<String, Color> categoryColors = {
@@ -135,34 +137,15 @@ class AACHelper {
     await _flutterTts!.setSpeechRate(0.6); // Slower for children
     await _flutterTts!.setVolume(1.0);
     await _flutterTts!.setPitch(1.2); // Slightly higher pitch for friendliness
+    
+    // Initialize voice service
+    await _voiceService.initialize();
   }
 
   // Text-to-Speech functionality (Enhanced with accessibility)
   static Future<void> speak(String text) async {
-    if (_flutterTts != null && text.isNotEmpty) {
-      try {
-        // Stop any current speech
-        await _flutterTts!.stop();
-        
-        // Apply current settings
-        final speechRate = getSetting<double>('speech_rate', defaultValue: 0.6) ?? 0.6;
-        final speechPitch = getSetting<double>('speech_pitch', defaultValue: 1.2) ?? 1.2;
-        final speechVolume = getSetting<double>('speech_volume', defaultValue: 1.0) ?? 1.0;
-        
-        await _flutterTts!.setSpeechRate(speechRate);
-        await _flutterTts!.setPitch(speechPitch);
-        await _flutterTts!.setVolume(speechVolume);
-        
-        // Speak the text
-        await _flutterTts!.speak(text);
-        
-        print('Speaking: $text'); // Debug output
-      } catch (e) {
-        print('TTS Error: $e');
-      }
-    } else {
-      print('TTS not initialized or empty text');
-    }
+    // Use the voice service to speak with the current voice
+    await _voiceService.speakWithCurrentVoice(text);
   }
 
   static Future<void> stopSpeaking() async {

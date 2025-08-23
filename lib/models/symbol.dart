@@ -160,3 +160,39 @@ class Category extends HiveObject {
     isDefault: json['isDefault'] ?? false,
   );
 }
+
+class CustomVoice {
+  final String id;
+  final String name;
+  final String filePath;
+  final DateTime createdAt;
+  final bool isDefault;
+
+  CustomVoice({
+    required this.id,
+    required this.name,
+    required this.filePath,
+    required this.createdAt,
+    this.isDefault = false,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'filePath': filePath,
+      'createdAt': createdAt.toIso8601String(),
+      'isDefault': isDefault,
+    };
+  }
+
+  factory CustomVoice.fromJson(Map<String, dynamic> json) {
+    return CustomVoice(
+      id: json['id'],
+      name: json['name'],
+      filePath: json['filePath'],
+      createdAt: DateTime.parse(json['createdAt']),
+      isDefault: json['isDefault'] ?? false,
+    );
+  }
+}

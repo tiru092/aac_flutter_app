@@ -618,9 +618,10 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
   Widget build(BuildContext context) {
     final categoryColor = AACHelper.getCategoryColor(widget.symbol.category);
     final isHighContrast = AACHelper.isHighContrastEnabled;
+    final screenSize = MediaQuery.of(context).size;
     
     return Container(
-      margin: const EdgeInsets.all(40),
+      margin: const EdgeInsets.all(25), // Reduced margin for more space
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(30),
@@ -676,15 +677,19 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
           
           // Symbol image with pulse animation
           Padding(
-            padding: const EdgeInsets.all(40),
+            padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20), // Reduced padding
             child: AnimatedBuilder(
               animation: _pulseAnimation,
               builder: (context, child) {
+                // Calculate responsive width based on screen size
+                final screenWidth = MediaQuery.of(context).size.width;
+                final imageSize = screenWidth * 0.7 > 300 ? 300.0 : screenWidth * 0.7;
+                
                 return Transform.scale(
                   scale: _pulseAnimation.value,
                   child: Container(
-                    width: 250,
-                    height: 250,
+                    width: imageSize,
+                    height: imageSize,
                     decoration: BoxDecoration(
                       color: categoryColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(25),
@@ -723,7 +728,7 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
           // Description if available
           if (widget.symbol.description != null && widget.symbol.description!.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 30),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Text(
                 widget.symbol.description!,
                 style: TextStyle(
@@ -735,7 +740,7 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
               ),
             ),
           
-          const SizedBox(height: 30),
+          const SizedBox(height: 15),
           
           // Action buttons
           Row(
@@ -764,7 +769,7 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
             ],
           ),
           
-          const SizedBox(height: 40),
+          const SizedBox(height: 20),
         ],
       ),
     );

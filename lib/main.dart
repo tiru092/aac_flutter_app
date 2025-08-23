@@ -2,11 +2,26 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
+import 'services/auth_service.dart';
 import 'utils/aac_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  bool firebaseInitialized = false;
+  
+  try {
+    // Initialize Firebase
+    await Firebase.initializeApp();
+    firebaseInitialized = true;
+  } catch (e) {
+    print('Firebase initialization failed: $e');
+    // Continue without Firebase
+  }
   
   try {
     // Initialize database and TTS
@@ -36,11 +51,13 @@ void main() async {
     // Continue with app startup even if initialization fails
   }
   
-  runApp(const AACApp());
+  runApp(AACApp(firebaseInitialized: firebaseInitialized));
 }
 
 class AACApp extends StatelessWidget {
-  const AACApp({super.key});
+  final bool firebaseInitialized;
+  
+  const AACApp({super.key, required this.firebaseInitialized});
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +72,29 @@ class AACApp extends StatelessWidget {
           primaryColor: Color(0xFF2C3E50),
         ),
       ),
-      home: const HomeScreen(),
+      home: firebaseInitialized
+          ? StreamBuilder<User?>(
+              stream: AuthService().authStateChanges,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(
+                      child: CupertinoActivityIndicator(
+                        radius: 20,
+                        color: Color(0xFF4299E1),
+                      ),
+                    ),
+                  );
+                }
+                
+                if (snapshot.hasData) {
+                  return const HomeScreen();
+                }
+                
+                return const LoginScreen();
+              },
+            )
+          : const HomeScreen(),
     );
   }
 }
