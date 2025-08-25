@@ -83,17 +83,21 @@ class _LoginScreenState extends State<LoginScreen> {
   String _getErrorMessage(String code) {
     switch (code) {
       case 'user-not-found':
-        return 'No user found with this email.';
+        return 'No user found with this email. Please check your email or sign up for a new account.';
       case 'wrong-password':
-        return 'Wrong password provided.';
+        return 'Incorrect password. Please try again or reset your password.';
       case 'invalid-email':
-        return 'Invalid email address.';
+        return 'Invalid email address. Please enter a valid email.';
       case 'user-disabled':
-        return 'This user has been disabled.';
+        return 'This user account has been disabled. Please contact support.';
       case 'too-many-requests':
-        return 'Too many attempts. Try again later.';
+        return 'Too many failed attempts. Please try again later or reset your password.';
+      case 'network-request-failed':
+        return 'Network error. Please check your internet connection and try again.';
+      case 'invalid-credential':
+        return 'Invalid credentials. Please check your email and password.';
       default:
-        return 'An error occurred. Please try again.';
+        return 'An unexpected error occurred. Please try again later. (Error code: $code)';
     }
   }
 

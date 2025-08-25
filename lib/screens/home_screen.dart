@@ -5,6 +5,7 @@ import '../widgets/communication_grid.dart';
 import '../widgets/sentence_bar.dart';
 import '../widgets/quick_phrases_bar.dart';
 import '../models/symbol.dart';
+import '../models/user_profile.dart'; // Add missing import
 import '../utils/aac_helper.dart';
 import '../utils/sample_data.dart';
 import '../services/user_profile_service.dart';
@@ -29,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _showQuickPhrases = false;
   bool _showSpeechControls = false;
   String _currentCategory = 'All'; // Track current category
+  String? _errorMessage; // Add error message state
   
   // Speech control values
   double _speechRate = 0.5;
@@ -52,8 +54,16 @@ class _HomeScreenState extends State<HomeScreen> {
           name: 'Default User',
         );
       }
+    } on AACException catch (e) {
+      setState(() {
+        _errorMessage = 'Profile error: ${e.message}';
+      });
+      print('AAC Error checking profile: $e');
     } catch (e) {
-      print('Error checking profile: $e');
+      setState(() {
+        _errorMessage = 'Unexpected error while checking profile';
+      });
+      print('Unexpected error checking profile: $e');
     } finally {
       // Now load the data - always proceed even if profile check fails
       _loadData();
@@ -63,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
+      _errorMessage = null; // Clear any previous errors
     });
     
     try {
@@ -77,8 +88,17 @@ class _HomeScreenState extends State<HomeScreen> {
       try {
         userSymbols = await UserProfileService.getUserSymbols();
         userCategories = await UserProfileService.getUserCategories(); 
+      } on AACException catch (e) {
+        print('AAC Error loading user data: $e');
+        setState(() {
+          _errorMessage = 'Error loading user data: ${e.message}';
+        });
+        // Continue with empty user data
       } catch (e) {
-        print('Error loading user data: $e');
+        print('Unexpected error loading user data: $e');
+        setState(() {
+          _errorMessage = 'Unexpected error loading user data';
+        });
         // Continue with empty user data
       }
       
@@ -91,357 +111,398 @@ class _HomeScreenState extends State<HomeScreen> {
       
       // Load speech settings
       _loadSpeechSettings();
-    } catch (e) {
-      print('Error in _loadData: $e');
+    } on AACException catch (e) {
+      print('AAC Error in _loadData: $e');
       setState(() {
+        _errorMessage = 'Data loading error: ${e.message}';
+        _isLoading = false;
         // Fallback to just sample data if something goes wrong
         _categories = SampleData.getSampleCategories();
         _allSymbols = SampleData.getSampleSymbols();
         _customCategories = [];
+      });
+    } catch (e) {
+      print('Unexpected error in _loadData: $e');
+      setState(() {
+        _errorMessage = 'Unexpected error loading data';
         _isLoading = false;
+        // Fallback to just sample data if something goes wrong
+        _categories = SampleData.getSampleCategories();
+        _allSymbols = SampleData.getSampleSymbols();
+        _customCategories = [];
       });
     }
   }
   
   void _loadSpeechSettings() {
-    setState(() {
-      _speechRate = AACHelper.speechRate;
-      _speechPitch = AACHelper.speechPitch;
-      _speechVolume = AACHelper.speechVolume;
-    });
+    try {
+      setState(() {
+        _speechRate = AACHelper.speechRate;
+        _speechPitch = AACHelper.speechPitch;
+        _speechVolume = AACHelper.speechVolume;
+      });
+    } catch (e) {
+      print('Error loading speech settings: $e');
+      // Use default values if loading fails
+      setState(() {
+        _speechRate = 0.5;
+        _speechPitch = 1.2;
+        _speechVolume = 1.0;
+      });
+    }
   }
   
   List<Symbol> _getFilteredSymbols() {
-    if (_currentCategory == 'All') {
-      return _allSymbols;
+    try {
+      if (_currentCategory == 'All') {
+        return _allSymbols;
+      }
+      return _allSymbols.where((symbol) => symbol.category == _currentCategory).toList();
+    } catch (e) {
+      print('Error filtering symbols: $e');
+      return _allSymbols; // Return all symbols if filtering fails
     }
-    return _allSymbols.where((symbol) => symbol.category == _currentCategory).toList();
   }
   
   void _changeCategory(String category) {
-    setState(() {
-      _currentCategory = category;
-    });
+    try {
+      setState(() {
+        _currentCategory = category;
+      });
+    } catch (e) {
+      print('Error changing category: $e');
+      // Show error to user
+      _showErrorDialog('Failed to change category');
+    }
   }
 
   // CRITICAL: Symbol tap functionality - Add to sentence AND speak
   void _onSymbolTap(Symbol symbol) async {
-    // 1. Add symbol to sentence
-    setState(() {
-      _selectedSymbols.add(symbol);
-    });
-    
-    // 2. Speak the symbol immediately
-    await AACHelper.speak(symbol.label);
+    try {
+      // 1. Add symbol to sentence
+      setState(() {
+        _selectedSymbols.add(symbol);
+      });
+      
+      // 2. Speak the symbol immediately
+      await AACHelper.speak(symbol.label);
+    } on AACException catch (e) {
+      print('AAC Error speaking symbol: $e');
+      _showErrorDialog('Failed to speak symbol: ${e.message}');
+    } catch (e) {
+      print('Unexpected error speaking symbol: $e');
+      _showErrorDialog('Failed to speak symbol');
+    }
   }
 
   void _speakSentence() async {
-    if (_selectedSymbols.isNotEmpty) {
-      final sentence = _selectedSymbols.map((s) => s.label).join(' ');
-      await AACHelper.speak(sentence);
+    try {
+      if (_selectedSymbols.isNotEmpty) {
+        final sentence = _selectedSymbols.map((s) => s.label).join(' ');
+        await AACHelper.speak(sentence);
+      }
+    } on AACException catch (e) {
+      print('AAC Error speaking sentence: $e');
+      _showErrorDialog('Failed to speak sentence: ${e.message}');
+    } catch (e) {
+      print('Unexpected error speaking sentence: $e');
+      _showErrorDialog('Failed to speak sentence');
     }
   }
 
   void _clearSentence() {
-    setState(() {
-      _selectedSymbols.clear();
-    });
+    try {
+      setState(() {
+        _selectedSymbols.clear();
+      });
+    } catch (e) {
+      print('Error clearing sentence: $e');
+      _showErrorDialog('Failed to clear sentence');
+    }
   }
 
   void _removeSymbolAt(int index) {
-    if (index >= 0 && index < _selectedSymbols.length) {
-      setState(() {
-        _selectedSymbols.removeAt(index);
-      });
+    try {
+      if (index >= 0 && index < _selectedSymbols.length) {
+        setState(() {
+          _selectedSymbols.removeAt(index);
+        });
+      }
+    } catch (e) {
+      print('Error removing symbol: $e');
+      _showErrorDialog('Failed to remove symbol');
     }
   }
 
   void _onQuickPhraseSpeak(String phrase) async {
-    await AACHelper.speak(phrase);
+    try {
+      await AACHelper.speak(phrase);
+    } on AACException catch (e) {
+      print('AAC Error speaking phrase: $e');
+      _showErrorDialog('Failed to speak phrase: ${e.message}');
+    } catch (e) {
+      print('Unexpected error speaking phrase: $e');
+      _showErrorDialog('Failed to speak phrase');
+    }
   }
 
   void _toggleQuickPhrases() {
-    setState(() {
-      _showQuickPhrases = !_showQuickPhrases;
-    });
+    try {
+      setState(() {
+        _showQuickPhrases = !_showQuickPhrases;
+      });
+    } catch (e) {
+      print('Error toggling quick phrases: $e');
+      _showErrorDialog('Failed to toggle quick phrases');
+    }
   }
   
   void _toggleSpeechControls() {
-    setState(() {
-      _showSpeechControls = !_showSpeechControls;
-    });
+    try {
+      setState(() {
+        _showSpeechControls = !_showSpeechControls;
+      });
+    } catch (e) {
+      print('Error toggling speech controls: $e');
+      _showErrorDialog('Failed to toggle speech controls');
+    }
   }
 
   void _showProfileSwitcher() async {
-    // Get all available profiles
-    final profiles = await UserProfileService.getAllProfiles();
-    final currentProfile = await UserProfileService.getActiveProfile();
-    
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: const Text('Switch Profile'),
-        message: const Text('Select a user profile or create a new one'),
-        actions: [
-          // Show existing profiles
-          ...profiles.map((profile) => CupertinoActionSheetAction(
-            onPressed: () async {
-              Navigator.pop(context);
-              if (profile.id != currentProfile?.id) {
-                await UserProfileService.setActiveProfile(profile);
-                // Reload data with the new profile
-                _loadData();
-              }
-            },
-            isDefaultAction: profile.id == currentProfile?.id,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  CupertinoIcons.person_fill,
-                  color: Color(0xFF4ECDC4),
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  profile.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (profile.id == currentProfile?.id) ...[  
-                  const SizedBox(width: 8),
+    try {
+      // Get all available profiles
+      final profiles = await UserProfileService.getAllProfiles();
+      final currentProfile = await UserProfileService.getActiveProfile();
+      
+      showCupertinoModalPopup(
+        context: context,
+        builder: (context) => CupertinoActionSheet(
+          title: const Text('Switch Profile'),
+          message: const Text('Select a user profile or create a new one'),
+          actions: [
+            // Show existing profiles
+            ...profiles.map((profile) => CupertinoActionSheetAction(
+              onPressed: () async {
+                try {
+                  Navigator.pop(context);
+                  if (profile.id != currentProfile?.id) {
+                    await UserProfileService.setActiveProfile(profile);
+                    // Reload data with the new profile
+                    _loadData();
+                  }
+                } on AACException catch (e) {
+                  print('AAC Error switching profile: $e');
+                  _showErrorDialog('Failed to switch profile: ${e.message}');
+                } catch (e) {
+                  print('Unexpected error switching profile: $e');
+                  _showErrorDialog('Failed to switch profile');
+                }
+              },
+              isDefaultAction: profile.id == currentProfile?.id,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
                   const Icon(
-                    CupertinoIcons.checkmark_circle_fill,
-                    color: Color(0xFF38A169),
-                    size: 16,
+                    CupertinoIcons.person,
+                    color: Color(0xFF4ECDC4),
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    profile.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
-              ],
-            ),
-          )),
-          
-          // Create new profile option
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.pop(context);
-              _showCreateProfileDialog();
-            },
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  CupertinoIcons.person_badge_plus_fill,
-                  color: Color(0xFF6C63FF),
-                  size: 24,
-                ),
-                SizedBox(width: 12),
-                Text(
-                  'Create New Profile',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+              ),
+            )),
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                try {
+                  Navigator.pop(context);
+                  // Create new profile
+                  final newProfile = await UserProfileService.createProfile(
+                    name: 'New Profile',
+                  );
+                  await UserProfileService.setActiveProfile(newProfile);
+                  _loadData();
+                  
+                  // Show success message
+                  if (mounted) {
+                    showCupertinoDialog(
+                      context: context,
+                      builder: (context) => CupertinoAlertDialog(
+                        title: const Text('Profile Created'),
+                        content: const Text('New profile has been created successfully.'),
+                        actions: [
+                          CupertinoDialogAction(
+                            child: const Text('OK'),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                } on AACException catch (e) {
+                  print('AAC Error creating profile: $e');
+                  _showErrorDialog('Failed to create profile: ${e.message}');
+                } catch (e) {
+                  print('Unexpected error creating profile: $e');
+                  _showErrorDialog('Failed to create profile');
+                }
+              },
+              isDefaultAction: true,
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    CupertinoIcons.add,
+                    color: Color(0xFF6C63FF),
+                    size: 24,
                   ),
-                ),
-              ],
+                  SizedBox(width: 12),
+                  Text(
+                    'Create New Profile',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-      ),
-    );
-  }
-  
-  void _showCreateProfileDialog() {
-    final nameController = TextEditingController();
-    
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Create New Profile'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            CupertinoTextField(
-              controller: nameController,
-              placeholder: 'Enter user name',
-              autofocus: true,
-              textCapitalization: TextCapitalization.words,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemGrey6,
-                borderRadius: BorderRadius.circular(8),
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  CupertinoPageRoute(
+                    builder: (context) => const ProfileScreen(),
+                  ),
+                );
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    CupertinoIcons.person_crop_circle_badge_plus,
+                    color: Color(0xFF4ECDC4),
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Manage Profiles',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  CupertinoPageRoute(
+                    builder: (context) => const SubscriptionScreen(),
+                  ),
+                );
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    CupertinoIcons.sparkles,
+                    color: Color(0xFFFFD700),
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Subscription',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  CupertinoPageRoute(
+                    builder: (context) => const AccessibilitySettingsScreen(),
+                  ),
+                );
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    CupertinoIcons.settings,
+                    color: Color(0xFF6C63FF),
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Accessibility Settings',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
-        ),
-        actions: [
-          CupertinoDialogAction(
+          cancelButton: CupertinoActionSheetAction(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
-          CupertinoDialogAction(
-            onPressed: () async {
-              final name = nameController.text.trim();
-              if (name.isNotEmpty) {
-                Navigator.pop(context);
-                
-                // Create new profile
-                await UserProfileService.createProfile(name: name);
-                
-                // Reload data with the new profile
-                _loadData();
-              }
-            },
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    );
+        ),
+      );
+    } on AACException catch (e) {
+      print('AAC Error showing profile switcher: $e');
+      _showErrorDialog('Failed to show profile switcher: ${e.message}');
+    } catch (e) {
+      print('Unexpected error showing profile switcher: $e');
+      _showErrorDialog('Failed to show profile switcher');
+    }
   }
-  
+
+  // Show error dialog to user
+  void _showErrorDialog(String message) {
+    if (mounted) {
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Error'),
+          content: Text(message),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('OK'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   void _openSettings() {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: const Text(
-          'Menu',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        message: const Text('Choose an option'),
-        actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.pop(context);
-              _showProfileSwitcher();
-            },
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  CupertinoIcons.person_2_fill,
-                  color: Color(0xFF38A169),
-                  size: 24,
-                ),
-                SizedBox(width: 12),
-                Text(
-                  'Switch Profile',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                CupertinoPageRoute(
-                  builder: (context) => const ProfileScreen(),
-                ),
-              );
-            },
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  CupertinoIcons.person_circle,
-                  color: Color(0xFF4ECDC4),
-                  size: 24,
-                ),
-                SizedBox(width: 12),
-                Text(
-                  'Profile',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                CupertinoPageRoute(
-                  builder: (context) => const SubscriptionScreen(),
-                ),
-              );
-            },
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  CupertinoIcons.star_fill,
-                  color: Color(0xFFFFD700),
-                  size: 24,
-                ),
-                SizedBox(width: 12),
-                Text(
-                  'Premium Plans',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                CupertinoPageRoute(
-                  builder: (context) => const AccessibilitySettingsScreen(),
-                ),
-              );
-            },
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  CupertinoIcons.settings,
-                  color: Color(0xFF6C63FF),
-                  size: 24,
-                ),
-                SizedBox(width: 12),
-                Text(
-                  'Accessibility Settings',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          child: const Text(
-            'Cancel',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
+    _showProfileSwitcher();
   }
 
   @override
@@ -550,6 +611,51 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+            
+            // Error message display
+            if (_errorMessage != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFECEB),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE53E3E)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      CupertinoIcons.exclamationmark_triangle,
+                      color: Color(0xFFE53E3E),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                          color: Color(0xFFE53E3E),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      minSize: 24,
+                      onPressed: () {
+                        setState(() {
+                          _errorMessage = null;
+                        });
+                      },
+                      child: const Icon(
+                        CupertinoIcons.clear,
+                        color: Color(0xFFE53E3E),
+                        size: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             
             // Sentence bar
             Container(
@@ -718,53 +824,63 @@ class _HomeScreenState extends State<HomeScreen> {
                 top: false,
                 child: GestureDetector(
                   onTap: () async {
-                    // Navigate to Add Symbol screen
-                    final newSymbol = await Navigator.push<Symbol>(
-                      context,
-                      CupertinoPageRoute(
-                        builder: (context) => const AddSymbolScreen(),
-                      ),
-                    );
-                    
-                    if (newSymbol != null) {
-                      // Add the new symbol to the list
-                      setState(() {
-                        _allSymbols.add(newSymbol);
-                        
-                        // Check if this is a new custom category
-                        final existingCategories = [
-                          ..._categories.map((c) => c.name),
-                          ..._customCategories.map((c) => c.name),
-                        ];
-                        
-                        if (!existingCategories.contains(newSymbol.category)) {
-                          // Create new custom category
-                          final newCategory = Category(
-                            name: newSymbol.category,
-                            iconPath: 'custom',
-                            colorCode: 0xFF9F7AEA, // Default purple
-                          );
-                          _customCategories.add(newCategory);
-                          
-                          // Save custom categories (in a real app)
-                          _saveCustomCategories();
-                        }
-                      });
-                      
-                      // Show success message
-                      showCupertinoDialog(
-                        context: context,
-                        builder: (context) => CupertinoAlertDialog(
-                          title: const Text('Symbol Added'),
-                          content: Text('"${newSymbol.label}" has been added to ${newSymbol.category} category.'),
-                          actions: [
-                            CupertinoDialogAction(
-                              child: const Text('Great!'),
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                          ],
+                    try {
+                      // Navigate to Add Symbol screen
+                      final newSymbol = await Navigator.push<Symbol>(
+                        context,
+                        CupertinoPageRoute(
+                          builder: (context) => const AddSymbolScreen(),
                         ),
                       );
+                      
+                      if (newSymbol != null) {
+                        // Add the new symbol to the list
+                        setState(() {
+                          _allSymbols.add(newSymbol);
+                          
+                          // Check if this is a new custom category
+                          final existingCategories = [
+                            ..._categories.map((c) => c.name),
+                            ..._customCategories.map((c) => c.name),
+                          ];
+                          
+                          if (!existingCategories.contains(newSymbol.category)) {
+                            // Create new custom category
+                            final newCategory = Category(
+                              name: newSymbol.category,
+                              iconPath: 'custom',
+                              colorCode: 0xFF9F7AEA, // Default purple
+                            );
+                            _customCategories.add(newCategory);
+                            
+                            // Save custom categories (in a real app)
+                            _saveCustomCategories();
+                          }
+                        });
+                        
+                        // Show success message
+                        if (mounted) {
+                          showCupertinoDialog(
+                            context: context,
+                            builder: (context) => CupertinoAlertDialog(
+                              title: const Text('Symbol Added'),
+                              content: Text('"${newSymbol.label}" has been added to ${newSymbol.category} category.'),
+                              actions: [
+                                CupertinoDialogAction(
+                                  child: const Text('Great!'),
+                                  onPressed: () => Navigator.pop(context),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      }
+                    } on AACException catch (e) {
+                      print('AAC Error adding symbol: $e');
+                      _showErrorDialog('Failed to add symbol: ${e.message}');
+                    } catch (e) {
+                      print('Unexpected error adding symbol: $e');
+                      _showErrorDialog('Failed to add symbol');
                     }
                   },
                   child: Container(
@@ -800,16 +916,30 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: const Icon(
                             CupertinoIcons.add_circled_solid,
                             color: Colors.white,
-                            size: 24,
+                            size: 20,
                           ),
                         ),
                         const SizedBox(width: 12),
                         const Text(
-                          'Add Symbol',
+                          'Add New Symbol',
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
                             color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.add_circled_solid,
+                            color: Colors.white,
+                            size: 20,
                           ),
                         ),
                       ],
@@ -824,134 +954,119 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildCategoryTab(String categoryName, {bool isCustom = false}) {
+    final isSelected = _currentCategory == categoryName;
+    final categoryColor = isCustom 
+        ? const Color(0xFF9F7AEA) // Purple for custom categories
+        : AACHelper.getCategoryColor(categoryName);
+    
+    return GestureDetector(
+      onTap: () => _changeCategory(categoryName),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? categoryColor : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? categoryColor : Colors.grey.shade300,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: categoryColor.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [],
+        ),
+        child: Text(
+          categoryName,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.grey.shade700,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSpeechControls() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF6C63FF).withOpacity(0.1),
-            const Color(0xFF4ECDC4).withOpacity(0.1),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF6C63FF).withOpacity(0.2),
-          width: 2,
-        ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF6C63FF).withOpacity(0.8),
-                  const Color(0xFF4ECDC4).withOpacity(0.8),
-                ],
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(18),
-                topRight: Radius.circular(18),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  CupertinoIcons.waveform,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  '🎚️ Speech Controls',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const Spacer(),
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: () async {
-                    await AACHelper.speak('Testing voice settings');
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      CupertinoIcons.speaker_2_fill,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                  ),
-                ),
-              ],
+          const Text(
+            'Speech Controls',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2D3748),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _buildSliderControl(
-                  title: 'Speech Speed',
-                  icon: CupertinoIcons.speedometer,
-                  value: _speechRate,
-                  min: 0.1,
-                  max: 1.0,
-                  onChanged: (value) async {
-                    setState(() => _speechRate = value);
-                    await AACHelper.setSpeechRate(value);
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildSliderControl(
-                  title: 'Voice Pitch',
-                  icon: CupertinoIcons.waveform,
-                  value: _speechPitch,
-                  min: 0.5,
-                  max: 2.0,
-                  onChanged: (value) async {
-                    setState(() => _speechPitch = value);
-                    await AACHelper.setSpeechPitch(value);
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildSliderControl(
-                  title: 'Volume',
-                  icon: CupertinoIcons.volume_up,
-                  value: _speechVolume,
-                  min: 0.0,
-                  max: 1.0,
-                  onChanged: (value) async {
-                    setState(() => _speechVolume = value);
-                    await AACHelper.setSpeechVolume(value);
-                  },
-                ),
-              ],
-            ),
+          const SizedBox(height: 12),
+          _buildSpeechControlSlider(
+            label: 'Speed',
+            icon: CupertinoIcons.speedometer,
+            value: _speechRate,
+            min: 0.1,
+            max: 1.0,
+            onChanged: (value) {
+              setState(() {
+                _speechRate = value;
+              });
+              AACHelper.setSpeechRate(value);
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildSpeechControlSlider(
+            label: 'Pitch',
+            icon: CupertinoIcons.waveform,
+            value: _speechPitch,
+            min: 0.5,
+            max: 2.0,
+            onChanged: (value) {
+              setState(() {
+                _speechPitch = value;
+              });
+              AACHelper.setSpeechPitch(value);
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildSpeechControlSlider(
+            label: 'Volume',
+            icon: CupertinoIcons.volume_up,
+            value: _speechVolume,
+            min: 0.0,
+            max: 1.0,
+            onChanged: (value) {
+              setState(() {
+                _speechVolume = value;
+              });
+              AACHelper.setSpeechVolume(value);
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSliderControl({
-    required String title,
+  Widget _buildSpeechControlSlider({
+    required String label,
     required IconData icon,
     required double value,
     required double min,
@@ -960,39 +1075,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     return Row(
       children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: const Color(0xFF6C63FF).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: const Color(0xFF6C63FF),
-            size: 20,
-          ),
-        ),
+        Icon(icon, size: 20, color: const Color(0xFF4ECDC4)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
+                label,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: Color(0xFF2D3748),
                 ),
               ),
-              const SizedBox(height: 4),
               SliderTheme(
                 data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: const Color(0xFF6C63FF),
-                  thumbColor: const Color(0xFF6C63FF),
-                  trackHeight: 4,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                  activeTrackColor: const Color(0xFF4ECDC4),
+                  thumbColor: const Color(0xFF4ECDC4),
+                  trackHeight: 6,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
                 ),
                 child: Slider(
                   value: value,
@@ -1004,109 +1106,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        Container(
-          width: 48,
-          alignment: Alignment.centerRight,
-          child: Text(
-            '${(value * 100).round()}%',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF6B7280),
-            ),
-          ),
-        ),
       ],
     );
   }
 
-  void _saveCustomCategories() async {
-    // Save custom categories to the user's profile
-    for (final category in _customCategories) {
-      await UserProfileService.addCategoryToActiveProfile(category);
-    }
+  void _saveCustomCategories() {
+    // In a real implementation, you would save custom categories to persistent storage
+    // For now, we'll just print a message
+    print('Custom categories saved');
   }
-
-  Widget _buildCategoryTab(String categoryName, {bool isCustom = false}) {
-    final isSelected = _currentCategory == categoryName;
-    final categoryColor = categoryName == 'All' 
-        ? const Color(0xFF4ECDC4)
-        : isCustom
-            ? _findCustomCategoryColor(categoryName)
-            : AACHelper.getCategoryColor(categoryName);
-    
-    return GestureDetector(
-      onTap: () => _changeCategory(categoryName),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? categoryColor : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: categoryColor,
-            width: 2,
-          ),
-          boxShadow: isSelected ? [
-            BoxShadow(
-              color: categoryColor.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ] : [],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              isCustom ? '🎨' : _getCategoryEmoji(categoryName),
-              style: const TextStyle(fontSize: 18),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              categoryName,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.white : categoryColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  
-  Color _findCustomCategoryColor(String categoryName) {
-    final customCategory = _customCategories.firstWhere(
-      (cat) => cat.name == categoryName,
-      orElse: () => Category(
-        name: categoryName,
-        iconPath: 'custom',
-        colorCode: 0xFF9F7AEA, // Default purple
-      ),
-    );
-    return Color(customCategory.colorCode);
-  }
-  
-  String _getCategoryEmoji(String categoryName) {
-    switch (categoryName) {
-      case 'All':
-        return '🌐';
-      case 'Food & Drinks':
-        return '🍎';
-      case 'Vehicles':
-        return '🚗';
-      case 'Emotions':
-        return '😊';
-      case 'Actions':
-        return '🏃';
-      case 'Family':
-        return '👨‍👩‍👧‍👦';
-      case 'Basic Needs':
-        return '🙏';
-      default:
-        return '📝';
-    }
-  }
-
 }

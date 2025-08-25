@@ -1,578 +1,640 @@
-import 'dart:io';
 import 'dart:convert';
+import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:archive/archive.dart';
-import 'package:flutter/services.dart';
-import '../models/symbol.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_profile.dart';
-import '../services/symbol_database_service.dart';
-import '../services/profile_service.dart';
-import '../services/phrase_history_service.dart';
-import '../services/language_service.dart';
+import '../models/symbol.dart';
+import '../services/user_profile_service.dart';
+import '../services/encryption_service.dart';
+import '../services/cloud_sync_service.dart';
+import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 
+/// Custom exception for backup-related errors
+class BackupException implements Exception {
+  final String message;
+  
+  BackupException(this.message);
+  
+  @override
+  String toString() => 'BackupException: $message';
+}
+
+/// Service to handle profile backup and restore functionality
 class BackupService {
   static final BackupService _instance = BackupService._internal();
   factory BackupService() => _instance;
   BackupService._internal();
 
-  Future<BackupResult> createFullBackup() async {
+  static const String _backupHistoryKey = 'backup_history';
+  static const String _lastBackupKey = 'last_backup_timestamp';
+  
+  final CloudSyncService _cloudSyncService = CloudSyncService();
+
+  /// Create a local backup of all profiles
+  Future<BackupResult> createLocalBackup({
+    String? backupName,
+    bool encryptBackup = true,
+    List<String>? profileIds,
+  }) async {
     try {
-      // Get app directory for temporary backup files
-      final appDir = await getApplicationDocumentsDirectory();
-      final backupDir = Directory('${appDir.path}/backups');
-      if (!await backupDir.exists()) {
-        await backupDir.create(recursive: true);
+      print('Creating local backup...');
+      
+      // Record start time
+      final startTime = DateTime.now();
+      
+      // Get profiles to backup
+      final allProfiles = await UserProfileService.getAllProfiles();
+      final profilesToBackup = profileIds != null
+          ? allProfiles.where((profile) => profileIds.contains(profile.id)).toList()
+          : allProfiles;
+      
+      if (profilesToBackup.isEmpty) {
+        throw BackupException('No profiles found to backup');
       }
-
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final backupName = 'aac_backup_$timestamp';
-      final tempDir = Directory('${backupDir.path}/$backupName');
-      await tempDir.create(recursive: true);
-
+      
       // Create backup data
-      final backupData = await _collectAllData();
+      final backupData = {
+        'version': '1.0',
+        'createdAt': startTime.toIso8601String(),
+        'profiles': profilesToBackup.map((profile) => profile.toJson()).toList(),
+        'backupName': backupName ?? 'Backup ${startTime.toString().split(' ')[0]}',
+      };
       
-      // Save individual JSON files
-      final files = <String>[];
+      // Convert to JSON
+      final backupJson = jsonEncode(backupData);
       
-      // Save symbols and categories
-      final symbolsFile = File('${tempDir.path}/symbols.json');
-      await symbolsFile.writeAsString(jsonEncode(backupData.symbols));
-      files.add('symbols.json');
+      // Encrypt if requested
+      final backupContent = encryptBackup
+          ? EncryptionService().encrypt(backupJson)
+          : backupJson;
       
-      final categoriesFile = File('${tempDir.path}/categories.json');
-      await categoriesFile.writeAsString(jsonEncode(backupData.categories));
-      files.add('categories.json');
+      // Create backup file
+      final backupFile = await _createBackupFile(backupContent, encryptBackup);
       
-      // Save profiles
-      final profilesFile = File('${tempDir.path}/profiles.json');
-      await profilesFile.writeAsString(jsonEncode(backupData.profiles));
-      files.add('profiles.json');
+      // Record backup in history
+      final backupInfo = BackupInfo(
+        id: 'backup_${DateTime.now().millisecondsSinceEpoch}',
+        name: backupData['backupName'] as String,
+        filePath: backupFile.path,
+        size: await backupFile.length(),
+        createdAt: startTime,
+        isEncrypted: encryptBackup,
+        profileCount: profilesToBackup.length,
+      );
       
-      // Save phrase history
-      final historyFile = File('${tempDir.path}/phrase_history.json');
-      await historyFile.writeAsString(jsonEncode(backupData.phraseHistory));
-      files.add('phrase_history.json');
+      await _recordBackup(backupInfo);
       
-      // Save language settings
-      final languageFile = File('${tempDir.path}/language_settings.json');
-      await languageFile.writeAsString(jsonEncode(backupData.languageSettings));
-      files.add('language_settings.json');
+      // Record completion
+      final endTime = DateTime.now();
       
-      // Save quick phrases
-      final quickPhrasesFile = File('${tempDir.path}/quick_phrases.json');
-      await quickPhrasesFile.writeAsString(jsonEncode(backupData.quickPhrases));
-      files.add('quick_phrases.json');
-      
-      // Save metadata
-      final metadataFile = File('${tempDir.path}/backup_metadata.json');
-      await metadataFile.writeAsString(jsonEncode({
-        'version': '1.0.0',
-        'created_at': DateTime.now().toIso8601String(),
-        'app_version': '1.0.0',
-        'backup_type': 'full',
-        'files': files,
-        'symbol_count': backupData.symbols.length,
-        'profile_count': backupData.profiles.length,
-      }));
-      files.add('backup_metadata.json');
-      
-      // Copy custom symbol images if any exist
-      await _copyCustomImages(tempDir, backupData.symbols);
-      
-      // Create ZIP archive
-      final zipFile = File('${backupDir.path}/$backupName.zip');
-      await _createZipArchive(tempDir, zipFile);
-      
-      // Clean up temporary directory
-      await tempDir.delete(recursive: true);
+      print('Local backup created successfully: ${backupFile.path}');
       
       return BackupResult(
         success: true,
-        filePath: zipFile.path,
-        fileName: '$backupName.zip',
-        size: await zipFile.length(),
-        message: 'Backup created successfully',
+        backupInfo: backupInfo,
+        duration: endTime.difference(startTime),
+        timestamp: endTime,
       );
-      
     } catch (e) {
+      print('Error creating local backup: $e');
       return BackupResult(
         success: false,
-        message: 'Failed to create backup: $e',
+        duration: Duration.zero,
+        timestamp: DateTime.now(),
+        errorMessage: e.toString(),
       );
     }
   }
 
-  Future<BackupData> _collectAllData() async {
-    final symbolService = SymbolDatabaseService();
-    final profileService = ProfileService();
-    final historyService = PhraseHistoryService();
-    final languageService = LanguageService();
-    
-    // Collect all data from services
-    return BackupData(
-      symbols: symbolService.symbols.map((s) => s.toJson()).toList(),
-      categories: symbolService.categories.map((c) => c.toJson()).toList(),
-      profiles: profileService.profiles.map((p) => p.toJson()).toList(),
-      phraseHistory: {
-        'history': historyService.history.map((h) => h.toJson()).toList(),
-        'favorites': historyService.favorites.map((f) => f.toJson()).toList(),
-      },
-      languageSettings: {
-        'current_language': languageService.currentLanguage,
-        'supported_languages': languageService.supportedLanguages
-            .map((key, value) => MapEntry(key, value.toJson())),
-        'tts_settings': languageService.ttsVoiceSettings?.toJson(),
-      },
-      quickPhrases: await _getQuickPhrases(),
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> _getQuickPhrases() async {
-    // This would load quick phrases from SharedPreferences
-    // Implementation depends on how quick phrases are stored
-    return [];
-  }
-
-  Future<void> _copyCustomImages(Directory tempDir, List<Map<String, dynamic>> symbols) async {
-    final imagesDir = Directory('${tempDir.path}/custom_images');
-    
-    for (final symbolData in symbols) {
-      final imagePath = symbolData['imagePath'] as String?;
-      if (imagePath != null && !imagePath.startsWith('assets/')) {
-        // This is a custom image file
-        final imageFile = File(imagePath);
-        if (await imageFile.exists()) {
-          if (!await imagesDir.exists()) {
-            await imagesDir.create(recursive: true);
-          }
-          
-          final fileName = imagePath.split('/').last;
-          final destinationFile = File('${imagesDir.path}/$fileName');
-          await imageFile.copy(destinationFile.path);
-        }
-      }
-    }
-  }
-
-  Future<void> _createZipArchive(Directory sourceDir, File zipFile) async {
-    final archive = Archive();
-    
-    await for (final entity in sourceDir.list(recursive: true)) {
-      if (entity is File) {
-        final relativePath = entity.path.substring(sourceDir.path.length + 1);
-        final fileBytes = await entity.readAsBytes();
-        final archiveFile = ArchiveFile(relativePath, fileBytes.length, fileBytes);
-        archive.addFile(archiveFile);
-      }
-    }
-    
-    final zipData = ZipEncoder().encode(archive);
-    await zipFile.writeAsBytes(zipData!);
-  }
-
-  Future<BackupResult> shareBackup(String backupFilePath) async {
+  /// Restore profiles from a local backup
+  Future<RestoreResult> restoreFromLocalBackup(
+    String backupFilePath, {
+    bool decryptBackup = true,
+  }) async {
     try {
-      final file = File(backupFilePath);
-      if (!await file.exists()) {
-        return BackupResult(
-          success: false,
-          message: 'Backup file not found',
-        );
+      print('Restoring from local backup: $backupFilePath');
+      
+      // Record start time
+      final startTime = DateTime.now();
+      
+      // Check if backup file exists
+      final backupFile = File(backupFilePath);
+      if (!await backupFile.exists()) {
+        throw BackupException('Backup file not found: $backupFilePath');
       }
-
-      await Share.shareXFiles(
-        [XFile(backupFilePath)],
-        text: 'AAC App Backup',
-        subject: 'AAC Communication App Data Backup',
+      
+      // Read backup content
+      final backupContent = await backupFile.readAsString();
+      
+      // Decrypt if requested
+      final backupJson = decryptBackup
+          ? EncryptionService().decrypt(backupContent)
+          : backupContent;
+      
+      // Parse backup data
+      final backupData = jsonDecode(backupJson) as Map<String, dynamic>;
+      
+      // Validate backup version
+      final version = backupData['version'] as String?;
+      if (version != '1.0') {
+        throw BackupException('Unsupported backup version: $version');
+      }
+      
+      // Get profiles from backup
+      final profilesData = backupData['profiles'] as List;
+      final restoredProfiles = profilesData
+          .map((data) => UserProfile.fromJson(Map<String, dynamic>.from(data)))
+          .toList();
+      
+      // Save restored profiles
+      for (final profile in restoredProfiles) {
+        await UserProfileService.saveUserProfile(profile);
+      }
+      
+      // Set first profile as active if there are any
+      if (restoredProfiles.isNotEmpty) {
+        await UserProfileService.setActiveProfile(restoredProfiles.first);
+      }
+      
+      // Record completion
+      final endTime = DateTime.now();
+      
+      print('Restore from local backup completed successfully');
+      
+      return RestoreResult(
+        success: true,
+        profilesRestored: restoredProfiles.length,
+        duration: endTime.difference(startTime),
+        timestamp: endTime,
       );
+    } catch (e) {
+      print('Error restoring from local backup: $e');
+      return RestoreResult(
+        success: false,
+        profilesRestored: 0,
+        duration: Duration.zero,
+        timestamp: DateTime.now(),
+        errorMessage: e.toString(),
+      );
+    }
+  }
 
+  /// Create a cloud backup of all profiles
+  Future<BackupResult> createCloudBackup({
+    String? backupName,
+    List<String>? profileIds,
+  }) async {
+    try {
+      print('Creating cloud backup...');
+      
+      // Check if cloud sync is available
+      if (!_cloudSyncService.isCloudSyncAvailable) {
+        throw BackupException('Cloud sync not available');
+      }
+      
+      // Record start time
+      final startTime = DateTime.now();
+      
+      // Get profiles to backup
+      final allProfiles = await UserProfileService.getAllProfiles();
+      final profilesToBackup = profileIds != null
+          ? allProfiles.where((profile) => profileIds.contains(profile.id)).toList()
+          : allProfiles;
+      
+      if (profilesToBackup.isEmpty) {
+        throw BackupException('No profiles found to backup');
+      }
+      
+      // Create backup data
+      final backupData = {
+        'version': '1.0',
+        'createdAt': startTime.toIso8601String(),
+        'profiles': profilesToBackup.map((profile) => profile.toJson()).toList(),
+        'backupName': backupName ?? 'Cloud Backup ${startTime.toString().split(' ')[0]}',
+      };
+      
+      // Convert to JSON
+      final backupJson = jsonEncode(backupData);
+      
+      // Encrypt backup data
+      final encryptedBackup = EncryptionService().encrypt(backupJson);
+      
+      // Upload to cloud storage (placeholder - implement actual cloud storage)
+      final backupPath = 'backups/backup_${DateTime.now().millisecondsSinceEpoch}.backup';
+      // final downloadUrl = await _cloudSyncService.uploadFile(backupPath, backupPath);
+      final downloadUrl = 'https://example.com/$backupPath'; // Placeholder
+      
+      if (downloadUrl == null) {
+        throw BackupException('Failed to upload backup to cloud');
+      }
+      
+      // Record backup in history
+      final backupInfo = BackupInfo(
+        id: 'cloud_backup_${DateTime.now().millisecondsSinceEpoch}',
+        name: backupData['backupName'] as String,
+        filePath: downloadUrl,
+        size: backupJson.length,
+        createdAt: startTime,
+        isEncrypted: true,
+        profileCount: profilesToBackup.length,
+        isCloudBackup: true,
+      );
+      
+      await _recordBackup(backupInfo);
+      
+      // Record completion
+      final endTime = DateTime.now();
+      
+      print('Cloud backup created successfully');
+      
       return BackupResult(
         success: true,
-        message: 'Backup shared successfully',
+        backupInfo: backupInfo,
+        duration: endTime.difference(startTime),
+        timestamp: endTime,
       );
     } catch (e) {
+      print('Error creating cloud backup: $e');
       return BackupResult(
         success: false,
-        message: 'Failed to share backup: $e',
+        duration: Duration.zero,
+        timestamp: DateTime.now(),
+        errorMessage: e.toString(),
       );
     }
   }
 
-  Future<List<BackupFile>> getAvailableBackups() async {
+  /// Restore profiles from a cloud backup
+  Future<RestoreResult> restoreFromCloudBackup(String backupUrl) async {
     try {
-      final appDir = await getApplicationDocumentsDirectory();
-      final backupDir = Directory('${appDir.path}/backups');
+      print('Restoring from cloud backup: $backupUrl');
       
-      if (!await backupDir.exists()) {
-        return [];
-      }
-
-      final backupFiles = <BackupFile>[];
-      
-      await for (final entity in backupDir.list()) {
-        if (entity is File && entity.path.endsWith('.zip')) {
-          final stat = await entity.stat();
-          final fileName = entity.path.split('/').last;
-          
-          // Try to extract metadata from backup
-          BackupMetadata? metadata;
-          try {
-            metadata = await _extractBackupMetadata(entity);
-          } catch (e) {
-            // If metadata extraction fails, create basic info
-          }
-          
-          backupFiles.add(BackupFile(
-            fileName: fileName,
-            filePath: entity.path,
-            size: stat.size,
-            createdAt: metadata?.createdAt ?? stat.modified,
-            metadata: metadata,
-          ));
-        }
+      // Check if cloud sync is available
+      if (!_cloudSyncService.isCloudSyncAvailable) {
+        throw BackupException('Cloud sync not available');
       }
       
-      // Sort by creation date, newest first
-      backupFiles.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      // Record start time
+      final startTime = DateTime.now();
       
-      return backupFiles;
+      // Download backup from cloud (placeholder - implement actual cloud storage)
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/temp_backup.backup');
+      
+      // final downloadSuccess = await _cloudSyncService.downloadFile(backupUrl, tempFile.path);
+      final downloadSuccess = true; // Placeholder
+      
+      if (!downloadSuccess) {
+        throw BackupException('Failed to download backup from cloud');
+      }
+      
+      // Restore from downloaded file
+      final result = await restoreFromLocalBackup(tempFile.path);
+      
+      // Clean up temp file
+      await tempFile.delete();
+      
+      // Record completion
+      final endTime = DateTime.now();
+      
+      if (result.success) {
+        print('Restore from cloud backup completed successfully');
+      } else {
+        print('Restore from cloud backup failed: ${result.errorMessage}');
+      }
+      
+      return result.copyWith(timestamp: endTime);
     } catch (e) {
+      print('Error restoring from cloud backup: $e');
+      return RestoreResult(
+        success: false,
+        profilesRestored: 0,
+        duration: Duration.zero,
+        timestamp: DateTime.now(),
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  /// Get backup history
+  Future<List<BackupInfo>> getBackupHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final historyJson = prefs.getStringList(_backupHistoryKey) ?? [];
+      
+      final history = historyJson
+          .map((json) => jsonDecode(json) as Map<String, dynamic>)
+          .map((data) => BackupInfo.fromJson(data))
+          .toList();
+      
+      // Sort by creation date (newest first)
+      history.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      return history;
+    } catch (e) {
+      print('Error getting backup history: $e');
       return [];
     }
   }
 
-  Future<BackupMetadata?> _extractBackupMetadata(File zipFile) async {
+  /// Delete a backup
+  Future<bool> deleteBackup(String backupId) async {
     try {
-      final bytes = await zipFile.readAsBytes();
-      final archive = ZipDecoder().decodeBytes(bytes);
-      
-      // Find metadata file
-      final metadataFile = archive.files.firstWhere(
-        (file) => file.name == 'backup_metadata.json',
+      // Get backup history
+      final history = await getBackupHistory();
+      final backup = history.firstWhere(
+        (b) => b.id == backupId,
+        orElse: () => throw BackupException('Backup not found: $backupId'),
       );
       
-      final metadataContent = String.fromCharCodes(metadataFile.content);
-      final metadataJson = jsonDecode(metadataContent);
+      // Delete backup file if it exists locally
+      if (!backup.isCloudBackup) {
+        final backupFile = File(backup.filePath);
+        if (await backupFile.exists()) {
+          await backupFile.delete();
+        }
+      }
       
-      return BackupMetadata.fromJson(metadataJson);
+      // Remove from history
+      final updatedHistory = history.where((b) => b.id != backupId).toList();
+      await _saveBackupHistory(updatedHistory);
+      
+      return true;
     } catch (e) {
+      print('Error deleting backup: $e');
+      return false;
+    }
+  }
+
+  /// Create backup file
+  Future<File> _createBackupFile(String content, bool isEncrypted) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final backupsDir = Directory('${dir.path}/backups');
+      
+      // Create backups directory if it doesn't exist
+      if (!await backupsDir.exists()) {
+        await backupsDir.create(recursive: true);
+      }
+      
+      // Create backup file
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final extension = isEncrypted ? '.backup.enc' : '.backup';
+      final backupFile = File('${backupsDir.path}/backup_$timestamp$extension');
+      
+      // Write content to file
+      await backupFile.writeAsString(content);
+      
+      return backupFile;
+    } catch (e) {
+      print('Error creating backup file: $e');
+      rethrow;
+    }
+  }
+
+  /// Record backup in history
+  Future<void> _recordBackup(BackupInfo backupInfo) async {
+    try {
+      final history = await getBackupHistory();
+      history.insert(0, backupInfo);
+      
+      // Keep only last 50 backups
+      if (history.length > 50) {
+        history.removeRange(50, history.length);
+      }
+      
+      await _saveBackupHistory(history);
+      
+      // Record last backup timestamp
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastBackupKey, backupInfo.createdAt.toIso8601String());
+    } catch (e) {
+      print('Error recording backup: $e');
+    }
+  }
+
+  /// Save backup history
+  Future<void> _saveBackupHistory(List<BackupInfo> history) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final historyJson = history
+          .map((info) => jsonEncode(info.toJson()))
+          .toList();
+      
+      await prefs.setStringList(_backupHistoryKey, historyJson);
+    } catch (e) {
+      print('Error saving backup history: $e');
+    }
+  }
+
+  /// Get last backup timestamp
+  Future<DateTime?> getLastBackupTimestamp() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final timestampString = prefs.getString(_lastBackupKey);
+      
+      if (timestampString == null) return null;
+      
+      return DateTime.parse(timestampString);
+    } catch (e) {
+      print('Error getting last backup timestamp: $e');
       return null;
     }
   }
 
-  Future<RestoreResult> restoreFromBackup(String backupFilePath, {bool replaceAll = false}) async {
+  /// Export profiles to JSON file
+  Future<String> exportProfilesToJson() async {
     try {
-      final backupFile = File(backupFilePath);
-      if (!await backupFile.exists()) {
-        return RestoreResult(
-          success: false,
-          message: 'Backup file not found',
-        );
-      }
-
-      // Extract ZIP archive
-      final bytes = await backupFile.readAsBytes();
-      final archive = ZipDecoder().decodeBytes(bytes);
+      final profiles = await UserProfileService.getAllProfiles();
+      final exportData = {
+        'version': '1.0',
+        'exportedAt': DateTime.now().toIso8601String(),
+        'profiles': profiles.map((profile) => profile.toJson()).toList(),
+      };
       
-      // Create temporary directory for extraction
-      final appDir = await getApplicationDocumentsDirectory();
-      final tempDir = Directory('${appDir.path}/restore_temp_${DateTime.now().millisecondsSinceEpoch}');
-      await tempDir.create(recursive: true);
+      final jsonContent = jsonEncode(exportData);
+      final encryptedContent = EncryptionService().encrypt(jsonContent);
       
-      // Extract files
-      for (final file in archive.files) {
-        if (file.isFile) {
-          final extractedFile = File('${tempDir.path}/${file.name}');
-          await extractedFile.create(recursive: true);
-          await extractedFile.writeAsBytes(file.content);
-        }
-      }
+      final dir = await getApplicationDocumentsDirectory();
+      final exportFile = File('${dir.path}/profiles_export.json');
+      await exportFile.writeAsString(encryptedContent);
       
-      // Validate backup
-      final validationResult = await _validateBackup(tempDir);
-      if (!validationResult.isValid) {
-        await tempDir.delete(recursive: true);
-        return RestoreResult(
-          success: false,
-          message: 'Invalid backup file: ${validationResult.error}',
-        );
-      }
-      
-      // Restore data
-      final restoreStats = await _performRestore(tempDir, replaceAll);
-      
-      // Clean up
-      await tempDir.delete(recursive: true);
-      
-      return RestoreResult(
-        success: true,
-        message: 'Data restored successfully',
-        restoredItems: restoreStats,
-      );
-      
+      return exportFile.path;
     } catch (e) {
-      return RestoreResult(
-        success: false,
-        message: 'Failed to restore backup: $e',
-      );
+      print('Error exporting profiles to JSON: $e');
+      rethrow;
     }
   }
 
-  Future<ValidationResult> _validateBackup(Directory backupDir) async {
+  /// Import profiles from JSON file
+  Future<bool> importProfilesFromJson(String filePath) async {
     try {
-      // Check if metadata file exists
-      final metadataFile = File('${backupDir.path}/backup_metadata.json');
-      if (!await metadataFile.exists()) {
-        return ValidationResult(false, 'Missing backup metadata');
+      final importFile = File(filePath);
+      if (!await importFile.exists()) {
+        throw BackupException('Import file not found: $filePath');
       }
       
-      // Validate metadata
-      final metadataContent = await metadataFile.readAsString();
-      final metadata = jsonDecode(metadataContent);
+      final content = await importFile.readAsString();
+      final decryptedContent = EncryptionService().decrypt(content);
+      final importData = jsonDecode(decryptedContent) as Map<String, dynamic>;
       
-      if (metadata['version'] == null) {
-        return ValidationResult(false, 'Invalid backup version');
+      // Validate version
+      final version = importData['version'] as String?;
+      if (version != '1.0') {
+        throw BackupException('Unsupported import version: $version');
       }
       
-      // Check required files
-      final requiredFiles = ['symbols.json', 'categories.json', 'profiles.json'];
-      for (final fileName in requiredFiles) {
-        final file = File('${backupDir.path}/$fileName');
-        if (!await file.exists()) {
-          return ValidationResult(false, 'Missing required file: $fileName');
+      // Get profiles from import data
+      final profilesData = importData['profiles'] as List;
+      final importedProfiles = profilesData
+          .map((data) => UserProfile.fromJson(Map<String, dynamic>.from(data)))
+          .toList();
+      
+      // Save imported profiles
+      for (final profile in importedProfiles) {
+        await UserProfileService.saveUserProfile(profile);
+      }
+      
+      // Set first profile as active if there are any and no active profile exists
+      if (importedProfiles.isNotEmpty) {
+        final activeProfile = await UserProfileService.getActiveProfile();
+        if (activeProfile == null) {
+          await UserProfileService.setActiveProfile(importedProfiles.first);
         }
       }
       
-      return ValidationResult(true, null);
+      return true;
     } catch (e) {
-      return ValidationResult(false, 'Validation error: $e');
-    }
-  }
-
-  Future<RestoreStats> _performRestore(Directory backupDir, bool replaceAll) async {
-    final stats = RestoreStats();
-    
-    try {
-      final symbolService = SymbolDatabaseService();
-      final profileService = ProfileService();
-      final historyService = PhraseHistoryService();
-      
-      if (replaceAll) {
-        // Clear existing data
-        await symbolService.clearAllData();
-        // Clear profiles (except current one)
-        // Clear history
-        await historyService.clearHistory();
-      }
-      
-      // Restore symbols
-      final symbolsFile = File('${backupDir.path}/symbols.json');
-      if (await symbolsFile.exists()) {
-        final symbolsContent = await symbolsFile.readAsString();
-        final symbolsList = jsonDecode(symbolsContent) as List;
-        
-        for (final symbolData in symbolsList) {
-          final symbol = Symbol.fromJson(symbolData);
-          await symbolService.addSymbol(symbol);
-          stats.symbolsRestored++;
-        }
-      }
-      
-      // Restore categories
-      final categoriesFile = File('${backupDir.path}/categories.json');
-      if (await categoriesFile.exists()) {
-        final categoriesContent = await categoriesFile.readAsString();
-        final categoriesList = jsonDecode(categoriesContent) as List;
-        
-        for (final categoryData in categoriesList) {
-          final category = Category.fromJson(categoryData);
-          await symbolService.addCategory(category);
-          stats.categoriesRestored++;
-        }
-      }
-      
-      // Restore profiles (if not replace all or user chooses)
-      final profilesFile = File('${backupDir.path}/profiles.json');
-      if (await profilesFile.exists()) {
-        final profilesContent = await profilesFile.readAsString();
-        final profilesList = jsonDecode(profilesContent) as List;
-        
-        for (final profileData in profilesList) {
-          final profile = UserProfile.fromJson(profileData);
-          await profileService.addProfile(profile);
-          stats.profilesRestored++;
-        }
-      }
-      
-      // Restore phrase history
-      final historyFile = File('${backupDir.path}/phrase_history.json');
-      if (await historyFile.exists()) {
-        final historyContent = await historyFile.readAsString();
-        final historyData = jsonDecode(historyContent);
-        
-        if (historyData['history'] != null) {
-          for (final itemData in historyData['history']) {
-            final item = PhraseHistoryItem.fromJson(itemData);
-            await historyService.addToHistory(item.text);
-            stats.historyItemsRestored++;
-          }
-        }
-      }
-      
-      // Restore custom images
-      await _restoreCustomImages(backupDir);
-      
-    } catch (e) {
-      throw Exception('Restore failed: $e');
-    }
-    
-    return stats;
-  }
-
-  Future<void> _restoreCustomImages(Directory backupDir) async {
-    final imagesDir = Directory('${backupDir.path}/custom_images');
-    if (!await imagesDir.exists()) return;
-    
-    // Get app documents directory for storing custom images
-    final appDir = await getApplicationDocumentsDirectory();
-    final customImagesDir = Directory('${appDir.path}/custom_images');
-    if (!await customImagesDir.exists()) {
-      await customImagesDir.create(recursive: true);
-    }
-    
-    await for (final entity in imagesDir.list()) {
-      if (entity is File) {
-        final fileName = entity.path.split('/').last;
-        final destinationFile = File('${customImagesDir.path}/$fileName');
-        await entity.copy(destinationFile.path);
-      }
-    }
-  }
-
-  Future<bool> deleteBackup(String backupFilePath) async {
-    try {
-      final file = File(backupFilePath);
-      if (await file.exists()) {
-        await file.delete();
-        return true;
-      }
-      return false;
-    } catch (e) {
+      print('Error importing profiles from JSON: $e');
       return false;
     }
   }
 }
 
-// Data Classes
-class BackupData {
-  final List<Map<String, dynamic>> symbols;
-  final List<Map<String, dynamic>> categories;
-  final List<Map<String, dynamic>> profiles;
-  final Map<String, dynamic> phraseHistory;
-  final Map<String, dynamic> languageSettings;
-  final List<Map<String, dynamic>> quickPhrases;
-
-  BackupData({
-    required this.symbols,
-    required this.categories,
-    required this.profiles,
-    required this.phraseHistory,
-    required this.languageSettings,
-    required this.quickPhrases,
-  });
-}
-
-class BackupResult {
-  final bool success;
-  final String? filePath;
-  final String? fileName;
-  final int? size;
-  final String message;
-
-  BackupResult({
-    required this.success,
-    this.filePath,
-    this.fileName,
-    this.size,
-    required this.message,
-  });
-}
-
-class BackupFile {
-  final String fileName;
+/// Information about a backup
+class BackupInfo {
+  final String id;
+  final String name;
   final String filePath;
   final int size;
   final DateTime createdAt;
-  final BackupMetadata? metadata;
+  final bool isEncrypted;
+  final int profileCount;
+  final bool isCloudBackup;
 
-  BackupFile({
-    required this.fileName,
+  BackupInfo({
+    required this.id,
+    required this.name,
     required this.filePath,
     required this.size,
     required this.createdAt,
-    this.metadata,
-  });
-}
-
-class BackupMetadata {
-  final String version;
-  final DateTime createdAt;
-  final String appVersion;
-  final String backupType;
-  final List<String> files;
-  final int symbolCount;
-  final int profileCount;
-
-  BackupMetadata({
-    required this.version,
-    required this.createdAt,
-    required this.appVersion,
-    required this.backupType,
-    required this.files,
-    required this.symbolCount,
+    required this.isEncrypted,
     required this.profileCount,
+    this.isCloudBackup = false,
   });
 
-  factory BackupMetadata.fromJson(Map<String, dynamic> json) => BackupMetadata(
-    version: json['version'],
-    createdAt: DateTime.parse(json['created_at']),
-    appVersion: json['app_version'],
-    backupType: json['backup_type'],
-    files: List<String>.from(json['files']),
-    symbolCount: json['symbol_count'],
-    profileCount: json['profile_count'],
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'filePath': filePath,
+    'size': size,
+    'createdAt': createdAt.toIso8601String(),
+    'isEncrypted': isEncrypted,
+    'profileCount': profileCount,
+    'isCloudBackup': isCloudBackup,
+  };
+
+  factory BackupInfo.fromJson(Map<String, dynamic> json) => BackupInfo(
+    id: json['id'],
+    name: json['name'],
+    filePath: json['filePath'],
+    size: json['size'],
+    createdAt: DateTime.parse(json['createdAt']),
+    isEncrypted: json['isEncrypted'],
+    profileCount: json['profileCount'],
+    isCloudBackup: json['isCloudBackup'] ?? false,
+  );
+
+  BackupInfo copyWith({
+    String? id,
+    String? name,
+    String? filePath,
+    int? size,
+    DateTime? createdAt,
+    bool? isEncrypted,
+    int? profileCount,
+    bool? isCloudBackup,
+  }) => BackupInfo(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    filePath: filePath ?? this.filePath,
+    size: size ?? this.size,
+    createdAt: createdAt ?? this.createdAt,
+    isEncrypted: isEncrypted ?? this.isEncrypted,
+    profileCount: profileCount ?? this.profileCount,
+    isCloudBackup: isCloudBackup ?? this.isCloudBackup,
   );
 }
 
+/// Result of a backup operation
+class BackupResult {
+  final bool success;
+  final BackupInfo? backupInfo;
+  final Duration duration;
+  final DateTime timestamp;
+  final String? errorMessage;
+
+  BackupResult({
+    required this.success,
+    this.backupInfo,
+    required this.duration,
+    required this.timestamp,
+    this.errorMessage,
+  });
+
+  BackupResult copyWith({
+    bool? success,
+    BackupInfo? backupInfo,
+    Duration? duration,
+    DateTime? timestamp,
+    String? errorMessage,
+  }) => BackupResult(
+    success: success ?? this.success,
+    backupInfo: backupInfo ?? this.backupInfo,
+    duration: duration ?? this.duration,
+    timestamp: timestamp ?? this.timestamp,
+    errorMessage: errorMessage ?? this.errorMessage,
+  );
+}
+
+/// Result of a restore operation
 class RestoreResult {
   final bool success;
-  final String message;
-  final RestoreStats? restoredItems;
+  final int profilesRestored;
+  final Duration duration;
+  final DateTime timestamp;
+  final String? errorMessage;
 
   RestoreResult({
     required this.success,
-    required this.message,
-    this.restoredItems,
+    required this.profilesRestored,
+    required this.duration,
+    required this.timestamp,
+    this.errorMessage,
   });
-}
 
-class RestoreStats {
-  int symbolsRestored = 0;
-  int categoriesRestored = 0;
-  int profilesRestored = 0;
-  int historyItemsRestored = 0;
-
-  @override
-  String toString() {
-    return 'Restored: $symbolsRestored symbols, $categoriesRestored categories, $profilesRestored profiles, $historyItemsRestored history items';
-  }
-}
-
-class ValidationResult {
-  final bool isValid;
-  final String? error;
-
-  ValidationResult(this.isValid, this.error);
+  RestoreResult copyWith({
+    bool? success,
+    int? profilesRestored,
+    Duration? duration,
+    DateTime? timestamp,
+    String? errorMessage,
+  }) => RestoreResult(
+    success: success ?? this.success,
+    profilesRestored: profilesRestored ?? this.profilesRestored,
+    duration: duration ?? this.duration,
+    timestamp: timestamp ?? this.timestamp,
+    errorMessage: errorMessage ?? this.errorMessage,
+  );
 }

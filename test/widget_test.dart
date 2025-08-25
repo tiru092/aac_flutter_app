@@ -54,7 +54,7 @@ void main() {
 
     testWidgets('AAC App loads correctly with all features', (WidgetTester tester) async {
       // Build our app and trigger a frame
-      await tester.pumpWidget(const AACApp());
+      await tester.pumpWidget(const AACApp(firebaseInitialized: false));
       await tester.pumpAndSettle();
 
       // Verify that the main UI elements are present
@@ -74,7 +74,7 @@ void main() {
     });
 
     testWidgets('Segmented control switches views correctly', (WidgetTester tester) async {
-      await tester.pumpWidget(const AACApp());
+      await tester.pumpWidget(const AACApp(firebaseInitialized: false));
       await tester.pumpAndSettle();
 
       // Initially should show Categories view
@@ -89,7 +89,7 @@ void main() {
     });
 
     testWidgets('Settings navigation works correctly', (WidgetTester tester) async {
-      await tester.pumpWidget(const AACApp());
+      await tester.pumpWidget(const AACApp(firebaseInitialized: false));
       await tester.pumpAndSettle();
 
       // Tap settings button
@@ -106,7 +106,7 @@ void main() {
     });
 
     testWidgets('Add symbol dialog works correctly', (WidgetTester tester) async {
-      await tester.pumpWidget(const AACApp());
+      await tester.pumpWidget(const AACApp(firebaseInitialized: false));
       await tester.pumpAndSettle();
 
       // Tap add button
@@ -119,7 +119,7 @@ void main() {
     });
 
     testWidgets('App handles accessibility settings changes', (WidgetTester tester) async {
-      await tester.pumpWidget(const AACApp());
+      await tester.pumpWidget(const AACApp(firebaseInitialized: false));
       await tester.pumpAndSettle();
 
       // Test high contrast mode
@@ -138,7 +138,7 @@ void main() {
     });
 
     testWidgets('Sound and voice feedback systems work', (WidgetTester tester) async {
-      await tester.pumpWidget(const AACApp());
+      await tester.pumpWidget(const AACApp(firebaseInitialized: false));
       await tester.pumpAndSettle();
 
       // Test sound effects
@@ -157,7 +157,7 @@ void main() {
     });
 
     testWidgets('App maintains accessibility compliance', (WidgetTester tester) async {
-      await tester.pumpWidget(const AACApp());
+      await tester.pumpWidget(const AACApp(firebaseInitialized: false));
       await tester.pumpAndSettle();
 
       // Check accessibility tree structure
@@ -172,7 +172,7 @@ void main() {
     });
 
     testWidgets('App handles rapid user interactions gracefully', (WidgetTester tester) async {
-      await tester.pumpWidget(const AACApp());
+      await tester.pumpWidget(const AACApp(firebaseInitialized: false));
       await tester.pumpAndSettle();
 
       // Rapidly switch between views
@@ -192,7 +192,7 @@ void main() {
     });
 
     testWidgets('App provides proper feedback for child interactions', (WidgetTester tester) async {
-      await tester.pumpWidget(const AACApp());
+      await tester.pumpWidget(const AACApp(firebaseInitialized: false));
       await tester.pumpAndSettle();
 
       // Test comprehensive feedback system
@@ -216,7 +216,7 @@ void main() {
     });
 
     testWidgets('Communication grid displays and functions correctly', (WidgetTester tester) async {
-      await tester.pumpWidget(const AACApp());
+      await tester.pumpWidget(const AACApp(firebaseInitialized: false));
       await tester.pumpAndSettle();
 
       // Communication grid should be present

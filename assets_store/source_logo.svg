@@ -1,0 +1,15 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="512" cy="512" r="512" fill="#4ECDC4"/>
+  
+  <!-- Communication symbol - speech bubble -->
+  <path d="M300,400 L724,400 L724,600 L524,600 L524,700 L424,600 L300,600 Z" fill="white"/>
+  
+  <!-- Heart symbol for care/love -->
+  <path d="M512,300 C550,250 620,250 650,300 C680,350 650,420 600,450 C550,480 512,520 512,520 C512,520 474,480 424,450 C374,420 344,350 374,300 C404,250 474,250 512,300 Z" fill="white"/>
+  
+  <!-- Accessibility symbol -->
+  <circle cx="512" cy="512" r="80" fill="#FF6B6B" stroke="white" stroke-width="20"/>
+  <path d="M512,400 L512,624" stroke="white" stroke-width="40" stroke-linecap="round"/>
+  <path d="M450,450 L512,400 L574,450" stroke="white" stroke-width="40" stroke-linecap="round" fill="none"/>
+</svg>

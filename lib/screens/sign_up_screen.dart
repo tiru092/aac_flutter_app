@@ -94,15 +94,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String _getErrorMessage(String code) {
     switch (code) {
       case 'email-already-in-use':
-        return 'An account already exists with this email.';
+        return 'An account already exists with this email. Please sign in or use a different email.';
       case 'invalid-email':
         return 'Please enter a valid email address.';
       case 'weak-password':
-        return 'Password is too weak. Use a stronger password.';
+        return 'Password is too weak. Use at least 6 characters with a mix of letters and numbers.';
       case 'operation-not-allowed':
-        return 'Email/password accounts are not enabled.';
+        return 'Email/password accounts are not enabled. Please contact support.';
+      case 'network-request-failed':
+        return 'Network error. Please check your internet connection and try again.';
+      case 'too-many-requests':
+        return 'Too many requests. Please try again later.';
       default:
-        return 'An error occurred. Please try again.';
+        return 'An unexpected error occurred during registration. Please try again later. (Error code: $code)';
     }
   }
 

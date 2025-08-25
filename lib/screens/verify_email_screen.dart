@@ -54,6 +54,14 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       
       if (isVerified) {
         if (mounted) {
+          // Show success message before navigating
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Email verified successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          
           Navigator.pushAndRemoveUntil(
             context,
             CupertinoPageRoute(builder: (context) => const HomeScreen()),
@@ -62,14 +70,21 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         }
       } else {
         setState(() {
-          _errorMessage = 'Email not verified. Please check your inbox and click the verification link.';
+          _errorMessage = 'Email not verified. Please check your inbox and click the verification link. '
+              'If you haven\'t received the email, please check your spam folder.';
           _isVerifying = false;
           _startCountdown();
         });
       }
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _errorMessage = 'Firebase error: ${e.message}. Please try again.';
+        _isVerifying = false;
+        _startCountdown();
+      });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Failed to check verification status. Please try again.';
+        _errorMessage = 'Failed to check verification status. Please check your internet connection and try again.';
         _isVerifying = false;
         _startCountdown();
       });
@@ -87,13 +102,29 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     try {
       await _authService.sendVerificationEmail();
       setState(() {
-        _errorMessage = 'Verification email sent! Please check your inbox.';
+        _errorMessage = 'Verification email sent successfully! Please check your inbox (and spam folder).';
+        _isVerifying = false;
+        _startCountdown();
+      });
+      
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Verification email sent!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _errorMessage = 'Firebase error: ${e.message}. Please try again.';
         _isVerifying = false;
         _startCountdown();
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Failed to send verification email. Please try again.';
+        _errorMessage = 'Failed to send verification email. Please check your internet connection and try again.';
         _isVerifying = false;
         _startCountdown();
       });

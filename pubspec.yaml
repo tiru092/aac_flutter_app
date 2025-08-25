@@ -1,5 +1,5 @@
-name: aac_flutter_app
-description: A Flutter application for Augmentative and Alternative Communication (AAC).
+name: aac_communication_helper
+description: A Flutter application for Augmentative and Alternative Communication (AAC) to help individuals with communication challenges.
 
 publish_to: 'none'
 
@@ -25,10 +25,15 @@ dependencies:
   archive: ^3.4.10
   share_plus: ^7.2.2
   flutter_sound: ^9.2.13
-  firebase_core: ^2.24.2
-  firebase_auth: ^4.15.3
-  cloud_firestore: ^4.13.6
-  firebase_storage: ^11.5.6
+  firebase_core: ^4.0.0
+  firebase_auth: ^6.0.1
+  cloud_firestore: ^6.0.0
+  firebase_storage: ^13.0.0
+  firebase_crashlytics: ^5.0.0
+  firebase_performance: ^0.11.0
+  encrypt: ^5.0.3
+  flutter_secure_storage: ^9.0.0
+  cached_network_image: ^3.3.1
 
 dev_dependencies:
   flutter_test:
@@ -36,6 +41,7 @@ dev_dependencies:
   flutter_lints: ^3.0.0
   hive_generator: ^2.0.1
   build_runner: ^2.4.7
+  mockito: ^5.4.4
 
 flutter:
   uses-material-design: true
@@ -45,4 +51,3 @@ flutter:
     - assets/icons/
     - assets/sounds/
     - assets/images/
-

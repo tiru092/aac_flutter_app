@@ -2,10 +2,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../utils/aac_helper.dart';
 import '../services/language_service.dart';
-import 'language_settings_screen.dart';
-import 'backup_management_screen.dart';
-import 'voice_settings_screen.dart';
-// import 'cloud_sync_screen.dart';
+import '../screens/language_settings_screen.dart';
+import '../screens/voice_settings_screen.dart';
+import '../screens/backup_management_screen.dart';
+import '../models/user_profile.dart';
 
 class AccessibilitySettingsScreen extends StatefulWidget {
   const AccessibilitySettingsScreen({super.key});
@@ -16,35 +16,36 @@ class AccessibilitySettingsScreen extends StatefulWidget {
 
 class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScreen> {
   final LanguageService _languageService = LanguageService();
-  
-  bool _highContrast = false;
-  bool _largeText = false;
-  bool _voiceFeedback = false;
-  bool _hapticFeedback = false;
-  bool _autoSpeak = false;
-  double _speechRate = 0.5;
-  double _speechPitch = 1.2;
-  double _speechVolume = 1.0;
-  bool _soundEffects = false;
-  double _soundVolume = 0.8;
+  bool _isHighContrastEnabled = false;
+  bool _isLargeTextEnabled = false;
+  bool _isVoiceFeedbackEnabled = true;
+  bool _isHapticFeedbackEnabled = true;
+  bool _isAutoSpeakEnabled = false;
+  bool _isSoundEffectsEnabled = true;
+  double _soundVolume = 1.0;
+  late UserProfile _currentUser; // Add current user
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _currentUser = UserProfile( // Initialize with a default user for now
+      id: 'temp_user',
+      name: 'Temporary User',
+      role: UserRole.child,
+      createdAt: DateTime.now(),
+      settings: ProfileSettings(),
+    );
   }
 
-  void _loadSettings() {
+  Future<void> _loadSettings() async {
     setState(() {
-      _highContrast = AACHelper.isHighContrastEnabled;
-      _largeText = AACHelper.isLargeTextEnabled;
-      _voiceFeedback = AACHelper.isVoiceFeedbackEnabled;
-      _hapticFeedback = AACHelper.isHapticFeedbackEnabled;
-      _autoSpeak = AACHelper.isAutoSpeakEnabled;
-      _speechRate = AACHelper.speechRate;
-      _speechPitch = AACHelper.speechPitch;
-      _speechVolume = AACHelper.speechVolume;
-      _soundEffects = AACHelper.isSoundEffectsEnabled;
+      _isHighContrastEnabled = AACHelper.isHighContrastEnabled;
+      _isLargeTextEnabled = AACHelper.isLargeTextEnabled;
+      _isVoiceFeedbackEnabled = AACHelper.isVoiceFeedbackEnabled;
+      _isHapticFeedbackEnabled = AACHelper.isHapticFeedbackEnabled;
+      _isAutoSpeakEnabled = AACHelper.isAutoSpeakEnabled;
+      _isSoundEffectsEnabled = AACHelper.isSoundEffectsEnabled;
       _soundVolume = AACHelper.soundVolume;
     });
   }
@@ -52,260 +53,49 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: AACHelper.isHighContrastEnabled 
-            ? Colors.black 
-            : AACHelper.childFriendlyColors[0],
+      navigationBar: const CupertinoNavigationBar(
+        backgroundColor: Color(0xFF4ECDC4),
         middle: Text(
-          '🔧 Accessibility Settings',
+          '♿ Accessibility Settings',
           style: TextStyle(
-            fontSize: 18 * AACHelper.getTextSizeMultiplier(),
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
         ),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: Icon(
-            CupertinoIcons.back,
-            color: Colors.white,
-            size: 24 * AACHelper.getTextSizeMultiplier(),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: AACHelper.isHighContrastEnabled
-                ? [Colors.white, Colors.grey.shade200]
-                : [
-                    AACHelper.childFriendlyColors[0].withOpacity(0.1),
-                    AACHelper.childFriendlyColors[2].withOpacity(0.05),
-                  ],
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSectionHeader('👁️ Visual Accessibility'),
-                _buildSettingCard([
-                  _buildToggleSetting(
-                    title: 'High Contrast Mode',
-                    subtitle: 'Increases contrast for better visibility',
-                    icon: CupertinoIcons.eye,
-                    value: _highContrast,
-                    onChanged: (value) async {
-                      setState(() => _highContrast = value);
-                      await AACHelper.setHighContrast(value);
-                      await AACHelper.speakWithAccessibility(
-                        value ? 'High contrast mode enabled' : 'High contrast mode disabled',
-                        announce: true,
-                      );
-                    },
-                  ),
-                  _buildToggleSetting(
-                    title: 'Large Text',
-                    subtitle: 'Makes text 30% larger for easier reading',
-                    icon: CupertinoIcons.textformat_size,
-                    value: _largeText,
-                    onChanged: (value) async {
-                      setState(() => _largeText = value);
-                      await AACHelper.setLargeText(value);
-                      await AACHelper.speakWithAccessibility(
-                        value ? 'Large text enabled' : 'Large text disabled',
-                        announce: true,
-                      );
-                    },
-                  ),
-                ]),
-
-                const SizedBox(height: 20),
-                _buildSectionHeader('🔊 Audio Feedback'),
-                _buildSettingCard([
-                  _buildToggleSetting(
-                    title: 'Voice Feedback',
-                    subtitle: 'Enable text-to-speech for all interactions',
-                    icon: CupertinoIcons.speaker_2_fill,
-                    value: _voiceFeedback,
-                    onChanged: (value) async {
-                      setState(() => _voiceFeedback = value);
-                      await AACHelper.setVoiceFeedback(value);
-                      if (value) {
-                        await AACHelper.speakWithAccessibility('Voice feedback enabled');
-                      }
-                    },
-                  ),
-                  _buildToggleSetting(
-                    title: 'Auto-Speak Symbols',
-                    subtitle: 'Automatically speak symbols when selected',
-                    icon: CupertinoIcons.speaker_1_fill,
-                    value: _autoSpeak,
-                    onChanged: (value) async {
-                      setState(() => _autoSpeak = value);
-                      await AACHelper.setAutoSpeak(value);
-                      await AACHelper.speakWithAccessibility(
-                        value ? 'Auto-speak enabled' : 'Auto-speak disabled',
-                        announce: true,
-                      );
-                    },
-                  ),
-                ]),
-
-                const SizedBox(height: 20),
-                _buildSectionHeader('🎚️ Speech Controls'),
-                _buildSettingCard([
-                  _buildSliderSetting(
-                    title: 'Speech Speed',
-                    subtitle: 'Adjust how fast the voice speaks',
-                    icon: CupertinoIcons.speedometer,
-                    value: _speechRate,
-                    min: 0.1,
-                    max: 1.0,
-                    onChanged: (value) async {
-                      setState(() => _speechRate = value);
-                      await AACHelper.setSpeechRate(value);
-                    },
-                    onChangeEnd: (value) async {
-                      await AACHelper.speakWithAccessibility('Speech speed adjusted');
-                    },
-                  ),
-                  _buildSliderSetting(
-                    title: 'Voice Pitch',
-                    subtitle: 'Make the voice higher or lower',
-                    icon: CupertinoIcons.waveform,
-                    value: _speechPitch,
-                    min: 0.5,
-                    max: 2.0,
-                    onChanged: (value) async {
-                      setState(() => _speechPitch = value);
-                      await AACHelper.setSpeechPitch(value);
-                    },
-                    onChangeEnd: (value) async {
-                      await AACHelper.speakWithAccessibility('Voice pitch adjusted');
-                    },
-                  ),
-                  _buildSliderSetting(
-                    title: 'Volume',
-                    subtitle: 'Control speech volume level',
-                    icon: CupertinoIcons.volume_up,
-                    value: _speechVolume,
-                    min: 0.0,
-                    max: 1.0,
-                    onChanged: (value) async {
-                      setState(() => _speechVolume = value);
-                      await AACHelper.setSpeechVolume(value);
-                    },
-                    onChangeEnd: (value) async {
-                      await AACHelper.speakWithAccessibility('Volume adjusted');
-                    },
-                  ),
-                ]),
-
-                const SizedBox(height: 20),
-                _buildSectionHeader('📳 Haptic Feedback'),
-                _buildSettingCard([
-                  _buildToggleSetting(
-                    title: 'Haptic Feedback',
-                    subtitle: 'Vibration feedback for button presses',
-                    icon: CupertinoIcons.device_phone_portrait,
-                    value: _hapticFeedback,
-                    onChanged: (value) async {
-                      setState(() => _hapticFeedback = value);
-                      await AACHelper.setHapticFeedback(value);
-                      if (value) {
-                        await AACHelper.accessibleHapticFeedback();
-                      }
-                      await AACHelper.speakWithAccessibility(
-                        value ? 'Haptic feedback enabled' : 'Haptic feedback disabled',
-                        announce: true,
-                      );
-                    },
-                  ),
-                ]),
-
-                const SizedBox(height: 20),
-                _buildSectionHeader('🔊 Sound Effects'),
-                _buildSettingCard([
-                  _buildToggleSetting(
-                    title: 'Sound Effects',
-                    subtitle: 'Play sounds for button presses and interactions',
-                    icon: CupertinoIcons.speaker_fill,
-                    value: _soundEffects,
-                    onChanged: (value) async {
-                      setState(() => _soundEffects = value);
-                      await AACHelper.setSoundEffects(value);
-                      if (value) {
-                        await AACHelper.playSound(SoundEffect.success);
-                      }
-                      await AACHelper.speakWithAccessibility(
-                        value ? 'Sound effects enabled' : 'Sound effects disabled',
-                        announce: true,
-                      );
-                    },
-                  ),
-                  _buildSliderSetting(
-                    title: 'Sound Volume',
-                    subtitle: 'Adjust sound effects volume level',
-                    icon: CupertinoIcons.volume_up,
-                    value: _soundVolume,
-                    min: 0.0,
-                    max: 1.0,
-                    onChanged: (value) async {
-                      setState(() => _soundVolume = value);
-                      await AACHelper.setSoundVolume(value);
-                    },
-                    onChangeEnd: (value) async {
-                      await AACHelper.playSound(SoundEffect.chime);
-                    },
-                  ),
-                ]),
-
-                const SizedBox(height: 20),
-                _buildSectionHeader('🌍 Language Settings'),
-                _buildLanguageSection(),
-
-                const SizedBox(height: 20),
-                _buildSectionHeader('🎙️ Voice Settings'),
-                _buildVoiceSettingsSection(),
-
-                const SizedBox(height: 20),
-                _buildSectionHeader('💾 Data Management'),
-                _buildBackupSection(),
-
-                const SizedBox(height: 30),
-                _buildTestSection(),
-                const SizedBox(height: 20),
-              ],
-            ),
-          ),
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _buildHighContrastToggle(),
+            const SizedBox(height: 16),
+            _buildLargeTextToggle(),
+            const SizedBox(height: 16),
+            _buildVoiceFeedbackToggle(),
+            const SizedBox(height: 16),
+            _buildHapticFeedbackToggle(),
+            const SizedBox(height: 16),
+            _buildAutoSpeakToggle(),
+            const SizedBox(height: 16),
+            _buildSoundEffectsToggle(),
+            const SizedBox(height: 16),
+            _buildSoundVolumeSlider(),
+            const SizedBox(height: 16),
+            _buildTestSection(),
+            const SizedBox(height: 16),
+            _buildLanguageSection(),
+            const SizedBox(height: 16),
+            _buildVoiceSettingsSection(),
+            const SizedBox(height: 16),
+            _buildBackupSection(),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 22 * AACHelper.getTextSizeMultiplier(),
-          fontWeight: FontWeight.bold,
-          color: AACHelper.isHighContrastEnabled 
-              ? Colors.black 
-              : AACHelper.childFriendlyColors[0],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingCard(List<Widget> children) {
+  Widget _buildHighContrastToggle() {
     return Container(
       decoration: BoxDecoration(
         color: AACHelper.isHighContrastEnabled 
@@ -323,159 +113,311 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
           ),
         ],
       ),
-      child: Column(children: children),
-    );
-  }
-
-  Widget _buildToggleSetting({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Semantics(
-      label: '$title, ${value ? 'enabled' : 'disabled'}, $subtitle',
-      toggled: value,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AACHelper.getAccessibleColors()[0].withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: AACHelper.getAccessibleColors()[0],
-                size: 24,
-              ),
+      child: Material(
+        color: Colors.transparent,
+        child: SwitchListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          activeColor: const Color(0xFF4ECDC4),
+          title: Text(
+            'High Contrast Mode',
+            style: TextStyle(
+              fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+              fontWeight: FontWeight.w600,
+              color: AACHelper.isHighContrastEnabled 
+                  ? Colors.black 
+                  : Colors.black87,
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 17 * AACHelper.getTextSizeMultiplier(),
-                      fontWeight: FontWeight.w600,
-                      color: AACHelper.isHighContrastEnabled 
-                          ? Colors.black 
-                          : Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 14 * AACHelper.getTextSizeMultiplier(),
-                      color: AACHelper.isHighContrastEnabled 
-                          ? Colors.black54 
-                          : Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
+          ),
+          subtitle: Text(
+            'Enhanced visibility with bold colors',
+            style: TextStyle(
+              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+              color: AACHelper.isHighContrastEnabled 
+                  ? Colors.black54 
+                  : Colors.grey[600],
             ),
-            CupertinoSwitch(
-              value: value,
-              onChanged: onChanged,
-              activeColor: AACHelper.getAccessibleColors()[0],
-            ),
-          ],
+          ),
+          value: _isHighContrastEnabled,
+          onChanged: (value) async {
+            setState(() {
+              _isHighContrastEnabled = value;
+            });
+            await AACHelper.setHighContrast(value);
+          },
         ),
       ),
     );
   }
 
-  Widget _buildSliderSetting({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required double value,
-    required double min,
-    required double max,
-    required ValueChanged<double> onChanged,
-    ValueChanged<double>? onChangeEnd,
-  }) {
-    return Semantics(
-      label: '$title, current value ${(value * 100).round()} percent, $subtitle',
-      slider: true,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AACHelper.getAccessibleColors()[2].withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: AACHelper.getAccessibleColors()[2],
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 17 * AACHelper.getTextSizeMultiplier(),
-                          fontWeight: FontWeight.w600,
-                          color: AACHelper.isHighContrastEnabled 
-                              ? Colors.black 
-                              : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 14 * AACHelper.getTextSizeMultiplier(),
-                          color: AACHelper.isHighContrastEnabled 
-                              ? Colors.black54 
-                              : Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+  Widget _buildLargeTextToggle() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: SwitchListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          activeColor: const Color(0xFF4ECDC4),
+          title: Text(
+            'Large Text',
+            style: TextStyle(
+              fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
             ),
-            const SizedBox(height: 12),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: AACHelper.getAccessibleColors()[2],
-                thumbColor: AACHelper.getAccessibleColors()[2],
-                trackHeight: 6,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: Slider(
-                  value: value,
-                  min: min,
-                  max: max,
-                  onChanged: onChanged,
-                  onChangeEnd: onChangeEnd,
-                ),
-              ),
+          ),
+          subtitle: Text(
+            'Increase text size for better readability',
+            style: TextStyle(
+              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+              color: Colors.grey[600],
             ),
-          ],
+          ),
+          value: _isLargeTextEnabled,
+          onChanged: (value) async {
+            setState(() {
+              _isLargeTextEnabled = value;
+            });
+            await AACHelper.setLargeText(value);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVoiceFeedbackToggle() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: SwitchListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          activeColor: const Color(0xFF4ECDC4),
+          title: Text(
+            'Voice Feedback',
+            style: TextStyle(
+              fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          subtitle: Text(
+            'Speak button labels and actions',
+            style: TextStyle(
+              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+              color: Colors.grey[600],
+            ),
+          ),
+          value: _isVoiceFeedbackEnabled,
+          onChanged: (value) async {
+            setState(() {
+              _isVoiceFeedbackEnabled = value;
+            });
+            await AACHelper.setVoiceFeedback(value);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHapticFeedbackToggle() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: SwitchListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          activeColor: const Color(0xFF4ECDC4),
+          title: Text(
+            'Haptic Feedback',
+            style: TextStyle(
+              fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          subtitle: Text(
+            'Vibrations for interactions',
+            style: TextStyle(
+              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+              color: Colors.grey[600],
+            ),
+          ),
+          value: _isHapticFeedbackEnabled,
+          onChanged: (value) async {
+            setState(() {
+              _isHapticFeedbackEnabled = value;
+            });
+            await AACHelper.setHapticFeedback(value);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAutoSpeakToggle() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: SwitchListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          activeColor: const Color(0xFF4ECDC4),
+          title: Text(
+            'Auto Speak',
+            style: TextStyle(
+              fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          subtitle: Text(
+            'Automatically speak selected symbols',
+            style: TextStyle(
+              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+              color: Colors.grey[600],
+            ),
+          ),
+          value: _isAutoSpeakEnabled,
+          onChanged: (value) async {
+            setState(() {
+              _isAutoSpeakEnabled = value;
+            });
+            await AACHelper.setAutoSpeak(value);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSoundEffectsToggle() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: SwitchListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          activeColor: const Color(0xFF4ECDC4),
+          title: Text(
+            'Sound Effects',
+            style: TextStyle(
+              fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          subtitle: Text(
+            'Play sounds for interactions',
+            style: TextStyle(
+              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+              color: Colors.grey[600],
+            ),
+          ),
+          value: _isSoundEffectsEnabled,
+          onChanged: (value) async {
+            setState(() {
+              _isSoundEffectsEnabled = value;
+            });
+            await AACHelper.setSoundEffects(value);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSoundVolumeSlider() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          title: Text(
+            'Sound Volume',
+            style: TextStyle(
+              fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          subtitle: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: const Color(0xFF4ECDC4),
+              thumbColor: const Color(0xFF4ECDC4),
+              trackHeight: 6,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+            ),
+            child: Slider(
+              value: _soundVolume,
+              min: 0.0,
+              max: 1.0,
+              onChanged: (value) async {
+                setState(() {
+                  _soundVolume = value;
+                });
+                await AACHelper.setSoundVolume(value);
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -489,8 +431,8 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
           colors: AACHelper.isHighContrastEnabled
               ? [Colors.black, Colors.grey]
               : [
-                  AACHelper.childFriendlyColors[3],
-                  AACHelper.childFriendlyColors[4],
+                  AACHelper.childFriendlyColors[3]!,
+                  AACHelper.childFriendlyColors[4]!,
                 ],
         ),
         borderRadius: BorderRadius.circular(16),
@@ -577,7 +519,7 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: AACHelper.getAccessibleColors()[1].withOpacity(0.1),
+              color: AACHelper.getAccessibleColors()[2].withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
@@ -758,7 +700,7 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
                 Navigator.push(
                   context,
                   CupertinoPageRoute(
-                    builder: (context) => const BackupManagementScreen(),
+                    builder: (context) => BackupManagementScreen(currentUser: _currentUser), // Pass current user
                   ),
                 );
               },
@@ -803,26 +745,7 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
                 color: Colors.grey,
               ),
               onTap: () {
-                // Navigator.push(
-                //   context,
-                //   CupertinoPageRoute(
-                //     builder: (context) => const CloudSyncScreen(),
-                //   ),
-                // );
-                // Temporarily disabled - Cloud sync coming soon
-                showCupertinoDialog(
-                  context: context,
-                  builder: (context) => CupertinoAlertDialog(
-                    title: const Text('Coming Soon'),
-                    content: const Text('Cloud sync feature will be available in a future update.'),
-                    actions: [
-                      CupertinoDialogAction(
-                        child: const Text('OK'),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                );
+                // Cloud sync functionality would be implemented here
               },
             ),
           ],

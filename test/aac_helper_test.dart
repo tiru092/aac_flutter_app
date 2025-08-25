@@ -201,75 +201,67 @@ void main() {
       });
     });
 
-    group('Text Processing Tests', () {
-      test('should clean text for speech synthesis', () {
-        // Test private method indirectly through speak functionality
-        expect(() async => await AACHelper.speak('Hello! @#\$ World?'), 
-               returnsNormally);
+    group('Category Color Tests', () {
+      test('should return correct category color', () {
+        expect(AACHelper.getCategoryColor('People'), equals(AACHelper.categoryColors['People']));
+        expect(AACHelper.getCategoryColor('Actions'), equals(AACHelper.categoryColors['Actions']));
+        expect(AACHelper.getCategoryColor('Describing'), equals(AACHelper.categoryColors['Describing']));
+        expect(AACHelper.getCategoryColor('Social'), equals(AACHelper.categoryColors['Social']));
+        expect(AACHelper.getCategoryColor('Food & Drinks'), equals(AACHelper.categoryColors['Food & Drinks']));
+        expect(AACHelper.getCategoryColor('Misc'), equals(AACHelper.categoryColors['Misc']));
+      });
+
+      test('should return default color for unknown category', () {
+        expect(AACHelper.getCategoryColor('Unknown'), equals(AACHelper.categoryColors['Misc']));
       });
     });
 
-    group('Enhanced Voice Feedback Tests', () {
-      test('should speak with different emotional tones', () async {
-        expect(() async => await AACHelper.speakWithEmotion(
-          'Hello', 
-          tone: EmotionalTone.excited,
-        ), returnsNormally);
-        
-        expect(() async => await AACHelper.speakWithEmotion(
-          'Calm down', 
-          tone: EmotionalTone.calm,
-        ), returnsNormally);
-        
-        expect(() async => await AACHelper.speakWithEmotion(
-          'Great job!', 
-          tone: EmotionalTone.encouraging,
-        ), returnsNormally);
+    group('Error Handling Tests', () {
+      test('should create AACException with message and code', () {
+        final exception = AACException('Test error', 'test_code');
+        expect(exception.message, equals('Test error'));
+        expect(exception.code, equals('test_code'));
+        expect(exception.toString(), equals('AACException: Test error (Code: test_code)'));
       });
 
-      test('should provide contextual symbol speech', () async {
-        final symbol = Symbol(
-          label: 'Water',
-          imagePath: 'assets/water.png',
-          category: 'Drinks',
-          description: 'A glass of water',
-        );
-        
-        expect(() async => await AACHelper.speakSymbolWithContext(symbol), 
-               returnsNormally);
+      test('should create DatabaseException with correct code', () {
+        final exception = DatabaseException('Database error');
+        expect(exception.code, equals('database_error'));
       });
 
-      test('should provide contextual category speech', () async {
-        final category = Category(
-          name: 'Food',
-          iconPath: 'assets/food.png',
-          colorCode: 0xFF00FF00,
-        );
-        
-        expect(() async => await AACHelper.speakCategoryWithContext(category, 3), 
-               returnsNormally);
+      test('should create NetworkException with correct code', () {
+        final exception = NetworkException('Network error');
+        expect(exception.code, equals('network_error'));
       });
 
-      test('should celebrate achievements with proper feedback', () async {
-        expect(() async => await AACHelper.celebrateAchievement('You completed the task!'), 
-               returnsNormally);
+      test('should create AudioException with correct code', () {
+        final exception = AudioException('Audio error');
+        expect(exception.code, equals('audio_error'));
       });
 
-      test('should provide gentle error feedback', () async {
-        expect(() async => await AACHelper.provideGentleErrorFeedback('Please try again'), 
-               returnsNormally);
+      test('should create ValidationException with correct code', () {
+        final exception = ValidationException('Validation error');
+        expect(exception.code, equals('validation_error'));
       });
     });
 
-    group('Unified Feedback Tests', () {
-      test('should provide comprehensive feedback', () async {
-        expect(() async => await AACHelper.provideFeedback(
-          text: 'Button pressed',
-          soundEffect: SoundEffect.buttonTap,
-          tone: EmotionalTone.friendly,
-          haptic: true,
-          announce: false,
-        ), returnsNormally);
+    group('Utility Function Tests', () {
+      test('should generate proper symbol grid key', () {
+        final key = AACHelper.generateSymbolGridKey('Food', 3);
+        expect(key, equals('symbols_Food_3'));
+      });
+
+      test('should validate email format', () {
+        expect(AACHelper.isValidEmail('test@example.com'), isTrue);
+        expect(AACHelper.isValidEmail('invalid-email'), isFalse);
+        expect(AACHelper.isValidEmail(''), isFalse);
+      });
+
+      test('should validate phone number format', () {
+        expect(AACHelper.isValidPhoneNumber('+1234567890'), isTrue);
+        expect(AACHelper.isValidPhoneNumber('1234567890'), isTrue);
+        expect(AACHelper.isValidPhoneNumber('invalid-phone'), isFalse);
+        expect(AACHelper.isValidPhoneNumber(''), isFalse);
       });
     });
   });

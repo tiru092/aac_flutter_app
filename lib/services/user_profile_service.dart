@@ -2,12 +2,17 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/symbol.dart';
 import '../models/subscription.dart';
+import '../models/user_profile.dart'; // Add missing import
+import 'cloud_sync_service.dart'; // Add cloud sync service
+import 'encryption_service.dart'; // Add encryption service
 
 /// Service to manage user profiles and ensure data separation
 class UserProfileService {
   static const String _currentProfileKey = 'current_profile_id';
   static const String _profilesKey = 'user_profiles';
   static UserProfile? _activeProfile;
+  static final CloudSyncService _cloudSyncService = CloudSyncService(); // Add cloud sync service
+  static final EncryptionService _encryptionService = EncryptionService(); // Add encryption service
   
   /// Get the active user profile
   static Future<UserProfile?> getActiveProfile() async {
@@ -23,6 +28,16 @@ class UserProfileService {
         return null;
       }
       
+      // Try to load from cloud first if available
+      if (_cloudSyncService.isCloudSyncAvailable) {
+        final cloudProfile = await _cloudSyncService.loadProfileFromCloud(currentProfileId);
+        if (cloudProfile != null) {
+          _activeProfile = cloudProfile;
+          return _activeProfile;
+        }
+      }
+      
+      // Fallback to local storage
       return await _loadProfileById(currentProfileId);
     } catch (e) {
       print('Error in getActiveProfile: $e');
@@ -40,6 +55,11 @@ class UserProfileService {
       
       // Save the updated profile
       await saveUserProfile(profile);
+      
+      // Sync to cloud if available
+      if (_cloudSyncService.isCloudSyncAvailable) {
+        await _cloudSyncService.syncProfileToCloud(profile);
+      }
     } catch (e) {
       print('Error in setActiveProfile: $e');
       // Still set the active profile in memory even if storage fails
@@ -59,6 +79,7 @@ class UserProfileService {
       final newProfile = UserProfile(
         id: id,
         name: name,
+        role: UserRole.child, // Default to child role
         email: email,
         phoneNumber: phoneNumber,
         createdAt: DateTime.now(),
@@ -67,13 +88,18 @@ class UserProfileService {
           plan: SubscriptionPlan.free,
           price: 0.0,
         ),
-        settings: const ProfileSettings(),
+        settings: ProfileSettings(),
         userSymbols: [],
         userCategories: [],
       );
       
       await saveUserProfile(newProfile);
       await setActiveProfile(newProfile);
+      
+      // Sync to cloud if available
+      if (_cloudSyncService.isCloudSyncAvailable) {
+        await _cloudSyncService.syncProfileToCloud(newProfile);
+      }
       
       return newProfile;
     } catch (e) {
@@ -82,17 +108,20 @@ class UserProfileService {
       return UserProfile(
         id: 'fallback_${DateTime.now().millisecondsSinceEpoch}',
         name: name,
+        role: UserRole.child, // Default to child role
         createdAt: DateTime.now(),
         subscription: const Subscription(
           plan: SubscriptionPlan.free,
           price: 0.0,
         ),
-        settings: const ProfileSettings(),
+        settings: ProfileSettings(),
+        userSymbols: [],
+        userCategories: [],
       );
     }
   }
   
-  /// Save a user profile
+  /// Save a user profile with encryption
   static Future<void> saveUserProfile(UserProfile profile) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -103,14 +132,17 @@ class UserProfileService {
           .map((json) => jsonDecode(json) as Map<String, dynamic>)
           .toList();
       
+      // Convert profile to map and encrypt sensitive data
+      final profileMap = profile.toJson();
+      final encryptedProfileMap = await _encryptionService.encryptProfileData(profileMap);
+      
       // Find and update or add the profile
       final index = profiles.indexWhere((p) => p['id'] == profile.id);
-      final profileMap = profile.toJson();
       
       if (index >= 0) {
-        profiles[index] = profileMap;
+        profiles[index] = encryptedProfileMap;
       } else {
-        profiles.add(profileMap);
+        profiles.add(encryptedProfileMap);
       }
       
       // Save the updated profiles list
@@ -119,112 +151,144 @@ class UserProfileService {
           .toList();
       
       await prefs.setStringList(_profilesKey, updatedProfilesJson);
+      
+      // Sync to cloud if available (cloud service should handle its own encryption)
+      if (_cloudSyncService.isCloudSyncAvailable) {
+        await _cloudSyncService.syncProfileToCloud(profile);
+      }
     } catch (e) {
       print('Error in saveUserProfile: $e');
       // We'll continue even if saving fails
     }
   }
   
-  /// Get all user profiles
+  /// Get all user profiles with decryption
   static Future<List<UserProfile>> getAllProfiles() async {
-    final prefs = await SharedPreferences.getInstance();
-    final profilesJson = prefs.getStringList(_profilesKey) ?? [];
-    
-    return profilesJson
-        .map((json) => UserProfile.fromJson(jsonDecode(json)))
-        .toList();
+    try {
+      // Try to load from cloud first if available
+      if (_cloudSyncService.isCloudSyncAvailable) {
+        final cloudProfiles = await _cloudSyncService.loadAllProfilesFromCloud();
+        if (cloudProfiles.isNotEmpty) {
+          return cloudProfiles;
+        }
+      }
+      
+      // Fallback to local storage
+      final prefs = await SharedPreferences.getInstance();
+      final profilesJson = prefs.getStringList(_profilesKey) ?? [];
+      
+      final profiles = <UserProfile>[];
+      for (final json in profilesJson) {
+        try {
+          final profileMap = jsonDecode(json) as Map<String, dynamic>;
+          // Decrypt sensitive data
+          final decryptedProfileMap = await _encryptionService.decryptProfileData(profileMap);
+          final profile = UserProfile.fromJson(decryptedProfileMap);
+          profiles.add(profile);
+        } catch (e) {
+          print('Error decrypting profile: $e');
+          // Skip this profile if decryption fails
+        }
+      }
+      
+      return profiles;
+    } catch (e) {
+      print('Error in getAllProfiles: $e');
+      return [];
+    }
   }
   
   /// Delete a user profile
   static Future<void> deleteProfile(String profileId) async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    // Get existing profiles
-    final profilesJson = prefs.getStringList(_profilesKey) ?? [];
-    final profiles = profilesJson
-        .map((json) => jsonDecode(json) as Map<String, dynamic>)
-        .toList();
-    
-    // Remove the profile
-    profiles.removeWhere((p) => p['id'] == profileId);
-    
-    // Save the updated profiles list
-    final updatedProfilesJson = profiles
-        .map((p) => jsonEncode(p))
-        .toList();
-    
-    await prefs.setStringList(_profilesKey, updatedProfilesJson);
-    
-    // If the active profile was deleted, clear it
-    if (_activeProfile?.id == profileId) {
-      _activeProfile = null;
-      await prefs.remove(_currentProfileKey);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Get existing profiles
+      final profilesJson = prefs.getStringList(_profilesKey) ?? [];
+      final profiles = profilesJson
+          .map((json) => jsonDecode(json) as Map<String, dynamic>)
+          .toList();
+      
+      // Remove the profile
+      profiles.removeWhere((p) => p['id'] == profileId);
+      
+      // Save the updated profiles list
+      final updatedProfilesJson = profiles
+          .map((p) => jsonEncode(p))
+          .toList();
+      
+      await prefs.setStringList(_profilesKey, updatedProfilesJson);
+      
+      // If the active profile was deleted, clear it
+      if (_activeProfile?.id == profileId) {
+        _activeProfile = null;
+        await prefs.remove(_currentProfileKey);
+      }
+    } catch (e) {
+      print('Error in deleteProfile: $e');
     }
   }
   
   /// Add a symbol to the current user's profile
   static Future<void> addSymbolToActiveProfile(Symbol symbol) async {
-    final profile = await getActiveProfile();
-    if (profile == null) return;
-    
-    final updatedSymbols = [...profile.userSymbols, symbol];
-    
-    final updatedProfile = UserProfile(
-      id: profile.id,
-      name: profile.name,
-      email: profile.email,
-      phoneNumber: profile.phoneNumber,
-      createdAt: profile.createdAt,
-      lastActiveAt: DateTime.now(),
-      subscription: profile.subscription,
-      paymentHistory: profile.paymentHistory,
-      settings: profile.settings,
-      userSymbols: updatedSymbols,
-      userCategories: profile.userCategories,
-    );
-    
-    await saveUserProfile(updatedProfile);
-    _activeProfile = updatedProfile;
+    try {
+      final profile = await getActiveProfile();
+      if (profile == null) return;
+      
+      final updatedSymbols = [...profile.userSymbols, symbol];
+      
+      final updatedProfile = profile.copyWith(
+        userSymbols: updatedSymbols,
+        lastActiveAt: DateTime.now(),
+      );
+      
+      await saveUserProfile(updatedProfile);
+      _activeProfile = updatedProfile;
+    } catch (e) {
+      print('Error in addSymbolToActiveProfile: $e');
+    }
   }
   
   /// Add a category to the current user's profile
   static Future<void> addCategoryToActiveProfile(Category category) async {
-    final profile = await getActiveProfile();
-    if (profile == null) return;
-    
-    final updatedCategories = [...profile.userCategories, category];
-    
-    final updatedProfile = UserProfile(
-      id: profile.id,
-      name: profile.name,
-      email: profile.email,
-      phoneNumber: profile.phoneNumber,
-      createdAt: profile.createdAt,
-      lastActiveAt: DateTime.now(),
-      subscription: profile.subscription,
-      paymentHistory: profile.paymentHistory,
-      settings: profile.settings,
-      userSymbols: profile.userSymbols,
-      userCategories: updatedCategories,
-    );
-    
-    await saveUserProfile(updatedProfile);
-    _activeProfile = updatedProfile;
+    try {
+      final profile = await getActiveProfile();
+      if (profile == null) return;
+      
+      final updatedCategories = [...profile.userCategories, category];
+      
+      final updatedProfile = profile.copyWith(
+        userCategories: updatedCategories,
+        lastActiveAt: DateTime.now(),
+      );
+      
+      await saveUserProfile(updatedProfile);
+      _activeProfile = updatedProfile;
+    } catch (e) {
+      print('Error in addCategoryToActiveProfile: $e');
+    }
   }
   
-  /// Load a profile by ID
+  /// Load a profile by ID with decryption
   static Future<UserProfile?> _loadProfileById(String profileId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final profilesJson = prefs.getStringList(_profilesKey) ?? [];
-    
-    for (final json in profilesJson) {
-      final Map<String, dynamic> profileMap = jsonDecode(json);
-      if (profileMap['id'] == profileId) {
-        return UserProfile.fromJson(profileMap);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final profilesJson = prefs.getStringList(_profilesKey) ?? [];
+      
+      for (final json in profilesJson) {
+        final Map<String, dynamic> profileMap = jsonDecode(json);
+        if (profileMap['id'] == profileId) {
+          // Decrypt sensitive data
+          final decryptedProfileMap = await _encryptionService.decryptProfileData(profileMap);
+          return UserProfile.fromJson(decryptedProfileMap);
+        }
       }
+      
+      return null;
+    } catch (e) {
+      print('Error in _loadProfileById: $e');
+      return null;
     }
-    
-    return null;
   }
   
   /// Get user-specific symbols
@@ -246,6 +310,17 @@ class UserProfileService {
     } catch (e) {
       print('Error in getUserCategories: $e');
       return [];
+    }
+  }
+  
+  /// Sync all profiles to cloud (manual sync)
+  static Future<void> syncAllProfilesToCloud() async {
+    try {
+      if (_cloudSyncService.isCloudSyncAvailable) {
+        await _cloudSyncService.syncAllProfilesToCloud();
+      }
+    } catch (e) {
+      print('Error in syncAllProfilesToCloud: $e');
     }
   }
 }

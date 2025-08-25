@@ -1,0 +1,40 @@
+<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <rect width="1080" height="1920" fill="#4ECDC4"/>
+  
+  <!-- App name -->
+  <text x="540" y="400" font-family="Arial, sans-serif" font-size="80" fill="white" text-anchor="middle" font-weight="bold">
+    AAC Communication Helper
+  </text>
+  
+  <!-- Main logo -->
+  <g transform="translate(390, 600)">
+    <!-- Background circle -->
+    <circle cx="150" cy="150" r="150" fill="white"/>
+    
+    <!-- Communication symbol - speech bubble -->
+    <path d="M80,120 L320,120 L320,240 L200,240 L200,300 L140,240 L80,240 Z" fill="#4ECDC4"/>
+    
+    <!-- Heart symbol for care/love -->
+    <path d="M150,90 C170,60 210,60 230,90 C250,120 230,160 200,180 C170,200 150,220 150,220 C150,220 130,200 100,180 C70,160 50,120 70,90 C90,60 130,60 150,90 Z" fill="#FF6B6B"/>
+  </g>
+  
+  <!-- Tagline -->
+  <text x="540" y="1000" font-family="Arial, sans-serif" font-size="40" fill="white" text-anchor="middle">
+    Empowering Communication for All
+  </text>
+  
+  <!-- Symbol grid representation -->
+  <g transform="translate(200, 1200)">
+    <!-- Grid of symbol tiles -->
+    <rect x="0" y="0" width="80" height="80" rx="10" fill="#FFD166" stroke="white" stroke-width="4"/>
+    <rect x="100" y="0" width="80" height="80" rx="10" fill="#06D6A0" stroke="white" stroke-width="4"/>
+    <rect x="200" y="0" width="80" height="80" rx="10" fill="#118AB2" stroke="white" stroke-width="4"/>
+    <rect x="300" y="0" width="80" height="80" rx="10" fill="#EF476F" stroke="white" stroke-width="4"/>
+    
+    <rect x="0" y="100" width="80" height="80" rx="10" fill="#073B4C" stroke="white" stroke-width="4"/>
+    <rect x="100" y="100" width="80" height="80" rx="10" fill="#FF9E00" stroke="white" stroke-width="4"/>
+    <rect x="200" y="100" width="80" height="80" rx="10" fill="#7209B7" stroke="white" stroke-width="4"/>
+    <rect x="300" y="100" width="80" height="80" rx="10" fill="#9D4EDD" stroke="white" stroke-width="4"/>
+  </g>
+</svg>

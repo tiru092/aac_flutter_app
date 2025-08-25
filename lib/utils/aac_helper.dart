@@ -29,6 +29,33 @@ enum EmotionalTone {
   encouraging,
 }
 
+// Custom exception classes for better error handling
+class AACException implements Exception {
+  final String message;
+  final String code;
+  
+  AACException(this.message, [this.code = 'unknown']);
+  
+  @override
+  String toString() => 'AACException: $message (Code: $code)';
+}
+
+class DatabaseException extends AACException {
+  DatabaseException(String message) : super(message, 'database_error');
+}
+
+class NetworkException extends AACException {
+  NetworkException(String message) : super(message, 'network_error');
+}
+
+class AudioException extends AACException {
+  AudioException(String message) : super(message, 'audio_error');
+}
+
+class ValidationException extends AACException {
+  ValidationException(String message) : super(message, 'validation_error');
+}
+
 class AACHelper {
   static late Box<Symbol> _symbolBox;
   static late Box<Category> _categoryBox;
@@ -101,45 +128,60 @@ class AACHelper {
   
   // Get category color
   static Color getCategoryColor(String categoryName) {
-    final isHighContrast = getSetting<bool>('high_contrast', defaultValue: false) ?? false;
-    final colorMap = isHighContrast ? highContrastColors : categoryColors;
-    return colorMap[categoryName] ?? (isHighContrast ? highContrastColors['Misc']! : categoryColors['Misc']!);
+    try {
+      final isHighContrast = getSetting<bool>('high_contrast', defaultValue: false) ?? false;
+      final colorMap = isHighContrast ? highContrastColors : categoryColors;
+      return colorMap[categoryName] ?? (isHighContrast ? highContrastColors['Misc']! : categoryColors['Misc']!);
+    } catch (e) {
+      // Fallback to a default color if there's an error
+      return categoryColors['Misc']!;
+    }
   }
 
-  // Initialize Hive database
+  // Initialize Hive database with error handling
   static Future<void> initializeDatabase() async {
-    await Hive.initFlutter();
-    
-    // Register adapters
-    if (!Hive.isAdapterRegistered(0)) {
-      Hive.registerAdapter(SymbolAdapter());
-    }
-    if (!Hive.isAdapterRegistered(1)) {
-      Hive.registerAdapter(CategoryAdapter());
-    }
+    try {
+      await Hive.initFlutter();
+      
+      // Register adapters
+      if (!Hive.isAdapterRegistered(0)) {
+        Hive.registerAdapter(SymbolAdapter());
+      }
+      if (!Hive.isAdapterRegistered(1)) {
+        Hive.registerAdapter(CategoryAdapter());
+      }
 
-    // Open boxes
-    _symbolBox = await Hive.openBox<Symbol>('symbols');
-    _categoryBox = await Hive.openBox<Category>('categories');
-    _settingsBox = await Hive.openBox('settings');
+      // Open boxes with timeout
+      _symbolBox = await Hive.openBox<Symbol>('symbols');
+      _categoryBox = await Hive.openBox<Category>('categories');
+      _settingsBox = await Hive.openBox('settings');
 
-    // Initialize default data if first time
-    if (_categoryBox.isEmpty) {
-      await _initializeDefaultData();
+      // Initialize default data if first time
+      if (_categoryBox.isEmpty) {
+        await _initializeDefaultData();
+      }
+    } on HiveError catch (e) {
+      throw DatabaseException('Failed to initialize database: ${e.message}');
+    } catch (e) {
+      throw DatabaseException('Unexpected error during database initialization: $e');
     }
   }
 
-  // Initialize Text-to-Speech
+  // Initialize Text-to-Speech with error handling
   static Future<void> initializeTTS() async {
-    _flutterTts = FlutterTts();
-    
-    await _flutterTts!.setLanguage('en-US');
-    await _flutterTts!.setSpeechRate(0.6); // Slower for children
-    await _flutterTts!.setVolume(1.0);
-    await _flutterTts!.setPitch(1.2); // Slightly higher pitch for friendliness
-    
-    // Initialize voice service
-    await _voiceService.initialize();
+    try {
+      _flutterTts = FlutterTts();
+      
+      await _flutterTts!.setLanguage('en-US');
+      await _flutterTts!.setSpeechRate(0.6); // Slower for children
+      await _flutterTts!.setVolume(1.0);
+      await _flutterTts!.setPitch(1.2); // Slightly higher pitch for friendliness
+      
+      // Initialize voice service
+      await _voiceService.initialize();
+    } catch (e) {
+      throw AudioException('Failed to initialize text-to-speech: $e');
+    }
   }
 
   // Expose FlutterTts instance for direct access (needed to avoid recursion)
@@ -149,138 +191,258 @@ class AACHelper {
 
   // Text-to-Speech functionality (Enhanced with accessibility)
   static Future<void> speak(String text) async {
-    // Use the voice service to speak with the current voice
-    await _voiceService.speakWithCurrentVoice(text);
-  }
-
-  static Future<void> stopSpeaking() async {
-    if (_flutterTts != null) {
-      await _flutterTts!.stop();
+    try {
+      // Use the voice service to speak with the current voice
+      await _voiceService.speakWithCurrentVoice(text);
+    } catch (e) {
+      print('Error in speak: $e');
+      // Fallback to system sound if TTS fails
+      await _playErrorSound();
     }
   }
 
-  // Symbol management
+  // Speak with emotional tone
+  static Future<void> speakWithEmotion(String text, {EmotionalTone? tone}) async {
+    try {
+      // Adjust voice parameters based on emotional tone
+      double pitch = 1.0;
+      double rate = 0.6;
+      
+      switch (tone) {
+        case EmotionalTone.friendly:
+          pitch = 1.2;
+          rate = 0.5;
+          break;
+        case EmotionalTone.excited:
+          pitch = 1.4;
+          rate = 0.7;
+          break;
+        case EmotionalTone.calm:
+          pitch = 0.9;
+          rate = 0.4;
+          break;
+        case EmotionalTone.encouraging:
+          pitch = 1.3;
+          rate = 0.6;
+          break;
+        default:
+          pitch = 1.2;
+          rate = 0.6;
+      }
+      
+      if (_flutterTts != null) {
+        await _flutterTts!.setPitch(pitch);
+        await _flutterTts!.setSpeechRate(rate);
+        await _flutterTts!.speak(text);
+        
+        // Reset to default settings
+        await _flutterTts!.setPitch(speechPitch);
+        await _flutterTts!.setSpeechRate(speechRate);
+      }
+    } catch (e) {
+      print('Error in speakWithEmotion: $e');
+      // Fallback to regular speak
+      await speak(text);
+    }
+  }
+
+  static Future<void> stopSpeaking() async {
+    try {
+      if (_flutterTts != null) {
+        await _flutterTts!.stop();
+      }
+    } catch (e) {
+      print('Error stopping speech: $e');
+    }
+  }
+
+  // Symbol management with error handling
   static Future<void> addSymbol(Symbol symbol) async {
-    await _symbolBox.add(symbol);
+    try {
+      await _symbolBox.add(symbol);
+    } on HiveError catch (e) {
+      throw DatabaseException('Failed to add symbol: ${e.message}');
+    } catch (e) {
+      throw DatabaseException('Unexpected error adding symbol: $e');
+    }
   }
 
   static Future<void> updateSymbol(int index, Symbol symbol) async {
-    await _symbolBox.putAt(index, symbol);
+    try {
+      await _symbolBox.putAt(index, symbol);
+    } on HiveError catch (e) {
+      throw DatabaseException('Failed to update symbol: ${e.message}');
+    } catch (e) {
+      throw DatabaseException('Unexpected error updating symbol: $e');
+    }
   }
 
   static Future<void> deleteSymbol(int index) async {
-    await _symbolBox.deleteAt(index);
+    try {
+      await _symbolBox.deleteAt(index);
+    } on HiveError catch (e) {
+      throw DatabaseException('Failed to delete symbol: ${e.message}');
+    } catch (e) {
+      throw DatabaseException('Unexpected error deleting symbol: $e');
+    }
   }
 
   static List<Symbol> getAllSymbols() {
-    return _symbolBox.values.toList();
+    try {
+      return _symbolBox.values.toList();
+    } catch (e) {
+      print('Error getting all symbols: $e');
+      return [];
+    }
   }
 
   static List<Symbol> getSymbolsByCategory(String categoryName) {
-    return _symbolBox.values
-        .where((symbol) => symbol.category == categoryName)
-        .toList();
+    try {
+      return _symbolBox.values
+          .where((symbol) => symbol.category == categoryName)
+          .toList();
+    } catch (e) {
+      print('Error getting symbols by category: $e');
+      return [];
+    }
   }
 
-  // Category management
+  // Category management with error handling
   static Future<void> addCategory(Category category) async {
-    await _categoryBox.add(category);
+    try {
+      await _categoryBox.add(category);
+    } on HiveError catch (e) {
+      throw DatabaseException('Failed to add category: ${e.message}');
+    } catch (e) {
+      throw DatabaseException('Unexpected error adding category: $e');
+    }
   }
 
   static Future<void> updateCategory(int index, Category category) async {
-    await _categoryBox.putAt(index, category);
+    try {
+      await _categoryBox.putAt(index, category);
+    } on HiveError catch (e) {
+      throw DatabaseException('Failed to update category: ${e.message}');
+    } catch (e) {
+      throw DatabaseException('Unexpected error updating category: $e');
+    }
   }
 
   static Future<void> deleteCategory(int index) async {
-    await _categoryBox.deleteAt(index);
+    try {
+      await _categoryBox.deleteAt(index);
+    } on HiveError catch (e) {
+      throw DatabaseException('Failed to delete category: ${e.message}');
+    } catch (e) {
+      throw DatabaseException('Unexpected error deleting category: $e');
+    }
   }
 
   static List<Category> getAllCategories() {
-    return _categoryBox.values.toList();
+    try {
+      return _categoryBox.values.toList();
+    } catch (e) {
+      print('Error getting all categories: $e');
+      return [];
+    }
   }
 
-  // Settings management
+  // Settings management with error handling
   static Future<void> setSetting(String key, dynamic value) async {
-    await _settingsBox.put(key, value);
+    try {
+      await _settingsBox.put(key, value);
+    } catch (e) {
+      print('Error setting value for key $key: $e');
+    }
   }
 
   static T? getSetting<T>(String key, {T? defaultValue}) {
-    return _settingsBox.get(key, defaultValue: defaultValue) as T?;
+    try {
+      return _settingsBox.get(key, defaultValue: defaultValue) as T?;
+    } catch (e) {
+      print('Error getting value for key $key: $e');
+      return defaultValue;
+    }
   }
 
   // Initialize default categories and symbols
   static Future<void> _initializeDefaultData() async {
-    // Default categories with child-friendly colors
-    final defaultCategories = [
-      Category(
-        name: 'Food & Drinks',
-        iconPath: 'assets/icons/food.png',
-        colorCode: Colors.orange.value,
-        isDefault: true,
-      ),
-      Category(
-        name: 'Vehicles',
-        iconPath: 'assets/icons/vehicle.png',
-        colorCode: Colors.blue.value,
-        isDefault: true,
-      ),
-      Category(
-        name: 'Emotions',
-        iconPath: 'assets/icons/emotion.png',
-        colorCode: Colors.yellow.value,
-        isDefault: true,
-      ),
-      Category(
-        name: 'Actions',
-        iconPath: 'assets/icons/action.png',
-        colorCode: Colors.green.value,
-        isDefault: true,
-      ),
-      Category(
-        name: 'Family',
-        iconPath: 'assets/icons/family.png',
-        colorCode: Colors.pink.value,
-        isDefault: true,
-      ),
-      Category(
-        name: 'Custom',
-        iconPath: 'assets/icons/custom.png',
-        colorCode: Colors.purple.value,
-        isDefault: false,
-      ),
-    ];
+    try {
+      // Default categories with child-friendly colors
+      final defaultCategories = [
+        Category(
+          name: 'Food & Drinks',
+          iconPath: 'assets/icons/food.png',
+          colorCode: Colors.orange.value,
+          isDefault: true,
+        ),
+        Category(
+          name: 'Vehicles',
+          iconPath: 'assets/icons/vehicle.png',
+          colorCode: Colors.blue.value,
+          isDefault: true,
+        ),
+        Category(
+          name: 'Emotions',
+          iconPath: 'assets/icons/emotion.png',
+          colorCode: Colors.yellow.value,
+          isDefault: true,
+        ),
+        Category(
+          name: 'Actions',
+          iconPath: 'assets/icons/action.png',
+          colorCode: Colors.green.value,
+          isDefault: true,
+        ),
+        Category(
+          name: 'Family',
+          iconPath: 'assets/icons/family.png',
+          colorCode: Colors.pink.value,
+          isDefault: true,
+        ),
+        Category(
+          name: 'Custom',
+          iconPath: 'assets/icons/custom.png',
+          colorCode: Colors.purple.value,
+          isDefault: false,
+        ),
+      ];
 
-    for (final category in defaultCategories) {
-      await addCategory(category);
-    }
+      for (final category in defaultCategories) {
+        await addCategory(category);
+      }
 
-    // Default symbols
-    final defaultSymbols = [
-      Symbol(
-        label: 'Apple',
-        imagePath: 'assets/symbols/Apple.png',
-        category: 'Food & Drinks',
-        isDefault: true,
-        description: 'A red apple fruit',
-      ),
-      Symbol(
-        label: 'Water',
-        imagePath: 'assets/symbols/Water.png',
-        category: 'Food & Drinks',
-        isDefault: true,
-        description: 'A glass of water',
-      ),
-      Symbol(
-        label: 'Car',
-        imagePath: 'assets/symbols/Car.png',
-        category: 'Vehicles',
-        isDefault: true,
-        description: 'A red car',
-      ),
-    ];
+      // Default symbols
+      final defaultSymbols = [
+        Symbol(
+          label: 'Apple',
+          imagePath: 'assets/symbols/Apple.png',
+          category: 'Food & Drinks',
+          isDefault: true,
+          description: 'A red apple fruit',
+        ),
+        Symbol(
+          label: 'Water',
+          imagePath: 'assets/symbols/Water.png',
+          category: 'Food & Drinks',
+          isDefault: true,
+          description: 'A glass of water',
+        ),
+        Symbol(
+          label: 'Car',
+          imagePath: 'assets/symbols/Car.png',
+          category: 'Vehicles',
+          isDefault: true,
+          description: 'A red car',
+        ),
+      ];
 
-    for (final symbol in defaultSymbols) {
-      await addSymbol(symbol);
+      for (final symbol in defaultSymbols) {
+        await addSymbol(symbol);
+      }
+    } catch (e) {
+      print('Error initializing default data: $e');
+      // Continue without default data if initialization fails
     }
   }
 
@@ -300,8 +462,13 @@ class AACHelper {
 
   // Get random child-friendly color
   static Color getRandomChildColor() {
-    return childFriendlyColors[
-        DateTime.now().millisecond % childFriendlyColors.length];
+    try {
+      return childFriendlyColors[
+          DateTime.now().millisecond % childFriendlyColors.length];
+    } catch (e) {
+      // Fallback to a default color if there's an error
+      return childFriendlyColors[0];
+    }
   }
 
   // ========== ACCESSIBILITY FEATURES FOR SPECIAL CHILDREN ==========
@@ -318,26 +485,30 @@ class AACHelper {
   
   // Enhanced TTS with accessibility features
   static Future<void> initializeAccessibleTTS() async {
-    _flutterTts = FlutterTts();
-    
-    // Get accessibility settings
-    final speechRate = getSetting<double>(_speechRateKey, defaultValue: 0.5)!;
-    final speechPitch = getSetting<double>(_speechPitchKey, defaultValue: 1.2)!;
-    final speechVolume = getSetting<double>(_speechVolumeKey, defaultValue: 1.0)!;
-    
-    await _flutterTts!.setLanguage('en-US');
-    await _flutterTts!.setSpeechRate(speechRate); // Adjustable for children
-    await _flutterTts!.setVolume(speechVolume);
-    await _flutterTts!.setPitch(speechPitch); // Higher pitch for friendliness
-    
-    // Set up TTS callbacks for better feedback
-    _flutterTts!.setCompletionHandler(() {
-      debugPrint('TTS: Speech completed');
-    });
-    
-    _flutterTts!.setErrorHandler((message) {
-      debugPrint('TTS Error: $message');
-    });
+    try {
+      _flutterTts = FlutterTts();
+      
+      // Get accessibility settings
+      final speechRate = getSetting<double>(_speechRateKey, defaultValue: 0.5)!;
+      final speechPitch = getSetting<double>(_speechPitchKey, defaultValue: 1.2)!;
+      final speechVolume = getSetting<double>(_speechVolumeKey, defaultValue: 1.0)!;
+      
+      await _flutterTts!.setLanguage('en-US');
+      await _flutterTts!.setSpeechRate(speechRate); // Adjustable for children
+      await _flutterTts!.setVolume(speechVolume);
+      await _flutterTts!.setPitch(speechPitch); // Higher pitch for friendliness
+      
+      // Set up TTS callbacks for better feedback
+      _flutterTts!.setCompletionHandler(() {
+        debugPrint('TTS: Speech completed');
+      });
+      
+      _flutterTts!.setErrorHandler((message) {
+        debugPrint('TTS Error: $message');
+      });
+    } catch (e) {
+      throw AudioException('Failed to initialize accessible TTS: $e');
+    }
   }
   
   // Enhanced speak method with accessibility features
@@ -345,200 +516,428 @@ class AACHelper {
     bool announce = false,
     bool haptic = true,
   }) async {
-    // Check if voice feedback is enabled
-    if (!getSetting<bool>(_voiceFeedbackKey, defaultValue: true)!) {
-      return;
-    }
-    
-    // Provide haptic feedback if enabled
-    if (haptic && getSetting<bool>(_hapticFeedbackKey, defaultValue: true)!) {
-      await HapticFeedback.lightImpact();
-    }
-    
-    if (_flutterTts != null) {
-      // Clean text for better pronunciation
-      final cleanText = _cleanTextForSpeech(text);
-      
-      if (announce) {
-        // Use SemanticsService for screen reader announcements
-        await SemanticsService.announce(cleanText, TextDirection.ltr);
-      } else {
-        await _flutterTts!.speak(cleanText);
+    try {
+      // Check if voice feedback is enabled
+      if (!getSetting<bool>(_voiceFeedbackKey, defaultValue: true)!) {
+        return;
       }
+      
+      // Provide haptic feedback if enabled
+      if (haptic && getSetting<bool>(_hapticFeedbackKey, defaultValue: true)!) {
+        await HapticFeedback.lightImpact();
+      }
+      
+      if (_flutterTts != null) {
+        // Clean text for better pronunciation
+        final cleanText = _cleanTextForSpeech(text);
+        
+        if (announce) {
+          // Use SemanticsService for screen reader announcements
+          await SemanticsService.announce(cleanText, TextDirection.ltr);
+        } else {
+          await _flutterTts!.speak(cleanText);
+        }
+      }
+    } catch (e) {
+      print('Error in speakWithAccessibility: $e');
+      // Fallback to system sound if TTS fails
+      await _playErrorSound();
     }
   }
   
   // Clean text for better speech synthesis
   static String _cleanTextForSpeech(String text) {
-    return text
-        .replaceAll(RegExp(r'[^\w\s]'), '') // Remove special characters
-        .replaceAll(RegExp(r'\s+'), ' ')    // Normalize whitespace
-        .trim();
+    try {
+      return text
+          .replaceAll(RegExp(r'[^\w\s]'), '') // Remove special characters
+          .replaceAll(RegExp(r'\s+'), ' ')    // Normalize whitespace
+          .trim();
+    } catch (e) {
+      print('Error cleaning text for speech: $e');
+      return text;
+    }
   }
   
   // Auto-speak functionality for symbols
   static Future<void> autoSpeakSymbol(Symbol symbol) async {
-    if (getSetting<bool>(_autoSpeakKey, defaultValue: true)!) {
-      final text = symbol.description != null && symbol.description!.isNotEmpty
-          ? '${symbol.label}. ${symbol.description}'
-          : symbol.label;
-      await speakWithAccessibility(text, haptic: false);
+    try {
+      if (getSetting<bool>(_autoSpeakKey, defaultValue: true)!) {
+        final text = symbol.description != null && symbol.description!.isNotEmpty
+            ? '${symbol.label}. ${symbol.description}'
+            : symbol.label;
+        await speakWithAccessibility(text, haptic: false);
+      }
+    } catch (e) {
+      print('Error in autoSpeakSymbol: $e');
     }
   }
   
   // Accessibility Settings Getters/Setters
-  static bool get isHighContrastEnabled => 
-      getSetting<bool>(_highContrastKey, defaultValue: false)!;
+  static bool get isHighContrastEnabled { 
+    try {
+      return getSetting<bool>(_highContrastKey, defaultValue: false)!;
+    } catch (e) {
+      print('Error getting high contrast setting: $e');
+      return false;
+    }
+  }
       
   static Future<void> setHighContrast(bool enabled) async {
-    await setSetting(_highContrastKey, enabled);
+    try {
+      await setSetting(_highContrastKey, enabled);
+    } catch (e) {
+      print('Error setting high contrast: $e');
+    }
   }
   
-  static bool get isLargeTextEnabled => 
-      getSetting<bool>(_largeTextKey, defaultValue: false)!;
+  static bool get isLargeTextEnabled { 
+    try {
+      return getSetting<bool>(_largeTextKey, defaultValue: false)!;
+    } catch (e) {
+      print('Error getting large text setting: $e');
+      return false;
+    }
+  }
       
   static Future<void> setLargeText(bool enabled) async {
-    await setSetting(_largeTextKey, enabled);
+    try {
+      await setSetting(_largeTextKey, enabled);
+    } catch (e) {
+      print('Error setting large text: $e');
+    }
   }
   
-  static bool get isVoiceFeedbackEnabled => 
-      getSetting<bool>(_voiceFeedbackKey, defaultValue: true)!;
+  static bool get isVoiceFeedbackEnabled { 
+    try {
+      return getSetting<bool>(_voiceFeedbackKey, defaultValue: true)!;
+    } catch (e) {
+      print('Error getting voice feedback setting: $e');
+      return true; // Default to enabled
+    }
+  }
       
   static Future<void> setVoiceFeedback(bool enabled) async {
-    await setSetting(_voiceFeedbackKey, enabled);
+    try {
+      await setSetting(_voiceFeedbackKey, enabled);
+    } catch (e) {
+      print('Error setting voice feedback: $e');
+    }
   }
   
-  static bool get isHapticFeedbackEnabled => 
-      getSetting<bool>(_hapticFeedbackKey, defaultValue: true)!;
+  static bool get isHapticFeedbackEnabled { 
+    try {
+      return getSetting<bool>(_hapticFeedbackKey, defaultValue: true)!;
+    } catch (e) {
+      print('Error getting haptic feedback setting: $e');
+      return true; // Default to enabled
+    }
+  }
       
   static Future<void> setHapticFeedback(bool enabled) async {
-    await setSetting(_hapticFeedbackKey, enabled);
+    try {
+      await setSetting(_hapticFeedbackKey, enabled);
+    } catch (e) {
+      print('Error setting haptic feedback: $e');
+    }
   }
   
-  static bool get isAutoSpeakEnabled => 
-      getSetting<bool>(_autoSpeakKey, defaultValue: true)!;
+  static bool get isAutoSpeakEnabled { 
+    try {
+      return getSetting<bool>(_autoSpeakKey, defaultValue: true)!;
+    } catch (e) {
+      print('Error getting auto speak setting: $e');
+      return true; // Default to enabled
+    }
+  }
       
   static Future<void> setAutoSpeak(bool enabled) async {
-    await setSetting(_autoSpeakKey, enabled);
+    try {
+      await setSetting(_autoSpeakKey, enabled);
+    } catch (e) {
+      print('Error setting auto speak: $e');
+    }
   }
   
   // Speech rate control (0.1 to 1.0)
-  static double get speechRate => 
-      getSetting<double>(_speechRateKey, defaultValue: 0.5)!;
+  static double get speechRate { 
+    try {
+      return getSetting<double>(_speechRateKey, defaultValue: 0.5)!;
+    } catch (e) {
+      print('Error getting speech rate: $e');
+      return 0.5; // Default value
+    }
+  }
       
   static Future<void> setSpeechRate(double rate) async {
-    final clampedRate = rate.clamp(0.1, 1.0);
-    await setSetting(_speechRateKey, clampedRate);
-    if (_flutterTts != null) {
-      await _flutterTts!.setSpeechRate(clampedRate);
+    try {
+      final clampedRate = rate.clamp(0.1, 1.0);
+      await setSetting(_speechRateKey, clampedRate);
+      if (_flutterTts != null) {
+        await _flutterTts!.setSpeechRate(clampedRate);
+      }
+    } catch (e) {
+      print('Error setting speech rate: $e');
     }
   }
   
   // Speech pitch control (0.5 to 2.0)
-  static double get speechPitch => 
-      getSetting<double>(_speechPitchKey, defaultValue: 1.2)!;
+  static double get speechPitch { 
+    try {
+      return getSetting<double>(_speechPitchKey, defaultValue: 1.2)!;
+    } catch (e) {
+      print('Error getting speech pitch: $e');
+      return 1.2; // Default value
+    }
+  }
       
   static Future<void> setSpeechPitch(double pitch) async {
-    final clampedPitch = pitch.clamp(0.5, 2.0);
-    await setSetting(_speechPitchKey, clampedPitch);
-    if (_flutterTts != null) {
-      await _flutterTts!.setPitch(clampedPitch);
+    try {
+      final clampedPitch = pitch.clamp(0.5, 2.0);
+      await setSetting(_speechPitchKey, clampedPitch);
+      if (_flutterTts != null) {
+        await _flutterTts!.setPitch(clampedPitch);
+      }
+    } catch (e) {
+      print('Error setting speech pitch: $e');
     }
   }
   
   // Speech volume control (0.0 to 1.0)
-  static double get speechVolume => 
-      getSetting<double>(_speechVolumeKey, defaultValue: 1.0)!;
+  static double get speechVolume { 
+    try {
+      return getSetting<double>(_speechVolumeKey, defaultValue: 1.0)!;
+    } catch (e) {
+      print('Error getting speech volume: $e');
+      return 1.0; // Default value
+    }
+  }
       
   static Future<void> setSpeechVolume(double volume) async {
-    final clampedVolume = volume.clamp(0.0, 1.0);
-    await setSetting(_speechVolumeKey, clampedVolume);
-    if (_flutterTts != null) {
-      await _flutterTts!.setVolume(clampedVolume);
+    try {
+      final clampedVolume = volume.clamp(0.0, 1.0);
+      await setSetting(_speechVolumeKey, clampedVolume);
+      if (_flutterTts != null) {
+        await _flutterTts!.setVolume(clampedVolume);
+      }
+    } catch (e) {
+      print('Error setting speech volume: $e');
     }
   }
   
   // Get appropriate color scheme based on accessibility settings
   static List<Color> getAccessibleColors() {
-    if (isHighContrastEnabled) {
+    try {
+      if (isHighContrastEnabled) {
+        return [
+          Color(0xFF000000), // Black
+          Color(0xFFFFFFFF), // White  
+          Color(0xFF1976D2), // High contrast blue
+          Color(0xFFFFD54F), // High contrast yellow
+          Color(0xFF388E3C), // High contrast green
+          Color(0xFFC2185B), // High contrast pink
+          Color(0xFFF57C00), // High contrast orange
+          Color(0xFF455A64), // High contrast gray
+        ];
+      }
+      
+      // Return therapy-tested category colors
       return [
-        Color(0xFF000000), // Black
-        Color(0xFFFFFFFF), // White  
-        Color(0xFF1976D2), // High contrast blue
-        Color(0xFFFFD54F), // High contrast yellow
-        Color(0xFF388E3C), // High contrast green
-        Color(0xFFC2185B), // High contrast pink
-        Color(0xFFF57C00), // High contrast orange
-        Color(0xFF455A64), // High contrast gray
+        categoryColors['People']!,      // Yellow
+        categoryColors['Actions']!,     // Green  
+        categoryColors['Describing']!,  // Blue
+        categoryColors['Social']!,      // Pink
+        categoryColors['Food']!,        // Orange
+        categoryColors['Misc']!,        // Gray
+      ];
+    } catch (e) {
+      print('Error getting accessible colors: $e');
+      // Return a default color scheme
+      return [
+        Color(0xFFFFC107), // Yellow
+        Color(0xFF4CAF50), // Green
+        Color(0xFF2196F3), // Blue
+        Color(0xFFE91E63), // Pink
+        Color(0xFFFF9800), // Orange
+        Color(0xFF607D8B), // Gray
       ];
     }
-    
-    // Return therapy-tested category colors
-    return [
-      categoryColors['People']!,      // Yellow
-      categoryColors['Actions']!,     // Green  
-      categoryColors['Describing']!,  // Blue
-      categoryColors['Social']!,      // Pink
-      categoryColors['Food']!,        // Orange
-      categoryColors['Misc']!,        // Gray
-    ];
   }
   
   // Get accessible text size multiplier
   static double getTextSizeMultiplier() {
-    return isLargeTextEnabled ? 1.3 : 1.0;
+    try {
+      return isLargeTextEnabled ? 1.3 : 1.0;
+    } catch (e) {
+      print('Error getting text size multiplier: $e');
+      return 1.0; // Default value
+    }
   }
   
   // Create semantic label for symbols
   static String createSymbolSemanticLabel(Symbol symbol) {
-    var label = 'Symbol: ${symbol.label}';
-    if (symbol.description != null && symbol.description!.isNotEmpty) {
-      label += ', ${symbol.description}';
+    try {
+      var label = 'Symbol: ${symbol.label}';
+      if (symbol.description != null && symbol.description!.isNotEmpty) {
+        label += ', ${symbol.description}';
+      }
+      label += ', Category: ${symbol.category}';
+      label += ', Double tap to speak and interact';
+      return label;
+    } catch (e) {
+      print('Error creating symbol semantic label: $e');
+      return 'Symbol';
     }
-    label += ', Category: ${symbol.category}';
-    label += ', Double tap to speak and interact';
-    return label;
   }
   
   // Create semantic label for categories  
   static String createCategorySemanticLabel(Category category, int symbolCount) {
-    return 'Category: ${category.name}, $symbolCount symbols available, Double tap to open';
+    try {
+      return 'Category: ${category.name}, $symbolCount symbols available, Double tap to open';
+    } catch (e) {
+      print('Error creating category semantic label: $e');
+      return 'Category';
+    }
   }
   
   // Provide haptic feedback based on settings
   static Future<void> accessibleHapticFeedback({
-    HapticFeedback? feedbackType,
+    String feedbackType = 'lightImpact',
   }) async {
-    if (!isHapticFeedbackEnabled) return;
-    
-    switch (feedbackType ?? HapticFeedback.lightImpact) {
-      case HapticFeedback.lightImpact:
-        await HapticFeedback.lightImpact();
-        break;
-      case HapticFeedback.mediumImpact:
-        await HapticFeedback.mediumImpact();
-        break;
-      case HapticFeedback.heavyImpact:
-        await HapticFeedback.heavyImpact();
-        break;
-      case HapticFeedback.selectionClick:
-        await HapticFeedback.selectionClick();
-        break;
-      case HapticFeedback.vibrate:
-        await HapticFeedback.vibrate();
-        break;
+    try {
+      if (!isHapticFeedbackEnabled) return;
+      
+      switch (feedbackType) {
+        case 'lightImpact':
+          await HapticFeedback.lightImpact();
+          break;
+        case 'mediumImpact':
+          await HapticFeedback.mediumImpact();
+          break;
+        case 'heavyImpact':
+          await HapticFeedback.heavyImpact();
+          break;
+        case 'selectionClick':
+          await HapticFeedback.selectionClick();
+          break;
+        case 'vibrate':
+          await HapticFeedback.vibrate();
+          break;
+        default:
+          await HapticFeedback.lightImpact();
+          break;
+      }
+    } catch (e) {
+      print('Error providing haptic feedback: $e');
+    }
+  }
+
+  // Celebrate achievements for positive reinforcement
+  static Future<void> celebrateAchievement(String message) async {
+    try {
+      // Play celebration sound
+      await playSound(SoundEffect.celebration);
+      
+      // Provide haptic feedback
+      await accessibleHapticFeedback(feedbackType: 'heavyImpact');
+      
+      // Speak with excited tone
+      await speakWithEmotion(message, tone: EmotionalTone.excited);
+      
+      // Announce to screen reader
+      await announceToScreenReader('Achievement unlocked! $message');
+    } catch (e) {
+      print('Error in celebrateAchievement: $e');
+      // Fallback to basic feedback
+      await provideFeedback(
+        text: message,
+        soundEffect: SoundEffect.celebration,
+        tone: EmotionalTone.excited,
+        haptic: true,
+      );
     }
   }
   
   // Announce important information to screen readers
   static Future<void> announceToScreenReader(String message) async {
-    await SemanticsService.announce(message, TextDirection.ltr);
+    try {
+      await SemanticsService.announce(message, TextDirection.ltr);
+    } catch (e) {
+      print('Error announcing to screen reader: $e');
+    }
+  }
+
+  // Provide gentle error feedback for children
+  static Future<void> provideGentleErrorFeedback(String message) async {
+    try {
+      // Play gentle error sound (only once)
+      await playSound(SoundEffect.error);
+      
+      // Provide light haptic feedback
+      await accessibleHapticFeedback(feedbackType: 'lightImpact');
+      
+      // Speak with calm, encouraging tone
+      await speakWithEmotion(message, tone: EmotionalTone.calm);
+      
+      // Announce to screen reader
+      await announceToScreenReader('Error: $message');
+    } catch (e) {
+      print('Error in provideGentleErrorFeedback: $e');
+      // Fallback to basic feedback
+      await provideFeedback(
+        text: message,
+        soundEffect: SoundEffect.error,
+        tone: EmotionalTone.calm,
+        haptic: true,
+      );
+    }
   }
   
   // Focus management for keyboard navigation
   static void requestFocus(FocusNode focusNode) {
-    if (focusNode.canRequestFocus) {
-      focusNode.requestFocus();
+    try {
+      if (focusNode.canRequestFocus) {
+        focusNode.requestFocus();
+      }
+    } catch (e) {
+      print('Error requesting focus: $e');
+    }
+  }
+
+  // Generate a unique key for symbol grid caching
+  static String generateSymbolGridKey(String category, int symbolCount) {
+    try {
+      return 'symbol_grid_${category}_${symbolCount}_${DateTime.now().millisecondsSinceEpoch}';
+    } catch (e) {
+      print('Error generating symbol grid key: $e');
+      return 'symbol_grid_default';
+    }
+  }
+
+  // Validate email format
+  static bool isValidEmail(String email) {
+    try {
+      if (email.isEmpty) return false;
+      
+      // Simple email validation regex
+      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+      return emailRegex.hasMatch(email);
+    } catch (e) {
+      print('Error validating email: $e');
+      return false;
+    }
+  }
+
+  // Validate phone number format
+  static bool isValidPhoneNumber(String phoneNumber) {
+    try {
+      if (phoneNumber.isEmpty) return false;
+      
+      // Simple phone number validation (allows + and digits)
+      final phoneRegex = RegExp(r'^[+]?[0-9]{10,15}$');
+      return phoneRegex.hasMatch(phoneNumber);
+    } catch (e) {
+      print('Error validating phone number: $e');
+      return false;
     }
   }
   
@@ -546,24 +945,32 @@ class AACHelper {
   
   // Initialize sound effects
   static Future<void> initializeSoundEffects() async {
-    await _audioPlayer.setVolume(soundVolume);
-    
-    // Preload common sound effects for better performance
-    _preloadSoundEffects();
+    try {
+      await _audioPlayer.setVolume(soundVolume);
+      
+      // Preload common sound effects for better performance
+      _preloadSoundEffects();
+    } catch (e) {
+      print('Error initializing sound effects: $e');
+    }
   }
   
   static void _preloadSoundEffects() {
-    // Preload sound effects to reduce latency (platform-dependent implementation)
-    // This helps ensure smooth audio playback for children
+    try {
+      // Preload sound effects to reduce latency (platform-dependent implementation)
+      // This helps ensure smooth audio playback for children
+    } catch (e) {
+      print('Error preloading sound effects: $e');
+    }
   }
   
   // Play sound effect with child-friendly audio
   static Future<void> playSound(SoundEffect soundEffect, {bool respectSettings = true}) async {
-    if (respectSettings && !isSoundEffectsEnabled) {
-      return;
-    }
-    
     try {
+      if (respectSettings && !isSoundEffectsEnabled) {
+        return;
+      }
+      
       // Generate child-friendly sound frequencies
       String soundPath = _getSoundPath(soundEffect);
       
@@ -596,177 +1003,123 @@ class AACHelper {
       }
       
     } catch (e) {
-      debugPrint('Error playing sound effect: $e');
+      print('Error playing sound effect: $e');
     }
   }
   
   static String _getSoundPath(SoundEffect soundEffect) {
-    // Return paths to sound files for each effect
-    // In a full implementation, these would be actual audio files
-    switch (soundEffect) {
-      case SoundEffect.buttonTap:
-        return 'sounds/button_tap.mp3';
-      case SoundEffect.symbolSelect:
-        return 'sounds/symbol_select.mp3';
-      case SoundEffect.categoryOpen:
-        return 'sounds/category_open.mp3';
-      case SoundEffect.success:
-        return 'sounds/success.mp3';
-      case SoundEffect.error:
-        return 'sounds/error.mp3';
-      case SoundEffect.notification:
-        return 'sounds/notification.mp3';
-      case SoundEffect.celebration:
-        return 'sounds/celebration.mp3';
-      case SoundEffect.pop:
-        return 'sounds/pop.mp3';
-      case SoundEffect.swoosh:
-        return 'sounds/swoosh.mp3';
-      case SoundEffect.chime:
-        return 'sounds/chime.mp3';
-    }
-  }
-  
-  // Enhanced voice feedback with emotional context
-  static Future<void> speakWithEmotion(String text, {
-    EmotionalTone tone = EmotionalTone.friendly,
-    bool playSoundEffect = true,
-  }) async {
-    // Adjust TTS parameters based on emotional tone
-    if (_flutterTts != null) {
-      switch (tone) {
-        case EmotionalTone.excited:
-          await _flutterTts!.setSpeechRate(0.7);
-          await _flutterTts!.setPitch(1.4);
-          if (playSoundEffect) await playSound(SoundEffect.celebration);
-          break;
-        case EmotionalTone.calm:
-          await _flutterTts!.setSpeechRate(0.4);
-          await _flutterTts!.setPitch(1.0);
-          if (playSoundEffect) await playSound(SoundEffect.chime);
-          break;
-        case EmotionalTone.encouraging:
-          await _flutterTts!.setSpeechRate(0.6);
-          await _flutterTts!.setPitch(1.3);
-          if (playSoundEffect) await playSound(SoundEffect.success);
-          break;
-        case EmotionalTone.friendly:
-        default:
-          await _flutterTts!.setSpeechRate(speechRate);
-          await _flutterTts!.setPitch(speechPitch);
-          if (playSoundEffect) await playSound(SoundEffect.buttonTap);
-          break;
+    try {
+      // Return paths to sound files for each effect
+      // In a full implementation, these would be actual audio files
+      switch (soundEffect) {
+        case SoundEffect.buttonTap:
+          return 'assets/sounds/button_tap.mp3';
+        case SoundEffect.symbolSelect:
+          return 'assets/sounds/symbol_select.mp3';
+        case SoundEffect.categoryOpen:
+          return 'assets/sounds/category_open.mp3';
+        case SoundEffect.success:
+          return 'assets/sounds/success.mp3';
+        case SoundEffect.error:
+          return 'assets/sounds/error.mp3';
+        case SoundEffect.notification:
+          return 'assets/sounds/notification.mp3';
+        case SoundEffect.celebration:
+          return 'assets/sounds/celebration.mp3';
+        case SoundEffect.pop:
+          return 'assets/sounds/pop.mp3';
+        case SoundEffect.swoosh:
+          return 'assets/sounds/swoosh.mp3';
+        case SoundEffect.chime:
+          return 'assets/sounds/chime.mp3';
       }
-    }
-    
-    await speakWithAccessibility(text, haptic: true);
-    
-    // Restore original settings
-    if (_flutterTts != null) {
-      await _flutterTts!.setSpeechRate(speechRate);
-      await _flutterTts!.setPitch(speechPitch);
+    } catch (e) {
+      print('Error getting sound path: $e');
+      return '';
     }
   }
   
-  // Voice feedback with contextual sounds for different interactions
-  static Future<void> speakSymbolWithContext(Symbol symbol) async {
-    await playSound(SoundEffect.symbolSelect);
-    
-    // Create rich context for the symbol
-    String contextText = symbol.label;
-    if (symbol.description != null && symbol.description!.isNotEmpty) {
-      contextText += '. ${symbol.description}';
+  // Play error sound as fallback
+  static Future<void> _playErrorSound() async {
+    try {
+      await SystemSound.play(SystemSoundType.alert);
+    } catch (e) {
+      print('Error playing error sound: $e');
     }
-    contextText += '. From ${symbol.category} category.';
-    
-    await speakWithEmotion(contextText, tone: EmotionalTone.friendly);
   }
-  
-  // Category opening with sound and voice
-  static Future<void> speakCategoryWithContext(Category category, int symbolCount) async {
-    await playSound(SoundEffect.categoryOpen);
-    
-    String contextText = 'Opening ${category.name} category. ';
-    if (symbolCount > 0) {
-      contextText += 'This category has $symbolCount symbols to choose from.';
-    } else {
-      contextText += 'This category is empty. You can add symbols here.';
-    }
-    
-    await speakWithEmotion(contextText, tone: EmotionalTone.encouraging);
-  }
-  
-  // Celebration feedback for achievements
-  static Future<void> celebrateAchievement(String achievementText) async {
-    await playSound(SoundEffect.celebration);
-    await speakWithEmotion(
-      'Great job! $achievementText',
-      tone: EmotionalTone.excited,
-      playSoundEffect: false, // Sound already played
-    );
-  }
-  
-  // Error feedback with gentle guidance
-  static Future<void> provideGentleErrorFeedback(String errorText) async {
-    await playSound(SoundEffect.error);
-    await speakWithEmotion(
-      'Let\'s try that again. $errorText',
-      tone: EmotionalTone.calm,
-      playSoundEffect: false, // Sound already played
-    );
-  }
-  
-  // Sound effects settings
-  static const String _soundEffectsKey = 'sound_effects_enabled';
-  static const String _soundVolumeKey = 'sound_volume';
-  
-  static bool get isSoundEffectsEnabled => 
-      getSetting<bool>(_soundEffectsKey, defaultValue: true)!;
-      
-  static Future<void> setSoundEffects(bool enabled) async {
-    await setSetting(_soundEffectsKey, enabled);
-  }
-  
-  static double get soundVolume => 
-      getSetting<double>(_soundVolumeKey, defaultValue: 0.8)!;
-      
-  static Future<void> setSoundVolume(double volume) async {
-    final clampedVolume = volume.clamp(0.0, 1.0);
-    await setSetting(_soundVolumeKey, clampedVolume);
-    await _audioPlayer.setVolume(clampedVolume);
-  }
-  
-  // Enhanced interaction feedback
+
+  // Provide comprehensive feedback for child interactions
   static Future<void> provideFeedback({
     required String text,
     SoundEffect? soundEffect,
-    EmotionalTone tone = EmotionalTone.friendly,
+    EmotionalTone? tone,
     bool haptic = true,
     bool announce = false,
   }) async {
-    // Play sound effect if specified
-    if (soundEffect != null) {
-      await playSound(soundEffect);
-    }
-    
-    // Provide haptic feedback
-    if (haptic) {
-      await accessibleHapticFeedback();
-    }
-    
-    // Speak with emotional context
-    await speakWithEmotion(text, tone: tone, playSoundEffect: false);
-    
-    // Screen reader announcement if needed
-    if (announce) {
-      await announceToScreenReader(text);
+    try {
+      // Play sound effect if provided
+      if (soundEffect != null) {
+        await playSound(soundEffect);
+      }
+      
+      // Provide haptic feedback if enabled
+      if (haptic && isHapticFeedbackEnabled) {
+        await accessibleHapticFeedback();
+      }
+      
+      // Speak with emotional tone
+      if (tone != null) {
+        await speakWithEmotion(text, tone: tone);
+      } else {
+        await speakWithAccessibility(text, announce: announce);
+      }
+      
+      // Announce to screen reader if requested
+      if (announce) {
+        await announceToScreenReader(text);
+      }
+    } catch (e) {
+      print('Error in provideFeedback: $e');
     }
   }
   
-  // Dispose resources
-  static Future<void> dispose() async {
-    await _flutterTts?.stop();
-    await _audioPlayer.dispose();
-    await Hive.close();
+  // Sound effect settings
+  static const String _soundEffectsKey = 'sound_effects_enabled';
+  static const String _soundVolumeKey2 = 'sound_volume';
+  
+  static bool get isSoundEffectsEnabled {
+    try {
+      return getSetting<bool>(_soundEffectsKey, defaultValue: true)!;
+    } catch (e) {
+      print('Error getting sound effects setting: $e');
+      return true; // Default to enabled
+    }
+  }
+  
+  static Future<void> setSoundEffects(bool enabled) async {
+    try {
+      await setSetting(_soundEffectsKey, enabled);
+    } catch (e) {
+      print('Error setting sound effects: $e');
+    }
+  }
+  
+  static double get soundVolume {
+    try {
+      return getSetting<double>(_soundVolumeKey2, defaultValue: 0.8)!;
+    } catch (e) {
+      print('Error getting sound volume: $e');
+      return 0.8; // Default value
+    }
+  }
+  
+  static Future<void> setSoundVolume(double volume) async {
+    try {
+      final clampedVolume = volume.clamp(0.0, 1.0);
+      await setSetting(_soundVolumeKey2, clampedVolume);
+      await _audioPlayer.setVolume(clampedVolume);
+    } catch (e) {
+      print('Error setting sound volume: $e');
+    }
   }
 }

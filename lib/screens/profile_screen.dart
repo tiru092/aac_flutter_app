@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../models/subscription.dart';
+import '../models/user_profile.dart';
 import '../utils/aac_helper.dart';
 import 'subscription_screen.dart';
 
@@ -19,12 +20,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   UserProfile _currentProfile = UserProfile(
     id: 'user_001',
     name: 'AAC User',
+    role: UserRole.child,
     createdAt: DateTime.now(),
-    subscription: const Subscription(
+    subscription: Subscription(
       plan: SubscriptionPlan.free,
       price: 0.0,
     ),
-    settings: const ProfileSettings(),
+    settings: ProfileSettings(),
   );
 
   @override
@@ -405,7 +407,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      subscription.plan.name.toUpperCase(),
+                      subscription?.plan.name.toUpperCase() ?? "FREE",
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -416,7 +418,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               
-              if (subscription.plan != SubscriptionPlan.free)
+              if (subscription?.plan != SubscriptionPlan.free)
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,8 +432,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        subscription.endDate != null 
-                            ? _formatDate(subscription.endDate!)
+                        subscription?.endDate != null 
+                            ? _formatDate(subscription!.endDate!)
                             : 'N/A',
                         style: const TextStyle(
                           fontSize: 16,
