@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_wrapper_service.dart';
 import '../services/firebase_config_service.dart';
 import '../services/connectivity_service.dart';
+import '../utils/auth_diagnostics.dart';
 import 'sign_up_screen.dart';
 import 'home_screen.dart';
 
@@ -391,6 +392,115 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// Run comprehensive authentication diagnostics
+  Future<void> _runDiagnostics() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      debugPrint('LoginScreen: Running authentication diagnostics...');
+      final diagnosticResult = await AuthDiagnostics.runCompleteDiagnostics();
+      
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: Row(
+              children: [
+                Icon(
+                  diagnosticResult.success ? CupertinoIcons.check_mark_circled_solid : CupertinoIcons.exclamationmark_triangle_fill,
+                  color: diagnosticResult.success ? CupertinoColors.systemGreen : CupertinoColors.systemRed,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Text('System Diagnostics'),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  // Status summary
+                  ...diagnosticResult.messages.map((message) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      message,
+                      style: const TextStyle(fontSize: 13),
+                      textAlign: TextAlign.left,
+                    ),
+                  )),
+                  
+                  // Recommendations
+                  if (diagnosticResult.recommendations.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Recommendations:',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 5),
+                    ...diagnosticResult.recommendations.asMap().entries.map((entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '${entry.key + 1}. ${entry.value}',
+                        style: const TextStyle(fontSize: 13),
+                        textAlign: TextAlign.left,
+                      ),
+                    )),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+              if (diagnosticResult.success) ...[
+                CupertinoDialogAction(
+                  child: const Text('Try Login Again'),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // Reset error states and allow user to try again
+                    setState(() {
+                      _errorMessage = null;
+                      _showConnectionStatus = false;
+                      _retryCount = 0;
+                    });
+                  },
+                ),
+              ],
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('LoginScreen: Error running diagnostics: $e');
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Diagnostic Error'),
+            content: Text('Unable to run diagnostics: ${e.toString()}'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -620,6 +730,27 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               
               const SizedBox(height: 30),
+              
+              // Diagnostic Button (only show when there are issues)
+              if (_errorMessage != null || _showConnectionStatus) ...[
+                Center(
+                  child: CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    onPressed: _isLoading ? null : _runDiagnostics,
+                    child: const Text(
+                      '🔧 Run System Diagnostics',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF9F7AEA),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
               
               // Sign Up Link
               Row(
