@@ -9,14 +9,27 @@ void main() async {
   
   bool firebaseAvailable = false;
   
-  // Initialize Firebase
+  // Initialize Firebase with better error handling
   try {
+    debugPrint('Main: Attempting to initialize Firebase...');
     await Firebase.initializeApp();
     firebaseAvailable = true;
-    debugPrint('Firebase initialized successfully');
+    debugPrint('Main: Firebase initialized successfully');
   } catch (e) {
-    debugPrint('Firebase initialization error: $e');
-    firebaseAvailable = false;
+    debugPrint('Main: Firebase initialization error: $e');
+    if (e.toString().contains('INVALID_API_KEY')) {
+      debugPrint('Main: Invalid Firebase API key - check firebase configuration');
+    } else if (e.toString().contains('NETWORK_ERROR')) {
+      debugPrint('Main: Network error during Firebase initialization');
+    } else if (e.toString().contains('duplicate-app')) {
+      debugPrint('Main: Firebase app already initialized');
+      firebaseAvailable = true; // This is actually OK
+    }
+    
+    // If it's just a network issue, we still want to try using Firebase later
+    if (e.toString().contains('NETWORK_ERROR') || e.toString().contains('network')) {
+      firebaseAvailable = true; // Let the app try to use Firebase services
+    }
   }
   
   // Only do essential initialization here to avoid blocking UI

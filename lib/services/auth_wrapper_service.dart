@@ -6,6 +6,7 @@ import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/user_profile_service.dart';
 import '../services/cloud_sync_service.dart';
+import '../services/firebase_config_service.dart';
 
 /// Comprehensive authentication wrapper that handles:
 /// - Firebase authentication
@@ -262,13 +263,25 @@ class AuthWrapperService {
     try {
       debugPrint('AuthWrapperService: Signing in user: $email');
       
+      // Check Firebase availability before attempting sign in
+      if (!FirebaseConfigService.canUseFirebaseServices()) {
+        debugPrint('AuthWrapperService: Firebase services not available for sign in');
+        return AuthResult.failure('Authentication services are currently unavailable. Please check your internet connection and try again.');
+      }
+      
       // Sign in with Firebase
       final userCredential = await _authService.signInWithEmail(
         email: email,
         password: password,
       );
       
+      if (userCredential.user == null) {
+        debugPrint('AuthWrapperService: Sign in returned null user');
+        return AuthResult.failure('Authentication failed. Please try again.');
+      }
+      
       _currentFirebaseUser = userCredential.user;
+      debugPrint('AuthWrapperService: Firebase user signed in: ${_currentFirebaseUser!.uid}');
       
       // Load or create user profile
       await _handleSignedInUser();
@@ -279,7 +292,7 @@ class AuthWrapperService {
       _isOfflineMode = false;
       await prefs.setBool(_offlineModeKey, false);
       
-      debugPrint('AuthWrapperService: Sign in successful');
+      debugPrint('AuthWrapperService: Sign in successful for user: ${_currentProfile?.name ?? email}');
       
       return AuthResult.success(
         user: _currentFirebaseUser,
@@ -288,11 +301,22 @@ class AuthWrapperService {
       );
       
     } on AuthException catch (e) {
-      debugPrint('AuthWrapperService: Sign in failed: ${e.message}');
+      debugPrint('AuthWrapperService: Sign in failed with AuthException: ${e.message}');
       return AuthResult.failure(e.message);
     } catch (e) {
       debugPrint('AuthWrapperService: Unexpected sign in error: $e');
-      return AuthResult.failure('Failed to sign in. Please try again.');
+      
+      // Provide more specific error messages based on the error
+      String errorMessage;
+      if (e.toString().contains('network') || e.toString().contains('NetworkError')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (e.toString().contains('Firebase') || e.toString().contains('PERMISSION_DENIED')) {
+        errorMessage = 'Authentication service error. Please try again in a few moments.';
+      } else {
+        errorMessage = 'Failed to sign in. Please check your email and password, then try again.';
+      }
+      
+      return AuthResult.failure(errorMessage);
     }
   }
 
@@ -499,30 +523,55 @@ class AuthWrapperService {
 
   /// Check if email verification is required
   Future<bool> isEmailVerificationRequired() async {
-    if (_currentFirebaseUser == null) return false;
+    if (_currentFirebaseUser == null) {
+      debugPrint('AuthWrapperService: No Firebase user, verification not required');
+      return false;
+    }
     
     try {
+      debugPrint('AuthWrapperService: Checking email verification status for user: ${_currentFirebaseUser!.uid}');
+      
       // Always reload user first to get the latest verification status
       await _currentFirebaseUser!.reload();
       final updatedUser = FirebaseAuth.instance.currentUser;
       
-      if (updatedUser == null) return false;
+      if (updatedUser == null) {
+        debugPrint('AuthWrapperService: User became null after reload, verification not required');
+        return false;
+      }
       
       // Update our reference
       _currentFirebaseUser = updatedUser;
       
       // Check if email is verified
       final isVerified = updatedUser.emailVerified;
+      final email = updatedUser.email ?? 'unknown';
       
-      debugPrint('AuthWrapperService: Email verification check - isVerified: $isVerified');
+      debugPrint('AuthWrapperService: Email verification status for $email - isVerified: $isVerified');
+      
+      // Additional check: if user was recently created (< 5 minutes ago), be more lenient
+      final creationTime = updatedUser.metadata.creationTime;
+      final now = DateTime.now();
+      final isNewUser = creationTime != null && 
+          now.difference(creationTime).inMinutes < 5;
+      
+      if (isNewUser) {
+        debugPrint('AuthWrapperService: New user (< 5 min old), allowing more time for verification');
+        // For new users, give them more time before requiring verification
+        return false;
+      }
       
       // Only require verification if email is definitely not verified
       // Be more lenient to avoid verification loops
-      return !isVerified;
+      final requiresVerification = !isVerified;
+      debugPrint('AuthWrapperService: Final verification requirement: $requiresVerification');
+      
+      return requiresVerification;
       
     } catch (e) {
-      debugPrint('AuthWrapperService: Error checking email verification (assuming verified): $e');
+      debugPrint('AuthWrapperService: Error checking email verification (assuming verified to prevent loops): $e');
       // If there's an error checking, assume verified to avoid blocking users
+      // This prevents verification loops when there are network issues
       return false;
     }
   }

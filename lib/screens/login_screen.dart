@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_wrapper_service.dart';
+import '../services/firebase_config_service.dart';
 import 'sign_up_screen.dart';
 import 'home_screen.dart';
 
@@ -28,9 +29,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _signIn() async {
     debugPrint('LoginScreen: Starting sign-in process for ${_emailController.text.trim()}');
+    
+    // Input validation
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
         _errorMessage = 'Please fill in all fields';
+      });
+      return;
+    }
+
+    // Check Firebase availability before attempting sign in
+    if (!FirebaseConfigService.canUseFirebaseServices()) {
+      debugPrint('LoginScreen: Firebase services not available');
+      setState(() {
+        _errorMessage = 'Authentication services are currently unavailable. Please check your internet connection and try again.';
       });
       return;
     }
@@ -41,6 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      debugPrint('LoginScreen: Attempting authentication with Firebase');
       final result = await _authWrapper.signInWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -49,6 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         if (result.isSuccess) {
+          debugPrint('LoginScreen: Sign-in successful, checking verification status');
           // Add a small delay to allow Firebase to sync verification status
           await Future.delayed(const Duration(milliseconds: 500));
           
@@ -57,22 +71,23 @@ class _LoginScreenState extends State<LoginScreen> {
           debugPrint('LoginScreen: needsVerification: $needsVerification');
           if (needsVerification) {
             // Show a helpful message and let AuthWrapper handle navigation
-              showCupertinoDialog(
-                context: context,
-                builder: (context) => CupertinoAlertDialog(
-                  title: const Text('Email Verification Required'),
-                  content: const Text('Please verify your email to continue. Check your inbox!'),
-                  actions: [
-                    CupertinoDialogAction(
-                      child: const Text('OK'),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              );
+            showCupertinoDialog(
+              context: context,
+              builder: (context) => CupertinoAlertDialog(
+                title: const Text('Email Verification Required'),
+                content: const Text('Please verify your email to continue. Check your inbox for a verification link!'),
+                actions: [
+                  CupertinoDialogAction(
+                    child: const Text('OK'),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            );
             return;
           }
           
+          debugPrint('LoginScreen: Email verified, navigating to home screen');
           // Navigate to home screen
           Navigator.pushAndRemoveUntil(
             context,
@@ -80,16 +95,38 @@ class _LoginScreenState extends State<LoginScreen> {
             (route) => false,
           );
         } else {
+          // Use the specific error message from the auth result
+          final errorMsg = _getUserFriendlyErrorMessage(result.message);
           setState(() {
-            _errorMessage = result.message;
+            _errorMessage = errorMsg;
           });
+          debugPrint('LoginScreen: Sign-in failed with message: ${result.message}');
         }
       }
     } catch (e) {
       debugPrint('LoginScreen: Exception during sign-in: $e');
       if (mounted) {
+        String errorMessage;
+        
+        // Provide specific error messages based on the exception
+        if (e.toString().contains('network')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (e.toString().contains('too-many-requests')) {
+          errorMessage = 'Too many login attempts. Please wait a few minutes and try again.';
+        } else if (e.toString().contains('user-not-found')) {
+          errorMessage = 'No account found with this email. Please check your email or create a new account.';
+        } else if (e.toString().contains('wrong-password') || e.toString().contains('invalid-credential')) {
+          errorMessage = 'Incorrect password. Please try again or use "Forgot Password" to reset it.';
+        } else if (e.toString().contains('invalid-email')) {
+          errorMessage = 'Please enter a valid email address.';
+        } else if (e.toString().contains('user-disabled')) {
+          errorMessage = 'This account has been disabled. Please contact support.';
+        } else {
+          errorMessage = 'Sign in failed. Please check your email and password, then try again.';
+        }
+        
         setState(() {
-          _errorMessage = 'Sign in failed. Please check your credentials.';
+          _errorMessage = errorMessage;
         });
       }
     } finally {
@@ -98,6 +135,32 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Convert technical error messages to user-friendly ones
+  String _getUserFriendlyErrorMessage(String technicalMessage) {
+    final lowerMsg = technicalMessage.toLowerCase();
+    
+    if (lowerMsg.contains('user-not-found') || lowerMsg.contains('no user found')) {
+      return 'No account found with this email. Please check your email or create a new account.';
+    } else if (lowerMsg.contains('wrong-password') || lowerMsg.contains('incorrect password') || lowerMsg.contains('invalid-credential')) {
+      return 'Incorrect password. Please try again or use "Forgot Password" to reset it.';
+    } else if (lowerMsg.contains('invalid-email')) {
+      return 'Please enter a valid email address.';
+    } else if (lowerMsg.contains('user-disabled')) {
+      return 'This account has been disabled. Please contact support.';
+    } else if (lowerMsg.contains('too-many-requests')) {
+      return 'Too many login attempts. Please wait a few minutes and try again.';
+    } else if (lowerMsg.contains('network') || lowerMsg.contains('connection')) {
+      return 'Network error. Please check your internet connection and try again.';
+    } else if (lowerMsg.contains('email-already-in-use')) {
+      return 'An account already exists with this email. Please sign in instead.';
+    } else if (lowerMsg.contains('weak-password')) {
+      return 'Password is too weak. Please use a stronger password.';
+    } else {
+      // Return the original message if we can't improve it
+      return technicalMessage;
     }
   }
 

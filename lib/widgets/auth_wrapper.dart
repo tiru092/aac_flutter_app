@@ -30,18 +30,37 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<void> _initializeAuth() async {
     try {
+      debugPrint('AuthWrapper: Starting authentication initialization...');
+      
+      // Check Firebase availability first
+      if (widget.firebaseAvailable) {
+        debugPrint('AuthWrapper: Firebase is available, initializing with Firebase services');
+      } else {
+        debugPrint('AuthWrapper: Firebase not available, using offline mode');
+      }
+      
       await _authWrapper.initialize();
       
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
+        debugPrint('AuthWrapper: Authentication initialization completed successfully');
       }
     } catch (e) {
+      debugPrint('AuthWrapper: Authentication initialization failed: $e');
       if (mounted) {
+        String errorMessage;
+        
+        if (e.toString().contains('Firebase') || e.toString().contains('network')) {
+          errorMessage = 'Unable to connect to authentication services. Please check your internet connection and try again.';
+        } else {
+          errorMessage = 'Failed to initialize the app. Please restart and try again.';
+        }
+        
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Failed to initialize app. Please restart.';
+          _errorMessage = errorMessage;
         });
       }
     }
