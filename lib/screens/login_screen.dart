@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_wrapper_service.dart';
 import '../services/firebase_config_service.dart';
+import '../services/connectivity_service.dart';
 import 'sign_up_screen.dart';
 import 'home_screen.dart';
 
@@ -19,6 +20,9 @@ class _LoginScreenState extends State<LoginScreen> {
   
   bool _isLoading = false;
   String? _errorMessage;
+  int _retryCount = 0;
+  static const int maxRetries = 3;
+  bool _showConnectionStatus = false;
 
   @override
   void dispose() {
@@ -28,7 +32,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signIn() async {
-    debugPrint('LoginScreen: Starting sign-in process for ${_emailController.text.trim()}');
+    await _signInWithRetry();
+  }
+
+  Future<void> _signInWithRetry([bool isRetry = false]) async {
+    debugPrint('LoginScreen: Starting sign-in process for ${_emailController.text.trim()} (retry: $isRetry, count: $_retryCount)');
     
     // Input validation
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
@@ -43,13 +51,28 @@ class _LoginScreenState extends State<LoginScreen> {
       debugPrint('LoginScreen: Firebase services not available');
       setState(() {
         _errorMessage = 'Authentication services are currently unavailable. Please check your internet connection and try again.';
+        _showConnectionStatus = true;
+      });
+      return;
+    }
+
+    // Check internet connectivity before proceeding
+    final hasInternet = await ConnectivityService.hasInternetConnection();
+    if (!hasInternet) {
+      debugPrint('LoginScreen: No internet connection');
+      setState(() {
+        _errorMessage = 'No internet connection. Please check your network settings and try again.';
+        _showConnectionStatus = true;
       });
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
+      if (!isRetry) {
+        _errorMessage = null;
+        _showConnectionStatus = false;
+      }
     });
 
     try {
@@ -62,6 +85,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         if (result.isSuccess) {
+          // Reset retry count on success
+          _retryCount = 0;
+          
           debugPrint('LoginScreen: Sign-in successful, checking verification status');
           // Add a small delay to allow Firebase to sync verification status
           await Future.delayed(const Duration(milliseconds: 500));
@@ -97,9 +123,19 @@ class _LoginScreenState extends State<LoginScreen> {
         } else {
           // Use the specific error message from the auth result
           final errorMsg = _getUserFriendlyErrorMessage(result.message);
-          setState(() {
-            _errorMessage = errorMsg;
-          });
+          
+          // Check if this is a retryable error and we haven't exceeded max retries
+          if (_isRetryableError(result.message) && _retryCount < maxRetries && !isRetry) {
+            debugPrint('LoginScreen: Retryable error detected, will offer retry option');
+            setState(() {
+              _errorMessage = '$errorMsg\n\nThis might be a temporary issue. You can try again.';
+            });
+          } else {
+            setState(() {
+              _errorMessage = errorMsg;
+            });
+          }
+          
           debugPrint('LoginScreen: Sign-in failed with message: ${result.message}');
         }
       }
@@ -125,9 +161,97 @@ class _LoginScreenState extends State<LoginScreen> {
           errorMessage = 'Sign in failed. Please check your email and password, then try again.';
         }
         
+        // Check if this is a retryable error and we haven't exceeded max retries
+        if (_isRetryableError(e.toString()) && _retryCount < maxRetries && !isRetry) {
+          errorMessage += '\n\nThis might be a temporary issue. You can try again.';
+        }
+        
         setState(() {
           _errorMessage = errorMessage;
         });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  /// Check if an error is retryable (network issues, temporary Firebase issues)
+  bool _isRetryableError(String error) {
+    final lowerError = error.toLowerCase();
+    return lowerError.contains('network') ||
+           lowerError.contains('connection') ||
+           lowerError.contains('timeout') ||
+           lowerError.contains('firebase') ||
+           lowerError.contains('service') ||
+           lowerError.contains('unavailable');
+  }
+
+  /// Retry the sign-in process
+  Future<void> _retrySignIn() async {
+    if (_retryCount < maxRetries) {
+      _retryCount++;
+      debugPrint('LoginScreen: Retrying sign-in (attempt $_retryCount/$maxRetries)');
+      await _signInWithRetry(true);
+    }
+  }
+
+  /// Check and display connection status
+  Future<void> _checkConnectionStatus() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final statusMessage = await ConnectivityService.getConnectionStatusMessage();
+      
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Connection Status'),
+            content: Text(statusMessage),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+              if (!statusMessage.contains('working properly')) ...[
+                CupertinoDialogAction(
+                  child: const Text('Try Again'),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // Reset connection status and allow retry
+                    setState(() {
+                      _showConnectionStatus = false;
+                      _errorMessage = null;
+                    });
+                  },
+                ),
+              ],
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('LoginScreen: Error checking connection status: $e');
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Connection Check Failed'),
+            content: const Text('Unable to check connection status. Please verify your internet connection manually.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
     } finally {
       if (mounted) {
@@ -330,13 +454,55 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: const Color(0xFFFED7D7),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(
-                      color: Color(0xFFE53E3E),
-                      fontWeight: FontWeight.w500,
-                    ),
-                    textAlign: TextAlign.center,
+                  child: Column(
+                    children: [
+                      Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                          color: Color(0xFFE53E3E),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      // Show retry button for retryable errors
+                      if (_errorMessage!.contains('try again') && 
+                          _retryCount < maxRetries && 
+                          _isRetryableError(_errorMessage!)) ...[
+                        const SizedBox(height: 8),
+                        CupertinoButton(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          color: const Color(0xFF4ECDC4),
+                          borderRadius: BorderRadius.circular(8),
+                          onPressed: _isLoading ? null : _retrySignIn,
+                          child: Text(
+                            'Retry (${_retryCount + 1}/$maxRetries)',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                      // Show connection status button for connection-related errors
+                      if (_showConnectionStatus) ...[
+                        const SizedBox(height: 8),
+                        CupertinoButton(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          color: const Color(0xFF9F7AEA),
+                          borderRadius: BorderRadius.circular(8),
+                          onPressed: _isLoading ? null : _checkConnectionStatus,
+                          child: const Text(
+                            'Check Connection',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(height: 20),
