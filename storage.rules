@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules for AAC Communication Helper
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // User profile images and custom symbols
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024 // 10MB limit
+        && request.resource.contentType.matches('image/.*');
+    }
+    
+    // User audio recordings
+    match /audio/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024 // 5MB limit
+        && request.resource.contentType.matches('audio/.*');
+    }
+    
+    // Backup files
+    match /backups/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 50 * 1024 * 1024; // 50MB limit for backups
+    }
+    
+    // App assets (read-only for all authenticated users)
+    match /app_assets/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only admins can upload via Firebase Console
+    }
+  }
+}

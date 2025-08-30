@@ -1,10 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../services/auth_service.dart';
+import '../services/auth_wrapper_service.dart';
 import 'sign_up_screen.dart';
 import 'home_screen.dart';
-import 'verify_email_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,7 +14,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
+  final _authWrapper = AuthWrapperService();
   
   bool _isLoading = false;
   String? _errorMessage;
@@ -29,6 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signIn() async {
+    debugPrint('LoginScreen: Starting sign-in process for ${_emailController.text.trim()}');
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() {
         _errorMessage = 'Please fill in all fields';
@@ -42,35 +41,57 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final result = await _authService.signInWithEmail(
+      final result = await _authWrapper.signInWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-      
+      debugPrint('LoginScreen: Sign-in result - success: ${result.isSuccess}, message: ${result.message}');
+
       if (mounted) {
-        final isVerified = await _authService.isEmailVerified();
-        
-        if (isVerified) {
+        if (result.isSuccess) {
+          // Add a small delay to allow Firebase to sync verification status
+          await Future.delayed(const Duration(milliseconds: 500));
+          
+          // Check if email verification is required
+          final needsVerification = await _authWrapper.isEmailVerificationRequired();
+          debugPrint('LoginScreen: needsVerification: $needsVerification');
+          if (needsVerification) {
+            // Show a helpful message and let AuthWrapper handle navigation
+              showCupertinoDialog(
+                context: context,
+                builder: (context) => CupertinoAlertDialog(
+                  title: const Text('Email Verification Required'),
+                  content: const Text('Please verify your email to continue. Check your inbox!'),
+                  actions: [
+                    CupertinoDialogAction(
+                      child: const Text('OK'),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              );
+            return;
+          }
+          
+          // Navigate to home screen
           Navigator.pushAndRemoveUntil(
             context,
             CupertinoPageRoute(builder: (context) => const HomeScreen()),
             (route) => false,
           );
         } else {
-          Navigator.push(
-            context,
-            CupertinoPageRoute(builder: (context) => const VerifyEmailScreen()),
-          );
+          setState(() {
+            _errorMessage = result.message;
+          });
         }
       }
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = _getErrorMessage(e.code);
-      });
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Sign in failed. Please try again.';
-      });
+      debugPrint('LoginScreen: Exception during sign-in: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Sign in failed. Please check your credentials.';
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -80,28 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  String _getErrorMessage(String code) {
-    switch (code) {
-      case 'user-not-found':
-        return 'No user found with this email. Please check your email or sign up for a new account.';
-      case 'wrong-password':
-        return 'Incorrect password. Please try again or reset your password.';
-      case 'invalid-email':
-        return 'Invalid email address. Please enter a valid email.';
-      case 'user-disabled':
-        return 'This user account has been disabled. Please contact support.';
-      case 'too-many-requests':
-        return 'Too many failed attempts. Please try again later or reset your password.';
-      case 'network-request-failed':
-        return 'Network error. Please check your internet connection and try again.';
-      case 'invalid-credential':
-        return 'Invalid credentials. Please check your email and password.';
-      default:
-        return 'An unexpected error occurred. Please try again later. (Error code: $code)';
-    }
-  }
-
-  void _resetPassword() {
+  Future<void> _resetPassword() async {
     if (_emailController.text.isEmpty) {
       showCupertinoDialog(
         context: context,
@@ -134,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: () async {
               Navigator.pop(context);
               try {
-                await _authService.resetPassword(_emailController.text.trim());
+                await _authWrapper.resetPassword(_emailController.text.trim());
                 if (mounted) {
                   showCupertinoDialog(
                     context: context,
@@ -172,6 +172,36 @@ class _LoginScreenState extends State<LoginScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _continueOffline() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _authWrapper.enableOfflineMode();
+      
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          CupertinoPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to continue offline. Please try again.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -219,7 +249,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               
               const Text(
-                'Sign in to continue using AAC Communicator',
+                'Sign in to sync your data across devices',
                 style: TextStyle(
                   fontSize: 16,
                   color: Color(0xFF718096),
@@ -344,20 +374,14 @@ class _LoginScreenState extends State<LoginScreen> {
               
               const SizedBox(height: 20),
               
-              // Skip to Main Screen
+              // Continue Offline Button
               CupertinoButton(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 color: Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    CupertinoPageRoute(builder: (context) => const HomeScreen()),
-                    (route) => false,
-                  );
-                },
+                onPressed: _isLoading ? null : _continueOffline,
                 child: const Text(
-                  'Skip for Now',
+                  'Continue Offline',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -398,6 +422,47 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ],
+              ),
+              
+              const SizedBox(height: 40),
+              
+              // Offline Mode Info
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F8FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF4ECDC4).withOpacity(0.3),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      CupertinoIcons.info_circle,
+                      color: const Color(0xFF4ECDC4),
+                      size: 24,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Offline Mode Available',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2D3748),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'You can use the app without signing in. Your data will be stored locally on this device.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF718096),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

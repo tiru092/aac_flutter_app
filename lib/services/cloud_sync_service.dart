@@ -1,11 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/symbol.dart';
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/user_profile_service.dart';
 import '../services/crash_reporting_service.dart';
-import 'dart:convert';
 
 /// Custom exception for cloud sync-related errors
 class CloudSyncException implements Exception {
@@ -196,20 +194,24 @@ class CloudSyncService {
           .map((doc) => Category.fromJson(doc.data()))
           .toList();
 
-      // Create profile with cloud data
+      // Create profile with cloud data with null safety
       final profile = UserProfile(
-        id: profileData['id'],
-        name: profileData['name'],
+        id: profileData['id'] ?? '',
+        name: profileData['name'] ?? 'Unnamed Profile',
         role: UserRole.values.firstWhere(
           (role) => role.toString() == profileData['role'],
           orElse: () => UserRole.child,
         ),
         avatarPath: profileData['avatarPath'],
-        createdAt: DateTime.parse(profileData['createdAt']),
+        createdAt: profileData['createdAt'] != null 
+            ? DateTime.parse(profileData['createdAt'])
+            : DateTime.now(),
         settings: ProfileSettings.fromJson(profileData['settings'] ?? {}),
         pin: profileData['pin'],
-        userSymbols: symbols, // Add userSymbols
-        userCategories: categories, // Add userCategories
+        email: profileData['email'],
+        phoneNumber: profileData['phoneNumber'],
+        userSymbols: symbols,
+        userCategories: categories,
       );
 
       return profile;
@@ -311,6 +313,38 @@ class CloudSyncService {
   /// Check if cloud sync is available (user is authenticated)
   bool get isCloudSyncAvailable {
     return _authService.currentUser != null;
+  }
+  
+  /// Debug method to check profile data integrity
+  Future<Map<String, dynamic>> debugProfileData(String profileId) async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        return {'error': 'User not authenticated'};
+      }
+
+      final profileDoc = await _firestore
+          .collection('user_profiles')
+          .doc(profileId)
+          .get();
+
+      if (!profileDoc.exists) {
+        return {'error': 'Profile not found', 'profileId': profileId};
+      }
+
+      final data = profileDoc.data()!;
+      return {
+        'profileExists': true,
+        'hasId': data['id'] != null,
+        'hasName': data['name'] != null,
+        'hasCreatedAt': data['createdAt'] != null,
+        'hasRole': data['role'] != null,
+        'dataKeys': data.keys.toList(),
+        'rawData': data,
+      };
+    } catch (e) {
+      return {'error': e.toString()};
+    }
   }
   
   /// Get sync status for a specific profile

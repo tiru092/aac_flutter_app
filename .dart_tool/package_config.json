@@ -92,6 +92,12 @@
       "languageVersion": "3.6"
     },
     {
+      "name": "auto_size_text",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/auto_size_text-3.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
       "name": "boolean_selector",
       "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/boolean_selector-2.1.2",
       "packageUri": "lib/",
@@ -258,6 +264,12 @@
       "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/encrypt-5.0.3",
       "packageUri": "lib/",
       "languageVersion": "2.18"
+    },
+    {
+      "name": "equatable",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/equatable-2.0.7",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
     },
     {
       "name": "fake_async",
@@ -500,6 +512,12 @@
       "languageVersion": "3.3"
     },
     {
+      "name": "google_fonts",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/google_fonts-6.3.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.7"
+    },
+    {
       "name": "graphs",
       "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/graphs-2.3.2",
       "packageUri": "lib/",
@@ -586,6 +604,30 @@
     {
       "name": "image_picker_windows",
       "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/image_picker_windows-0.2.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
+    },
+    {
+      "name": "in_app_purchase",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/in_app_purchase-3.2.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    },
+    {
+      "name": "in_app_purchase_android",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/in_app_purchase_android-0.4.0+4",
+      "packageUri": "lib/",
+      "languageVersion": "3.7"
+    },
+    {
+      "name": "in_app_purchase_platform_interface",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/in_app_purchase_platform_interface-1.4.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    },
+    {
+      "name": "in_app_purchase_storekit",
+      "rootUri": "file:///C:/Users/PC/AppData/Local/Pub/Cache/hosted/pub.dev/in_app_purchase_storekit-0.4.4",
       "packageUri": "lib/",
       "languageVersion": "3.6"
     },
@@ -1094,7 +1136,7 @@
       "languageVersion": "3.4"
     },
     {
-      "name": "aac_communication_helper",
+      "name": "svarah",
       "rootUri": "../",
       "packageUri": "lib/",
       "languageVersion": "3.0"

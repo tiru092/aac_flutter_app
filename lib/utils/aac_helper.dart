@@ -57,12 +57,16 @@ class ValidationException extends AACException {
 }
 
 class AACHelper {
-  static late Box<Symbol> _symbolBox;
-  static late Box<Category> _categoryBox;
-  static late Box _settingsBox;
+  static Box<Symbol>? _symbolBox;
+  static Box<Category>? _categoryBox;
+  static Box? _settingsBox;
   static FlutterTts? _flutterTts;
   static final AudioPlayer _audioPlayer = AudioPlayer();
   static final VoiceService _voiceService = VoiceService();
+  
+  // Performance optimization: Cache frequently accessed settings
+  static final Map<String, dynamic> _settingsCache = {};
+  static bool _settingsCacheInitialized = false;
   
   // Therapy-tested category colors (Avaz & Jellow approach)
   static const Map<String, Color> categoryColors = {
@@ -156,9 +160,12 @@ class AACHelper {
       _categoryBox = await Hive.openBox<Category>('categories');
       _settingsBox = await Hive.openBox('settings');
 
-      // Initialize default data if first time
-      if (_categoryBox.isEmpty) {
-        await _initializeDefaultData();
+      // Initialize settings cache for better performance
+      await _initializeSettingsCache();
+
+      // Initialize default data if first time (defer to avoid blocking startup)
+      if (_categoryBox?.isEmpty ?? true) {
+        Future.microtask(() => _initializeDefaultData());
       }
     } on HiveError catch (e) {
       throw DatabaseException('Failed to initialize database: ${e.message}');
@@ -167,20 +174,54 @@ class AACHelper {
     }
   }
 
-  // Initialize Text-to-Speech with error handling
+  // Initialize settings cache for better performance
+  static Future<void> _initializeSettingsCache() async {
+    if (_settingsCacheInitialized || _settingsBox == null) return;
+    
+    try {
+      // Pre-load frequently accessed settings
+      final commonSettings = [
+        _highContrastKey, _largeTextKey, _voiceFeedbackKey,
+        _hapticFeedbackKey, _autoSpeakKey, _speechRateKey,
+        _speechPitchKey, _speechVolumeKey, _soundEffectsKey,
+        _soundVolumeKey2
+      ];
+      
+      for (final key in commonSettings) {
+        if (_settingsBox!.containsKey(key)) {
+          _settingsCache[key] = _settingsBox!.get(key);
+        }
+      }
+      
+      _settingsCacheInitialized = true;
+    } catch (e) {
+      debugPrint('Error initializing settings cache: $e');
+    }
+  }
+
+  // Initialize Text-to-Speech with error handling - ULTRA LIGHTWEIGHT
   static Future<void> initializeTTS() async {
     try {
       _flutterTts = FlutterTts();
       
+      // Only set essential settings to avoid blocking
       await _flutterTts!.setLanguage('en-US');
-      await _flutterTts!.setSpeechRate(0.6); // Slower for children
+      await _flutterTts!.setSpeechRate(0.5);
       await _flutterTts!.setVolume(1.0);
-      await _flutterTts!.setPitch(1.2); // Slightly higher pitch for friendliness
       
-      // Initialize voice service
-      await _voiceService.initialize();
+      debugPrint('TTS initialized (lightweight mode)');
+      
+      // Initialize VoiceService for custom voice support
+      try {
+        await _voiceService.initialize();
+        debugPrint('VoiceService initialized successfully');
+      } catch (voiceError) {
+        debugPrint('VoiceService initialization failed (ignored): $voiceError');
+        // Continue without voice service - TTS will still work
+      }
     } catch (e) {
-      throw AudioException('Failed to initialize text-to-speech: $e');
+      debugPrint('TTS initialization failed (ignored): $e');
+      // Don't throw, just continue without TTS
     }
   }
 
@@ -189,15 +230,21 @@ class AACHelper {
     return _flutterTts;
   }
 
-  // Text-to-Speech functionality (Enhanced with accessibility)
+  // Text-to-Speech functionality with custom voice support
   static Future<void> speak(String text) async {
     try {
-      // Use the voice service to speak with the current voice
+      // Use VoiceService to automatically select custom or default voice
       await _voiceService.speakWithCurrentVoice(text);
     } catch (e) {
-      print('Error in speak: $e');
-      // Fallback to system sound if TTS fails
-      await _playErrorSound();
+      debugPrint('TTS error (ignored): $e');
+      // Fallback to direct TTS if voice service fails
+      try {
+        if (_flutterTts != null) {
+          await _flutterTts!.speak(text);
+        }
+      } catch (fallbackError) {
+        debugPrint('Fallback TTS error: $fallbackError');
+      }
     }
   }
 
@@ -248,8 +295,16 @@ class AACHelper {
 
   static Future<void> stopSpeaking() async {
     try {
+      // Stop both regular TTS and any custom voice playback
       if (_flutterTts != null) {
         await _flutterTts!.stop();
+      }
+      
+      // Also try to stop any audio playing through VoiceService
+      try {
+        await _voiceService.stopPlayback();
+      } catch (voiceError) {
+        debugPrint('Error stopping voice service playback: $voiceError');
       }
     } catch (e) {
       print('Error stopping speech: $e');
@@ -259,7 +314,7 @@ class AACHelper {
   // Symbol management with error handling
   static Future<void> addSymbol(Symbol symbol) async {
     try {
-      await _symbolBox.add(symbol);
+      await _symbolBox?.add(symbol);
     } on HiveError catch (e) {
       throw DatabaseException('Failed to add symbol: ${e.message}');
     } catch (e) {
@@ -269,7 +324,7 @@ class AACHelper {
 
   static Future<void> updateSymbol(int index, Symbol symbol) async {
     try {
-      await _symbolBox.putAt(index, symbol);
+      await _symbolBox?.putAt(index, symbol);
     } on HiveError catch (e) {
       throw DatabaseException('Failed to update symbol: ${e.message}');
     } catch (e) {
@@ -279,7 +334,7 @@ class AACHelper {
 
   static Future<void> deleteSymbol(int index) async {
     try {
-      await _symbolBox.deleteAt(index);
+      await _symbolBox?.deleteAt(index);
     } on HiveError catch (e) {
       throw DatabaseException('Failed to delete symbol: ${e.message}');
     } catch (e) {
@@ -289,7 +344,7 @@ class AACHelper {
 
   static List<Symbol> getAllSymbols() {
     try {
-      return _symbolBox.values.toList();
+      return _symbolBox?.values.toList() ?? [];
     } catch (e) {
       print('Error getting all symbols: $e');
       return [];
@@ -298,9 +353,9 @@ class AACHelper {
 
   static List<Symbol> getSymbolsByCategory(String categoryName) {
     try {
-      return _symbolBox.values
+      return _symbolBox?.values
           .where((symbol) => symbol.category == categoryName)
-          .toList();
+          .toList() ?? [];
     } catch (e) {
       print('Error getting symbols by category: $e');
       return [];
@@ -310,7 +365,7 @@ class AACHelper {
   // Category management with error handling
   static Future<void> addCategory(Category category) async {
     try {
-      await _categoryBox.add(category);
+      await _categoryBox?.add(category);
     } on HiveError catch (e) {
       throw DatabaseException('Failed to add category: ${e.message}');
     } catch (e) {
@@ -320,7 +375,7 @@ class AACHelper {
 
   static Future<void> updateCategory(int index, Category category) async {
     try {
-      await _categoryBox.putAt(index, category);
+      await _categoryBox?.putAt(index, category);
     } on HiveError catch (e) {
       throw DatabaseException('Failed to update category: ${e.message}');
     } catch (e) {
@@ -330,7 +385,7 @@ class AACHelper {
 
   static Future<void> deleteCategory(int index) async {
     try {
-      await _categoryBox.deleteAt(index);
+      await _categoryBox?.deleteAt(index);
     } on HiveError catch (e) {
       throw DatabaseException('Failed to delete category: ${e.message}');
     } catch (e) {
@@ -340,30 +395,49 @@ class AACHelper {
 
   static List<Category> getAllCategories() {
     try {
-      return _categoryBox.values.toList();
+      return _categoryBox?.values.toList() ?? [];
     } catch (e) {
       print('Error getting all categories: $e');
       return [];
     }
   }
 
-  // Settings management with error handling
+  // Settings management with error handling and caching
   static Future<void> setSetting(String key, dynamic value) async {
     try {
-      await _settingsBox.put(key, value);
+      if (_settingsBox != null) {
+        await _settingsBox!.put(key, value);
+        _settingsCache[key] = value; // Update cache
+      }
     } catch (e) {
-      print('Error setting value for key $key: $e');
+      debugPrint('Error setting value for key $key: $e');
     }
   }
 
   static T? getSetting<T>(String key, {T? defaultValue}) {
     try {
-      return _settingsBox.get(key, defaultValue: defaultValue) as T?;
+      // If settings box is not initialized, return default value immediately
+      if (_settingsBox == null) {
+        return defaultValue;
+      }
+      
+      // Use cache if available to avoid repeated box access
+      if (_settingsCache.containsKey(key)) {
+        return _settingsCache[key] as T?;
+      }
+      
+      final value = _settingsBox!.get(key, defaultValue: defaultValue) as T?;
+      if (value != null) {
+        _settingsCache[key] = value; // Cache the value
+      }
+      return value;
     } catch (e) {
-      print('Error getting value for key $key: $e');
+      debugPrint('Error getting value for key $key: $e');
       return defaultValue;
     }
   }
+
+
 
   // Initialize default categories and symbols
   static Future<void> _initializeDefaultData() async {
@@ -483,33 +557,6 @@ class AACHelper {
   static const String _speechPitchKey = 'speech_pitch';
   static const String _speechVolumeKey = 'speech_volume';
   
-  // Enhanced TTS with accessibility features
-  static Future<void> initializeAccessibleTTS() async {
-    try {
-      _flutterTts = FlutterTts();
-      
-      // Get accessibility settings
-      final speechRate = getSetting<double>(_speechRateKey, defaultValue: 0.5)!;
-      final speechPitch = getSetting<double>(_speechPitchKey, defaultValue: 1.2)!;
-      final speechVolume = getSetting<double>(_speechVolumeKey, defaultValue: 1.0)!;
-      
-      await _flutterTts!.setLanguage('en-US');
-      await _flutterTts!.setSpeechRate(speechRate); // Adjustable for children
-      await _flutterTts!.setVolume(speechVolume);
-      await _flutterTts!.setPitch(speechPitch); // Higher pitch for friendliness
-      
-      // Set up TTS callbacks for better feedback
-      _flutterTts!.setCompletionHandler(() {
-        debugPrint('TTS: Speech completed');
-      });
-      
-      _flutterTts!.setErrorHandler((message) {
-        debugPrint('TTS Error: $message');
-      });
-    } catch (e) {
-      throw AudioException('Failed to initialize accessible TTS: $e');
-    }
-  }
   
   // Enhanced speak method with accessibility features
   static Future<void> speakWithAccessibility(String text, {
@@ -964,78 +1011,35 @@ class AACHelper {
     }
   }
   
-  // Play sound effect with child-friendly audio
+  // Play sound effect with child-friendly audio - OPTIMIZED
   static Future<void> playSound(SoundEffect soundEffect, {bool respectSettings = true}) async {
     try {
       if (respectSettings && !isSoundEffectsEnabled) {
         return;
       }
       
-      // Generate child-friendly sound frequencies
-      String soundPath = _getSoundPath(soundEffect);
-      
-      // For now, we'll use SystemSound for platform sounds
-      // In a full implementation, you'd have actual sound files
+      // Simplified sound effects to improve performance
       switch (soundEffect) {
         case SoundEffect.buttonTap:
         case SoundEffect.symbolSelect:
+        case SoundEffect.pop:
           await SystemSound.play(SystemSoundType.click);
           break;
         case SoundEffect.success:
         case SoundEffect.celebration:
-          await SystemSound.play(SystemSoundType.alert);
-          break;
-        case SoundEffect.error:
-          // Play error sound twice for emphasis
-          await SystemSound.play(SystemSoundType.alert);
-          await Future.delayed(const Duration(milliseconds: 100));
-          await SystemSound.play(SystemSoundType.alert);
-          break;
-        case SoundEffect.notification:
         case SoundEffect.chime:
           await SystemSound.play(SystemSoundType.alert);
           break;
-        case SoundEffect.categoryOpen:
-        case SoundEffect.pop:
-        case SoundEffect.swoosh:
+        case SoundEffect.error:
+          await SystemSound.play(SystemSoundType.alert);
+          break;
+        default:
+          // For other sound effects, use click as fallback
           await SystemSound.play(SystemSoundType.click);
           break;
       }
-      
     } catch (e) {
-      print('Error playing sound effect: $e');
-    }
-  }
-  
-  static String _getSoundPath(SoundEffect soundEffect) {
-    try {
-      // Return paths to sound files for each effect
-      // In a full implementation, these would be actual audio files
-      switch (soundEffect) {
-        case SoundEffect.buttonTap:
-          return 'assets/sounds/button_tap.mp3';
-        case SoundEffect.symbolSelect:
-          return 'assets/sounds/symbol_select.mp3';
-        case SoundEffect.categoryOpen:
-          return 'assets/sounds/category_open.mp3';
-        case SoundEffect.success:
-          return 'assets/sounds/success.mp3';
-        case SoundEffect.error:
-          return 'assets/sounds/error.mp3';
-        case SoundEffect.notification:
-          return 'assets/sounds/notification.mp3';
-        case SoundEffect.celebration:
-          return 'assets/sounds/celebration.mp3';
-        case SoundEffect.pop:
-          return 'assets/sounds/pop.mp3';
-        case SoundEffect.swoosh:
-          return 'assets/sounds/swoosh.mp3';
-        case SoundEffect.chime:
-          return 'assets/sounds/chime.mp3';
-      }
-    } catch (e) {
-      print('Error getting sound path: $e');
-      return '';
+      debugPrint('Error playing sound: $e');
     }
   }
   
@@ -1044,7 +1048,7 @@ class AACHelper {
     try {
       await SystemSound.play(SystemSoundType.alert);
     } catch (e) {
-      print('Error playing error sound: $e');
+      debugPrint('Error playing error sound: $e');
     }
   }
 

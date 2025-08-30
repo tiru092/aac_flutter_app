@@ -1,8 +1,7 @@
-import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/voice_service.dart';
-import '../models/symbol.dart';
+import '../models/custom_voice.dart';
 import '../utils/aac_helper.dart';
 
 class VoiceSettingsScreen extends StatefulWidget {
@@ -13,100 +12,156 @@ class VoiceSettingsScreen extends StatefulWidget {
 }
 
 class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
-  final VoiceService _voiceService = VoiceService(); // Singleton instance
-  late List<CustomVoice> _availableVoices;
-  CustomVoice? _selectedVoice;
+  final VoiceService _voiceService = VoiceService();
+  List<CustomVoice> _availableVoices = [];
+  CustomVoice? _currentVoice;
   bool _isRecording = false;
-  String _recordingStatus = '';
-  String _newVoiceName = '';
+  bool _isLoading = true;
+  String _statusMessage = '';
   final TextEditingController _voiceNameController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadVoices();
+    _initializeVoiceSettings();
   }
 
   @override
   void dispose() {
     _voiceNameController.dispose();
-    // Stop any ongoing recording or playback
-    if (_isRecording) {
-      _stopRecording();
-    }
     super.dispose();
   }
 
-  Future<void> _loadVoices() async {
-    setState(() {
+  Future<void> _initializeVoiceSettings() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _statusMessage = 'Loading voices...';
+      });
+
+      // Initialize voice service if not already done
+      await _voiceService.initialize();
+      
+      // Load available voices
       _availableVoices = _voiceService.availableVoices;
-      _selectedVoice = _voiceService.currentVoice;
-    });
+      _currentVoice = _voiceService.currentVoice;
+      
+      setState(() {
+        _isLoading = false;
+        _statusMessage = 'Voices loaded successfully';
+      });
+      
+      // Clear status message after 2 seconds
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            _statusMessage = '';
+          });
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _statusMessage = 'Error loading voices: ${e.toString()}';
+      });
+    }
+  }
+
+  Future<void> _playVoice(CustomVoice voice) async {
+    try {
+      setState(() {
+        _statusMessage = 'Playing ${voice.name}...';
+      });
+
+      if (voice.isDefault) {
+        // For default voices, use text-to-speech with a sample text
+        await AACHelper.speak('Hello, this is ${voice.name}');
+        _showMessage('Playing default voice: ${voice.name}');
+        return;
+      }
+      
+      // For custom voices, play the recorded file
+      final success = await _voiceService.playCustomVoice(voice);
+      if (success) {
+        _showMessage('Playing voice: ${voice.name}');
+      } else {
+        _showMessage('Failed to play voice. File may be missing or corrupted.');
+      }
+    } catch (e) {
+      _showMessage('Error playing voice: ${e.toString()}');
+    }
+  }
+
+  Future<void> _selectVoice(CustomVoice voice) async {
+    try {
+      _voiceService.setCurrentVoice(voice);
+      setState(() {
+        _currentVoice = voice;
+      });
+      _showMessage('Selected voice: ${voice.name}');
+      
+      // Play a sample to confirm selection
+      await _playVoice(voice);
+    } catch (e) {
+      _showMessage('Error selecting voice: ${e.toString()}');
+    }
   }
 
   Future<void> _startRecording() async {
-    if (_newVoiceName.isEmpty) {
-      _showMessage('Please enter a name for your voice');
+    if (_voiceNameController.text.trim().isEmpty) {
+      _showMessage('Please enter a name for your voice recording');
       return;
     }
 
     try {
-      final success = await _voiceService.startRecording(_newVoiceName);
-      if (success) {
-        setState(() {
-          _isRecording = true;
-          _recordingStatus = 'Recording... Speak now';
-        });
+      setState(() {
+        _isRecording = true;
+        _statusMessage = 'Recording...';
+      });
 
-        // Auto-stop after 10 seconds
-        Future.delayed(const Duration(seconds: 10), () {
-          if (mounted && _isRecording) {
-            _stopRecording();
-          }
+      final success = await _voiceService.startRecording(_voiceNameController.text.trim());
+      if (!success) {
+        setState(() {
+          _isRecording = false;
+          _statusMessage = 'Failed to start recording';
         });
-      } else {
-        _showMessage('Failed to start recording');
       }
     } catch (e) {
-      _showMessage('Error: ${e.toString()}');
+      setState(() {
+        _isRecording = false;
+        _statusMessage = 'Error starting recording: ${e.toString()}';
+      });
     }
   }
 
   Future<void> _stopRecording() async {
     try {
-      final customVoice = await _voiceService.stopRecording();
-      if (customVoice != null) {
-        setState(() {
-          _isRecording = false;
-          _recordingStatus = 'Recording saved!';
-          _newVoiceName = '';
-          _voiceNameController.clear();
-        });
+      setState(() {
+        _statusMessage = 'Stopping recording...';
+      });
 
-        _showMessage('Voice recorded successfully!');
-        _loadVoices(); // Refresh the list
+      final customVoice = await _voiceService.stopRecording();
+      setState(() {
+        _isRecording = false;
+      });
+
+      if (customVoice != null) {
+        // Refresh the voices list
+        _availableVoices = _voiceService.availableVoices;
+        _showMessage('Voice recorded successfully: ${customVoice.name}');
+        _voiceNameController.clear();
+        
+        // Auto-play the new recording
+        await _playVoice(customVoice);
       } else {
-        setState(() {
-          _isRecording = false;
-          _recordingStatus = 'Recording failed';
-        });
         _showMessage('Failed to save recording');
       }
     } catch (e) {
       setState(() {
         _isRecording = false;
-        _recordingStatus = 'Recording error';
       });
-      _showMessage('Error: ${e.toString()}');
+      _showMessage('Error stopping recording: ${e.toString()}');
     }
-  }
-
-  Future<void> _selectVoice(CustomVoice voice) async {
-    setState(() {
-      _selectedVoice = voice;
-    });
-    _voiceService.setCurrentVoice(voice);
-    _showMessage('Voice selected: ${voice.name}');
   }
 
   Future<void> _deleteVoice(CustomVoice voice) async {
@@ -115,39 +170,57 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
       return;
     }
 
-    final success = await _voiceService.deleteCustomVoice(voice);
-    if (success) {
-      _showMessage('Voice deleted successfully');
-      _loadVoices(); // Refresh the list
-      
-      // If we deleted the current voice, select the first available
-      if (_selectedVoice?.id == voice.id) {
+    try {
+      final success = await _voiceService.deleteCustomVoice(voice);
+      if (success) {
         setState(() {
-          _selectedVoice = _availableVoices.isNotEmpty ? _availableVoices.first : null;
+          _availableVoices = _voiceService.availableVoices;
+          _currentVoice = _voiceService.currentVoice;
         });
-        if (_selectedVoice != null) {
-          _voiceService.setCurrentVoice(_selectedVoice!);
-        }
+        _showMessage('Voice deleted: ${voice.name}');
+      } else {
+        _showMessage('Failed to delete voice');
       }
-    } else {
-      _showMessage('Failed to delete voice');
-    }
-  }
-
-  Future<void> _playVoice(CustomVoice voice) async {
-    final success = await _voiceService.playCustomVoice(voice);
-    if (success) {
-      _showMessage('Playing voice: ${voice.name}');
-    } else {
-      _showMessage('Failed to play voice');
+    } catch (e) {
+      _showMessage('Error deleting voice: ${e.toString()}');
     }
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
+    setState(() {
+      _statusMessage = message;
+    });
+    
+    // Clear message after 3 seconds
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _statusMessage = '';
+        });
+      }
+    });
+  }
+
+  void _showDeleteConfirmation(CustomVoice voice) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Delete Voice'),
+        content: Text('Are you sure you want to delete "${voice.name}"?'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('Delete'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _deleteVoice(voice);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -156,286 +229,183 @@ class _VoiceSettingsScreenState extends State<VoiceSettingsScreen> {
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(
-        backgroundColor: Color(0xFF4ECDC4),
-        middle: Text(
-          '🎙️ Voice Settings',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+        middle: Text('Voice Settings'),
       ),
       child: SafeArea(
-        child: Column(
-          children: [
-            // Current voice indicator
-            Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
+        child: _isLoading
+            ? const Center(child: CupertinoActivityIndicator())
+            : Column(
                 children: [
-                  const Text(
-                    'Current Voice',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2D3748),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _selectedVoice?.name ?? 'Default Female Voice',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF4A5568),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Voice recording section
-            Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Record Your Own Voice',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2D3748),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  CupertinoTextField(
-                    controller: _voiceNameController,
-                    placeholder: 'Enter voice name (e.g., Mom, Dad)',
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7FAFC),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFFE2E8F0),
+                  // Status message
+                  if (_statusMessage.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: CupertinoColors.systemGrey6,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _statusMessage,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: CupertinoColors.systemGrey,
+                        ),
                       ),
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        _newVoiceName = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      if (!_isRecording) ...[
-                        CupertinoButton(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          color: const Color(0xFF4ECDC4),
-                          borderRadius: BorderRadius.circular(20),
-                          onPressed: _startRecording,
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(CupertinoIcons.mic, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text(
-                                'Record',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+
+                  // Recording section
+                  Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemBackground,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: CupertinoColors.systemGrey4,
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Record New Voice',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ] else ...[
-                        CupertinoButton(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          color: const Color(0xFFE53E3E),
-                          borderRadius: BorderRadius.circular(20),
-                          onPressed: _stopRecording,
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(CupertinoIcons.stop_circle, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text(
-                                'Stop',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                        const SizedBox(height: 12),
+                        CupertinoTextField(
+                          controller: _voiceNameController,
+                          placeholder: 'Enter voice name',
+                          enabled: !_isRecording,
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: CupertinoButton.filled(
+                                onPressed: _isRecording ? _stopRecording : _startRecording,
+                                child: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ],
-                    ],
+                    ),
                   ),
-                  if (_isRecording) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _recordingStatus,
-                      style: const TextStyle(
-                        color: Color(0xFFE53E3E),
-                        fontWeight: FontWeight.w600,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ],
-              ),
-            ),
 
-            // Available voices list
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: Color(0xFFE2E8F0),
-                            width: 1,
-                          ),
-                        ),
-                      ),
-                      child: const Text(
-                        'Available Voices',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF2D3748),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(8),
-                        itemCount: _availableVoices.length,
-                        itemBuilder: (context, index) {
-                          final voice = _availableVoices[index];
-                          final isSelected = _selectedVoice?.id == voice.id;
-                          
-                          return Container(
-                            margin: const EdgeInsets.symmetric(vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isSelected 
-                                  ? const Color(0xFF4ECDC4).withOpacity(0.2) 
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected 
-                                    ? const Color(0xFF4ECDC4) 
-                                    : const Color(0xFFE2E8F0),
+                  // Available voices section
+                  Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text(
+                              'Available Voices',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                              leading: Icon(
-                                voice.isDefault 
-                                    ? CupertinoIcons.person_circle 
-                                    : CupertinoIcons.mic_circle,
-                                color: voice.isDefault 
-                                    ? const Color(0xFF6C63FF) 
-                                    : const Color(0xFF4ECDC4),
-                                size: 32,
-                              ),
-                              title: Text(
-                                voice.name,
-                                style: TextStyle(
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: const Color(0xFF2D3748),
-                                ),
-                              ),
-                              subtitle: Text(
-                                voice.isDefault 
-                                    ? 'Default voice' 
-                                    : 'Custom recorded voice',
-                                style: const TextStyle(
-                                  color: Color(0xFF718096),
-                                  fontSize: 12,
-                                ),
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CupertinoButton(
-                                    padding: EdgeInsets.zero,
-                                    minSize: 30,
-                                    onPressed: () => _playVoice(voice),
-                                    child: const Icon(
-                                      CupertinoIcons.play_circle,
-                                      color: Color(0xFF4ECDC4),
-                                      size: 24,
+                          ),
+                          Expanded(
+                            child: ListView.builder(
+                              itemCount: _availableVoices.length,
+                              itemBuilder: (context, index) {
+                                final voice = _availableVoices[index];
+                                final isSelected = _currentVoice?.id == voice.id;
+                                
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  decoration: BoxDecoration(
+                                    color: isSelected 
+                                        ? CupertinoColors.activeBlue.withOpacity(0.1)
+                                        : CupertinoColors.systemBackground,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isSelected 
+                                          ? CupertinoColors.activeBlue
+                                          : CupertinoColors.systemGrey4,
+                                      width: isSelected ? 2 : 1,
                                     ),
                                   ),
-                                  if (!voice.isDefault)
-                                    CupertinoButton(
-                                      padding: EdgeInsets.zero,
-                                      minSize: 30,
-                                      onPressed: () => _deleteVoice(voice),
-                                      child: const Icon(
-                                        CupertinoIcons.delete,
-                                        color: Color(0xFFE53E3E),
-                                        size: 24,
+                                  child: CupertinoListTile(
+                                    title: Text(
+                                      voice.name,
+                                      style: TextStyle(
+                                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                                       ),
                                     ),
-                                ],
-                              ),
-                              onTap: () => _selectVoice(voice),
+                                    subtitle: Text(
+                                      voice.isDefault ? 'Default Voice' : 'Custom Voice',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: CupertinoColors.systemGrey,
+                                      ),
+                                    ),
+                                    leading: Icon(
+                                      voice.isDefault 
+                                          ? CupertinoIcons.speaker_2
+                                          : CupertinoIcons.mic,
+                                      color: isSelected 
+                                          ? CupertinoColors.activeBlue
+                                          : CupertinoColors.systemGrey,
+                                    ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        // Play button
+                                        CupertinoButton(
+                                          padding: const EdgeInsets.all(8),
+                                          onPressed: () => _playVoice(voice),
+                                          child: const Icon(
+                                            CupertinoIcons.play_circle,
+                                            size: 24,
+                                          ),
+                                        ),
+                                        // Select button
+                                        if (!isSelected)
+                                          CupertinoButton(
+                                            padding: const EdgeInsets.all(8),
+                                            onPressed: () => _selectVoice(voice),
+                                            child: const Icon(
+                                              CupertinoIcons.checkmark_circle,
+                                              size: 24,
+                                            ),
+                                          ),
+                                        // Delete button (only for custom voices)
+                                        if (!voice.isDefault)
+                                          CupertinoButton(
+                                            padding: const EdgeInsets.all(8),
+                                            onPressed: () => _showDeleteConfirmation(voice),
+                                            child: const Icon(
+                                              CupertinoIcons.delete,
+                                              size: 24,
+                                              color: CupertinoColors.destructiveRed,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    onTap: () => _selectVoice(voice),
+                                  ),
+                                );
+                              },
                             ),
-                          );
-                        },
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }

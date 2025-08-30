@@ -1,9 +1,9 @@
-name: aac_communication_helper
-description: A Flutter application for Augmentative and Alternative Communication (AAC) to help individuals with communication challenges.
+name: svarah
+description: Svarah - AAC Communication Helper App
 
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -12,6 +12,8 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.2
+  auto_size_text: ^3.0.0
+  google_fonts: ^6.2.1
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   flutter_tts: ^4.2.3
@@ -34,6 +36,8 @@ dependencies:
   encrypt: ^5.0.3
   flutter_secure_storage: ^9.0.0
   cached_network_image: ^3.3.1
+  equatable: ^2.0.5
+  in_app_purchase: ^3.1.13  # Google Play Billing for subscriptions
 
 dev_dependencies:
   flutter_test:
@@ -48,6 +52,9 @@ flutter:
 
   assets:
     - assets/symbols/
-    - assets/icons/
-    - assets/sounds/
-    - assets/images/
+    # - assets/icons/     # Commented out - directory is empty
+    # - assets/images/    # Commented out - directory is empty  
+    # - assets/sounds/    # Commented out - directory is empty
+
+  # Performance optimizations
+  generate: true

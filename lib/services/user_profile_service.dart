@@ -323,4 +323,28 @@ class UserProfileService {
       print('Error in syncAllProfilesToCloud: $e');
     }
   }
+
+  /// Clear all profiles (for testing/reset purposes)
+  static Future<void> clearAllProfiles() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_profilesKey);
+      await prefs.remove(_currentProfileKey);
+      _activeProfile = null;
+      print('All profiles cleared successfully');
+    } catch (e) {
+      print('Error clearing profiles: $e');
+    }
+  }
+
+  /// Get profiles count for debugging
+  static Future<int> getProfilesCount() async {
+    try {
+      final profiles = await getAllProfiles();
+      return profiles.length;
+    } catch (e) {
+      print('Error getting profiles count: $e');
+      return 0;
+    }
+  }
 }

@@ -1,0 +1,71 @@
+rules_version = '2';
+
+// Firestore Security Rules for AAC Communication Helper
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users can only read/write their own profile data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // User profiles - only authenticated users can access their own profiles
+    match /profiles/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Sub-collections for user data
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Backup data - only authenticated users can access their own backups
+    match /backups/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // App configuration - read-only for authenticated users
+    match /app_config/{document} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only admins can write via Firebase Console
+    }
+    
+    // Analytics data - write-only for authenticated users
+    match /analytics/{document} {
+      allow write: if request.auth != null;
+      allow read: if false; // Analytics data is private
+    }
+    
+    // Error reports - write-only for authenticated users
+    match /error_reports/{document} {
+      allow write: if request.auth != null;
+      allow read: if false; // Error reports are private
+    }
+  }
+}
+
+// Storage Security Rules for AAC Communication Helper
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // User profile images and custom symbols
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Backup files
+    match /backups/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // App assets (read-only for all authenticated users)
+    match /app_assets/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only admins can upload via Firebase Console
+    }
+  }
+}

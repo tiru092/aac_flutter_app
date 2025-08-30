@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../services/auth_service.dart';
+import '../services/auth_wrapper_service.dart';
 import 'verify_email_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -16,7 +15,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _authService = AuthService();
+  final _authWrapper = AuthWrapperService();
   
   bool _isLoading = false;
   String? _errorMessage;
@@ -31,6 +30,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _signUp() async {
+    debugPrint('SignUpScreen: Starting sign-up for ${_emailController.text.trim()}');
     // Validate inputs
     if (_nameController.text.isEmpty ||
         _emailController.text.isEmpty ||
@@ -62,51 +62,53 @@ class _SignUpScreenState extends State<SignUpScreen> {
     });
 
     try {
-      await _authService.signUpWithEmail(
+      final result = await _authWrapper.signUpWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         name: _nameController.text.trim(),
       );
+      debugPrint('SignUpScreen: Sign-up result - success: ${result.isSuccess}, message: ${result.message}');
 
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          CupertinoPageRoute(builder: (context) => const VerifyEmailScreen()),
-        );
+        if (result.isSuccess) {
+          // Inform user that verification email has been sent
+          await showCupertinoDialog(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: const Text('Sign-up Successful'),
+              content: const Text('A verification email has been sent. Please check your inbox to verify your account.'),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('OK'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          );
+          // Navigate to verification screen
+          Navigator.pushReplacement(
+            context,
+            CupertinoPageRoute(builder: (context) => const VerifyEmailScreen()),
+          );
+        } else {
+          setState(() {
+            _errorMessage = result.message;
+          });
+        }
       }
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = _getErrorMessage(e.code);
-      });
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Registration failed. Please try again.';
-      });
+      debugPrint('SignUpScreen: Exception during sign-up: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Registration failed. Please try again.';
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
-    }
-  }
-
-  String _getErrorMessage(String code) {
-    switch (code) {
-      case 'email-already-in-use':
-        return 'An account already exists with this email. Please sign in or use a different email.';
-      case 'invalid-email':
-        return 'Please enter a valid email address.';
-      case 'weak-password':
-        return 'Password is too weak. Use at least 6 characters with a mix of letters and numbers.';
-      case 'operation-not-allowed':
-        return 'Email/password accounts are not enabled. Please contact support.';
-      case 'network-request-failed':
-        return 'Network error. Please check your internet connection and try again.';
-      case 'too-many-requests':
-        return 'Too many requests. Please try again later.';
-      default:
-        return 'An unexpected error occurred during registration. Please try again later. (Error code: $code)';
     }
   }
 
@@ -160,7 +162,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               const SizedBox(height: 8),
               
               const Text(
-                'Please fill in the details to register',
+                'Join AAC Communicator to sync your data across devices',
                 style: TextStyle(
                   fontSize: 16,
                   color: Color(0xFF718096),
@@ -336,6 +338,47 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   color: Color(0xFF718096),
                 ),
                 textAlign: TextAlign.center,
+              ),
+              
+              const SizedBox(height: 20),
+              
+              // Benefits Info
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F8FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF4ECDC4).withOpacity(0.3),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      CupertinoIcons.cloud_upload,
+                      color: const Color(0xFF4ECDC4),
+                      size: 24,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Account Benefits',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2D3748),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '• Sync data across multiple devices\n• Cloud backup of your profiles\n• Access from anywhere\n• Share profiles with caregivers',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF718096),
+                      ),
+                      textAlign: TextAlign.left,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

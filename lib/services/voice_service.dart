@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:audioplayers/audioplayers.dart';
-import '../models/symbol.dart'; // For CustomVoice model
+import 'package:permission_handler/permission_handler.dart';
+import '../models/custom_voice.dart';
 import '../utils/aac_helper.dart';
 
 class VoiceService {
@@ -12,7 +13,6 @@ class VoiceService {
   VoiceService._internal();
 
   FlutterSoundRecorder? _audioRecorder;
-  FlutterSoundPlayer? _audioPlayer;
   final AudioPlayer _defaultAudioPlayer = AudioPlayer();
   
   // Current recording file path
@@ -26,6 +26,9 @@ class VoiceService {
       filePath: '',
       createdAt: DateTime.now(),
       isDefault: true,
+      voiceType: VoiceType.female,
+      gender: VoiceGender.female,
+      description: 'Built-in female voice for text-to-speech',
     ),
     CustomVoice(
       id: 'default_male',
@@ -33,6 +36,19 @@ class VoiceService {
       filePath: '',
       createdAt: DateTime.now(),
       isDefault: true,
+      voiceType: VoiceType.male,
+      gender: VoiceGender.male,
+      description: 'Built-in male voice for text-to-speech',
+    ),
+    CustomVoice(
+      id: 'default_child',
+      name: 'Child-Friendly Voice',
+      filePath: '',
+      createdAt: DateTime.now(),
+      isDefault: true,
+      voiceType: VoiceType.child,
+      gender: VoiceGender.neutral,
+      description: 'High-pitched child-friendly voice',
     ),
   ];
   
@@ -43,6 +59,9 @@ class VoiceService {
     filePath: '',
     createdAt: DateTime.now(),
     isDefault: true,
+    voiceType: VoiceType.female,
+    gender: VoiceGender.female,
+    description: 'Built-in female voice for text-to-speech',
   );
   
   // Get available voices
@@ -60,22 +79,28 @@ class VoiceService {
   
   // Initialize the voice service
   Future<void> initialize() async {
-    // Initialize audio recorder and player
-    _audioRecorder = FlutterSoundRecorder();
-    _audioPlayer = FlutterSoundPlayer();
-    
-    // Load saved voice preference
-    final savedVoiceId = AACHelper.getSetting<String>('current_voice_id');
-    if (savedVoiceId != null) {
-      final savedVoice = _availableVoices.firstWhere(
-        (voice) => voice.id == savedVoiceId,
-        orElse: () => _availableVoices.first,
-      );
-      _currentVoice = savedVoice;
+    try {
+      // Initialize audio recorder only
+      _audioRecorder = FlutterSoundRecorder();
+      await _audioRecorder!.openRecorder();
+      
+      debugPrint('VoiceService initialized successfully');
+      
+      // Load saved voice preference
+      final savedVoiceId = AACHelper.getSetting<String>('current_voice_id');
+      if (savedVoiceId != null) {
+        final savedVoice = _availableVoices.firstWhere(
+          (voice) => voice.id == savedVoiceId,
+          orElse: () => _availableVoices.first,
+        );
+        _currentVoice = savedVoice;
+      }
+      
+      // Load custom voices from storage
+      await _loadCustomVoices();
+    } catch (e) {
+      debugPrint('Error initializing VoiceService: $e');
     }
-    
-    // Load custom voices from storage
-    await _loadCustomVoices();
   }
   
   // Load custom voices from storage
@@ -91,12 +116,18 @@ class VoiceService {
             final fileName = file.path.split('/').last;
             final voiceName = fileName.replaceAll('.m4a', '');
             
+            // Determine voice type and gender based on name
+            final voiceTypeInfo = _determineVoiceType(voiceName);
+            
             final customVoice = CustomVoice(
               id: fileName,
               name: voiceName,
               filePath: file.path,
               createdAt: DateTime.now(),
               isDefault: false,
+              voiceType: voiceTypeInfo['type'] as VoiceType,
+              gender: voiceTypeInfo['gender'] as VoiceGender,
+              description: 'Custom recorded voice',
             );
             
             // Add to available voices if not already present
@@ -120,33 +151,35 @@ class VoiceService {
   // Start recording a custom voice
   Future<bool> startRecording(String voiceName) async {
     try {
-      // Ensure recorder is initialized
-      _audioRecorder ??= FlutterSoundRecorder();
-      
-      // Close any existing session
-      try {
-        await _audioRecorder!.closeRecorder();
-      } catch (e) {
-        debugPrint('Error closing existing recorder: $e');
+      if (!await _checkPermissions()) {
+        debugPrint('Recording permissions not granted');
+        return false;
+      }
+
+      if (_audioRecorder == null) {
+        debugPrint('Audio recorder not initialized');
+        return false;
       }
       
-      // Open audio session
-      await _audioRecorder!.openRecorder();
+      if (_audioRecorder!.isRecording) {
+        await _audioRecorder!.stopRecorder();
+      }
       
-      // Get directory for voice recordings
       final dir = await getApplicationDocumentsDirectory();
       final voicesDir = Directory('${dir.path}/voices');
-      
-      // Create directory if it doesn't exist
       if (!await voicesDir.exists()) {
         await voicesDir.create(recursive: true);
       }
       
-      // Set recording path
-      _currentRecordingPath = '${voicesDir.path}/$voiceName.m4a';
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      _currentRecordingPath = '${voicesDir.path}/${voiceName}_$timestamp.m4a';
       
-      // Start recording
-      await _audioRecorder!.startRecorder(toFile: _currentRecordingPath);
+      await _audioRecorder!.startRecorder(
+        toFile: _currentRecordingPath,
+        codec: Codec.aacMP4,
+      );
+      
+      debugPrint('Recording started: $_currentRecordingPath');
       return true;
     } catch (e) {
       debugPrint('Error starting recording: $e');
@@ -154,22 +187,60 @@ class VoiceService {
     }
   }
   
-  // Stop recording and save the custom voice
+  // Check recording permissions
+  Future<bool> _checkPermissions() async {
+    try {
+      // Check microphone permission
+      var microphoneStatus = await Permission.microphone.status;
+      if (microphoneStatus != PermissionStatus.granted) {
+        microphoneStatus = await Permission.microphone.request();
+        if (microphoneStatus != PermissionStatus.granted) {
+          debugPrint('Microphone permission denied');
+          return false;
+        }
+      }
+      
+      // For Android 13+ (API 33+), we need different storage permissions
+      if (Platform.isAndroid) {
+        // Try to use the app's internal storage instead of external storage
+        // This doesn't require storage permissions
+        debugPrint('Using internal app storage for recordings');
+        return true;
+      }
+      
+      return true;
+    } catch (e) {
+      debugPrint('Error checking permissions: $e');
+      return false;
+    }
+  }
+  
+  // Stop recording and save the custom voice with enhanced error handling
   Future<CustomVoice?> stopRecording() async {
     try {
       if (_audioRecorder == null || !isRecording) {
+        debugPrint('No active recording to stop');
         return null;
       }
       
-      // Stop recording
+      // Stop recording but keep the session open
       await _audioRecorder!.stopRecorder();
       
       // Create custom voice object
       if (_currentRecordingPath != null) {
+        final file = File(_currentRecordingPath!);
+        if (!await file.exists()) {
+          debugPrint('Recording file not created: $_currentRecordingPath');
+          return null;
+        }
+        
         final voiceName = _currentRecordingPath!
             .split('/')
             .last
             .replaceAll('.m4a', '');
+        
+        // Determine voice type and gender based on name
+        final voiceTypeInfo = _determineVoiceType(voiceName);
             
         final customVoice = CustomVoice(
           id: '${DateTime.now().millisecondsSinceEpoch}',
@@ -177,6 +248,9 @@ class VoiceService {
           filePath: _currentRecordingPath!,
           createdAt: DateTime.now(),
           isDefault: false,
+          voiceType: voiceTypeInfo['type'] as VoiceType,
+          gender: voiceTypeInfo['gender'] as VoiceGender,
+          description: 'Custom recorded voice',
         );
         
         // Add to available voices
@@ -185,20 +259,22 @@ class VoiceService {
         // Save to persistent storage
         await _saveCustomVoice(customVoice);
         
+        debugPrint('Recording saved: ${customVoice.name}');
+        
+        // Clear the current recording path for next recording
+        _currentRecordingPath = null;
+        
         return customVoice;
       }
       
+      debugPrint('No recording path set');
       return null;
     } catch (e) {
       debugPrint('Error stopping recording: $e');
       return null;
     } finally {
-      // Always close the recorder
-      try {
-        await _audioRecorder?.closeRecorder();
-      } catch (e) {
-        debugPrint('Error closing recorder: $e');
-      }
+      // Clear the recording path but keep the session open
+      _currentRecordingPath = null;
     }
   }
   
@@ -254,8 +330,6 @@ class VoiceService {
     try {
       if (voice.isDefault) {
         // For default voices, we use TTS through AACHelper
-        // We don't directly call AACHelper.speak here to avoid recursion
-        // Instead, we return true and let the caller handle TTS
         debugPrint('Playing default voice through TTS');
         return true;
       }
@@ -264,45 +338,26 @@ class VoiceService {
       if (voice.filePath.isNotEmpty) {
         final file = File(voice.filePath);
         if (await file.exists()) {
-          // Ensure player is initialized
-          _audioPlayer ??= FlutterSoundPlayer();
-          
-          // Close any existing session
-          try {
-            await _audioPlayer!.closePlayer();
-          } catch (e) {
-            debugPrint('Error closing existing player: $e');
-          }
-          
-          // Open player and play
-          await _audioPlayer!.openPlayer();
-          await _audioPlayer!.startPlayer(fromURI: voice.filePath);
+          // Use the dedicated audio player (not the recorder's player)
+          await _defaultAudioPlayer.play(DeviceFileSource(voice.filePath));
+          debugPrint('Playing custom voice: ${voice.name}');
           return true;
         }
       }
       
-      debugPrint('Voice file not found');
+      debugPrint('Voice file not found: ${voice.filePath}');
       return false;
     } catch (e) {
       debugPrint('Error playing custom voice: $e');
       return false;
-    } finally {
-      // Close player after a delay to allow playback to complete
-      Future.delayed(const Duration(seconds: 5), () async {
-        try {
-          await _audioPlayer?.closePlayer();
-        } catch (e) {
-          debugPrint('Error closing player: $e');
-        }
-      });
     }
   }
   
   // Stop current playback
   Future<void> stopPlayback() async {
     try {
-      await _audioPlayer?.stopPlayer();
-      await _audioPlayer?.closePlayer();
+      await _defaultAudioPlayer.stop();
+      debugPrint('Playback stopped');
     } catch (e) {
       debugPrint('Error stopping playback: $e');
     }
@@ -327,6 +382,8 @@ class VoiceService {
       // Use AACHelper's FlutterTts instance directly
       final flutterTts = AACHelper.getFlutterTtsInstance();
       if (flutterTts != null) {
+        // Configure TTS based on current voice type
+        await _configureTtsForVoiceType(flutterTts);
         await flutterTts.speak(text);
       }
     } catch (e) {
@@ -334,12 +391,137 @@ class VoiceService {
     }
   }
   
-  // Dispose resources
+  /// Configure TTS settings based on voice type
+  Future<void> _configureTtsForVoiceType(dynamic flutterTts) async {
+    try {
+      switch (_currentVoice.voiceType) {
+        case VoiceType.female:
+          await flutterTts.setPitch(1.1); // Slightly higher pitch
+          await flutterTts.setSpeechRate(0.5); // Normal speed
+          break;
+        case VoiceType.male:
+          await flutterTts.setPitch(0.8); // Lower pitch
+          await flutterTts.setSpeechRate(0.5); // Normal speed
+          break;
+        case VoiceType.child:
+          await flutterTts.setPitch(1.3); // Higher pitch for child voice
+          await flutterTts.setSpeechRate(0.4); // Slightly slower for clarity
+          break;
+      }
+      
+      // Set volume
+      await flutterTts.setVolume(1.0);
+    } catch (e) {
+      debugPrint('Error configuring TTS for voice type: $e');
+    }
+  }
+  
+  /// Determine voice type and gender based on voice name
+  Map<String, dynamic> _determineVoiceType(String voiceName) {
+    final lowerName = voiceName.toLowerCase();
+    
+    // Check for male indicators
+    if (lowerName.contains('male') || 
+        lowerName.contains('man') || 
+        lowerName.contains('boy') ||
+        lowerName.contains('father') ||
+        lowerName.contains('dad') ||
+        lowerName.contains('mr')) {
+      return {
+        'type': VoiceType.male,
+        'gender': VoiceGender.male,
+      };
+    }
+    
+    // Check for child indicators
+    if (lowerName.contains('child') || 
+        lowerName.contains('kid') || 
+        lowerName.contains('young') ||
+        lowerName.contains('toddler') ||
+        lowerName.contains('baby')) {
+      return {
+        'type': VoiceType.child,
+        'gender': VoiceGender.neutral,
+      };
+    }
+    
+    // Check for female indicators (including default)
+    if (lowerName.contains('female') || 
+        lowerName.contains('woman') || 
+        lowerName.contains('girl') ||
+        lowerName.contains('mother') ||
+        lowerName.contains('mom') ||
+        lowerName.contains('mrs') ||
+        lowerName.contains('ms')) {
+      return {
+        'type': VoiceType.female,
+        'gender': VoiceGender.female,
+      };
+    }
+    
+    // Default to female if no specific indicators found
+    return {
+      'type': VoiceType.female,
+      'gender': VoiceGender.female,
+    };
+  }
+  
+  /// Get voices by type
+  List<CustomVoice> getVoicesByType(VoiceType type) {
+    return _availableVoices.where((voice) => voice.voiceType == type).toList();
+  }
+  
+  /// Get voices by gender
+  List<CustomVoice> getVoicesByGender(VoiceGender gender) {
+    return _availableVoices.where((voice) => voice.gender == gender).toList();
+  }
+  
+  /// Get default voices
+  List<CustomVoice> getDefaultVoices() {
+    return _availableVoices.where((voice) => voice.isDefault).toList();
+  }
+  
+  /// Get custom voices
+  List<CustomVoice> getCustomVoices() {
+    return _availableVoices.where((voice) => !voice.isDefault).toList();
+  }
+  
+  /// Set voice by type (automatically selects appropriate voice)
+  void setVoiceByType(VoiceType type) {
+    final voicesOfType = getVoicesByType(type);
+    if (voicesOfType.isNotEmpty) {
+      // Prefer default voices, then custom
+      final defaultVoice = voicesOfType.where((v) => v.isDefault).firstOrNull;
+      _currentVoice = defaultVoice ?? voicesOfType.first;
+    }
+  }
+  
+  /// Set voice by gender (automatically selects appropriate voice)
+  void setVoiceByGender(VoiceGender gender) {
+    final voicesOfGender = getVoicesByGender(gender);
+    if (voicesOfGender.isNotEmpty) {
+      // Prefer default voices, then custom
+      final defaultVoice = voicesOfGender.where((v) => v.isDefault).firstOrNull;
+      _currentVoice = defaultVoice ?? voicesOfGender.first;
+    }
+  }
+  
+  // Dispose resources - only called when the service is being destroyed
   Future<void> dispose() async {
     try {
+      // Stop any ongoing recording
+      if (_audioRecorder?.isRecording == true) {
+        await _audioRecorder!.stopRecorder();
+      }
+      
+      // Close recorder session
       await _audioRecorder?.closeRecorder();
-      await _audioPlayer?.closePlayer();
+      
+      // Stop and dispose audio players
+      await _defaultAudioPlayer.stop();
       await _defaultAudioPlayer.dispose();
+      
+      debugPrint('VoiceService disposed successfully');
     } catch (e) {
       debugPrint('Error disposing voice service: $e');
     }

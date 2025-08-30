@@ -265,7 +265,7 @@ class _SentenceBarState extends State<SentenceBar>
     return Container(
       constraints: const BoxConstraints(
         minHeight: 80,
-        maxHeight: 120,
+        maxHeight: 180, // Increased max height to accommodate wrapping
       ),
       padding: const EdgeInsets.all(16),
       child: widget.selectedSymbols.isEmpty
@@ -305,16 +305,14 @@ class _SentenceBarState extends State<SentenceBar>
         return Transform.scale(
           scale: _bounceAnimation.value,
           child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
-            child: Row(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: widget.selectedSymbols.asMap().entries.map((entry) {
                 final index = entry.key;
                 final symbol = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: _buildSymbolChip(symbol, index),
-                );
+                return _buildSymbolChip(symbol, index);
               }).toList(),
             ),
           ),

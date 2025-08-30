@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 /// Custom exception for authentication-related errors
 class AuthException implements Exception {
@@ -83,8 +84,14 @@ class AuthService {
         password: password,
       );
 
-      // Send verification email
-      await userCredential.user?.sendEmailVerification();
+      // Send verification email immediately after signup
+      try {
+        await userCredential.user?.sendEmailVerification();
+        print('Verification email sent during signup to: $email');
+      } catch (emailError) {
+        print('Warning: Failed to send verification email during signup: $emailError');
+        // Don't throw error here - user can request resend later
+      }
 
       // Add user to Firestore
       await _firestore.collection('users').doc(userCredential.user?.uid).set({
@@ -92,6 +99,7 @@ class AuthService {
         'email': email,
         'createdAt': FieldValue.serverTimestamp(),
         'emailVerified': false,
+        'signupCompleted': false, // Track if signup process is complete
       });
 
       return userCredential;
@@ -182,7 +190,7 @@ class AuthService {
     }
   }
 
-  // Send verification email
+  // Send verification email with improved settings
   Future<void> sendVerificationEmail() async {
     try {
       final user = _auth.currentUser;
@@ -190,15 +198,30 @@ class AuthService {
         throw AuthException('No user is currently signed in. Please sign in first.', 'no_user');
       }
       
+      // Reload user first to get latest state
+      await user.reload();
+      
+      // Check if already verified
+      if (user.emailVerified) {
+        throw AuthException('Email is already verified.', 'already_verified');
+      }
+      
+      // Send verification email with basic settings
       await user.sendEmailVerification();
+      
+      // Log successful send for debugging
+      print('Verification email sent to: ${user.email}');
+      
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
         case 'too-many-requests':
-          throw AuthException('Too many requests. Please try again later.', e.code);
+          throw AuthException('Too many requests. Please wait a few minutes before requesting another verification email.', e.code);
         case 'network-request-failed':
           throw AuthException('Network error. Please check your internet connection and try again.', e.code);
         case 'invalid-recipient-email':
           throw AuthException('Invalid recipient email address. Please contact support.', e.code);
+        case 'user-token-expired':
+          throw AuthException('Your session has expired. Please sign in again.', e.code);
         default:
           throw AuthException(e.message ?? 'Failed to send verification email. Please try again.', e.code);
       }
@@ -216,10 +239,29 @@ class AuthService {
   // Check if email is verified
   Future<bool> isEmailVerified() async {
     try {
-      await _auth.currentUser?.reload();
-      return _auth.currentUser?.emailVerified ?? false;
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('AuthService: No current user for email verification check');
+        return false;
+      }
+      
+      // Always reload to get the latest verification status
+      await user.reload();
+      final updatedUser = _auth.currentUser;
+      
+      if (updatedUser == null) {
+        debugPrint('AuthService: User became null after reload');
+        return false;
+      }
+      
+      final isVerified = updatedUser.emailVerified;
+      debugPrint('AuthService: Email verification status for ${updatedUser.email}: $isVerified');
+      
+      return isVerified;
     } catch (e) {
-      throw AuthException('Failed to check email verification: ${e.toString()}', 'verification_check_failed');
+      debugPrint('AuthService: Error checking email verification: $e');
+      // In case of error, return false but don't throw
+      return false;
     }
   }
 

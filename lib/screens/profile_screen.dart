@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/subscription.dart';
 import '../models/user_profile.dart';
 import '../utils/aac_helper.dart';
+import '../services/auth_service.dart';
+import '../services/auth_wrapper_service.dart';
 import 'subscription_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -16,6 +18,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  final AuthService _authService = AuthService();
+  final AuthWrapperService _authWrapperService = AuthWrapperService();
   
   UserProfile _currentProfile = UserProfile(
     id: 'user_001',
@@ -29,10 +33,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     settings: ProfileSettings(),
   );
 
+  String? _currentUserEmail;
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _loadCurrentUser();
+  }
+
+  void _loadCurrentUser() {
+    final currentUser = _authService.currentUser;
+    if (currentUser != null) {
+      setState(() {
+        _currentUserEmail = currentUser.email;
+        _emailController.text = currentUser.email ?? '';
+        // Update profile with current user data
+        _currentProfile = _currentProfile.copyWith(
+          email: currentUser.email,
+          name: currentUser.displayName ?? _currentProfile.name,
+        );
+        _nameController.text = _currentProfile.name;
+      });
+    }
   }
 
   @override
@@ -101,6 +124,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Profile Management Section
+                _buildProfileManagementCard(),
+                
+                const SizedBox(height: 24),
+                
                 // Profile Header
                 _buildProfileHeader(),
                 
@@ -179,6 +207,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: Colors.white,
                   ),
                 ),
+                const SizedBox(height: 4),
+                if (_currentUserEmail != null)
+                  Text(
+                    _currentUserEmail!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
+                  ),
                 const SizedBox(height: 4),
                 Text(
                   _currentProfile.isPremium ? '💎 Premium User' : '🆓 Free User',
@@ -519,6 +556,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _currentProfile = UserProfile(
                   id: _currentProfile.id,
                   name: _currentProfile.name,
+                  role: _currentProfile.role,
                   email: _currentProfile.email,
                   phoneNumber: _currentProfile.phoneNumber,
                   createdAt: _currentProfile.createdAt,
@@ -545,6 +583,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _currentProfile = UserProfile(
                   id: _currentProfile.id,
                   name: _currentProfile.name,
+                  role: _currentProfile.role,
                   email: _currentProfile.email,
                   phoneNumber: _currentProfile.phoneNumber,
                   createdAt: _currentProfile.createdAt,
@@ -668,6 +707,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 12),
           
           _buildActionButton(
+            'Sign Out',
+            'Sign out of your account',
+            CupertinoIcons.square_arrow_right,
+            const Color(0xFF805AD5),
+            _signOut,
+          ),
+          
+          const SizedBox(height: 12),
+          
+          _buildActionButton(
             'Delete Account',
             'Permanently delete your account',
             CupertinoIcons.delete,
@@ -752,6 +801,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final updatedProfile = UserProfile(
       id: _currentProfile.id,
       name: _nameController.text.trim(),
+      role: _currentProfile.role,
       email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
       phoneNumber: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
       createdAt: _currentProfile.createdAt,
@@ -794,6 +844,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
           CupertinoDialogAction(
             child: const Text('OK'),
             onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _signOut() async {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Sign Out'),
+        content: Text('Are you sure you want to sign out${_currentUserEmail != null ? ' from $_currentUserEmail' : ''}?'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('Sign Out'),
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _authWrapperService.signOut();
+                if (mounted) {
+                  // Navigate to login screen or show success message
+                  Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                }
+              } catch (e) {
+                if (mounted) {
+                  showCupertinoDialog(
+                    context: context,
+                    builder: (context) => CupertinoAlertDialog(
+                      title: const Text('Error'),
+                      content: Text('Failed to sign out: $e'),
+                      actions: [
+                        CupertinoDialogAction(
+                          child: const Text('OK'),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              }
+            },
           ),
         ],
       ),
@@ -850,5 +946,318 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Widget _buildProfileManagementCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Color(0xFF4ECDC4),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  CupertinoIcons.person_2_fill,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Profile Management',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Profile List Section
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Switch Between Profiles',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF2C3E50),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildProfileSwitcher(),
+                const SizedBox(height: 20),
+                
+                // Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: CupertinoButton(
+                        color: const Color(0xFF4ECDC4),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(CupertinoIcons.add_circled, size: 20),
+                            SizedBox(width: 8),
+                            Text('Create Profile'),
+                          ],
+                        ),
+                        onPressed: _createNewProfile,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: CupertinoButton(
+                        color: const Color(0xFF6C63FF),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(CupertinoIcons.person_badge_plus, size: 20),
+                            SizedBox(width: 8),
+                            Text('Edit Profiles'),
+                          ],
+                        ),
+                        onPressed: _editProfiles,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileSwitcher() {
+    return FutureBuilder<List<UserProfile>>(
+      future: _loadAllProfiles(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const CupertinoActivityIndicator();
+        }
+
+        final profiles = snapshot.data ?? [];
+        if (profiles.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'No profiles found. Create your first profile.',
+              style: TextStyle(color: Colors.grey),
+            ),
+          );
+        }
+
+        return Column(
+          children: profiles.map((profile) => _buildProfileItem(profile)).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildProfileItem(UserProfile profile) {
+    final isActive = profile.id == _currentProfile.id;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: () => _switchToProfile(profile),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isActive ? const Color(0xFF4ECDC4).withOpacity(0.1) : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isActive ? const Color(0xFF4ECDC4) : Colors.grey.shade200,
+              width: isActive ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isActive ? const Color(0xFF4ECDC4) : Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  CupertinoIcons.person_fill,
+                  color: isActive ? Colors.white : Colors.grey.shade600,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      profile.name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: isActive ? const Color(0xFF4ECDC4) : const Color(0xFF2C3E50),
+                      ),
+                    ),
+                    if (profile.email != null)
+                      Text(
+                        profile.email!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (isActive)
+                const Icon(
+                  CupertinoIcons.checkmark_circle_fill,
+                  color: Color(0xFF4ECDC4),
+                  size: 24,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<List<UserProfile>> _loadAllProfiles() async {
+    try {
+      // This should be replaced with actual UserProfileService call
+      return [_currentProfile]; // Placeholder
+    } catch (e) {
+      return [];
+    }
+  }
+
+  void _switchToProfile(UserProfile profile) {
+    setState(() {
+      _currentProfile = profile;
+      _loadProfile();
+    });
+    
+    // Show confirmation
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Profile Switched'),
+        content: Text('Switched to ${profile.name}'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('OK'),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _createNewProfile() {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Create New Profile'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter a name for the new profile:'),
+            const SizedBox(height: 16),
+            CupertinoTextField(
+              placeholder: 'Profile Name',
+              onChanged: (value) {
+                // Handle name input
+              },
+            ),
+          ],
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          CupertinoDialogAction(
+            child: const Text('Create'),
+            onPressed: () {
+              Navigator.pop(context);
+              // Implement profile creation
+              _showSuccess('New profile created successfully!');
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editProfiles() {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Edit Profiles'),
+        content: const Text('This will open the profile editor where you can rename or delete profiles.'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          CupertinoDialogAction(
+            child: const Text('Continue'),
+            onPressed: () {
+              Navigator.pop(context);
+              // Navigate to profile editor (to be implemented)
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuccess(String message) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Success'),
+        content: Text(message),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('OK'),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -1,19 +1,21 @@
 {
   "roots": [
-    "aac_communication_helper"
+    "svarah"
   ],
   "packages": [
     {
-      "name": "aac_communication_helper",
-      "version": "1.0.0+1",
+      "name": "svarah",
+      "version": "1.1.0+2",
       "dependencies": [
         "archive",
         "audioplayers",
+        "auto_size_text",
         "cached_network_image",
         "cloud_firestore",
         "crypto",
         "cupertino_icons",
         "encrypt",
+        "equatable",
         "firebase_auth",
         "firebase_core",
         "firebase_crashlytics",
@@ -23,9 +25,11 @@
         "flutter_secure_storage",
         "flutter_sound",
         "flutter_tts",
+        "google_fonts",
         "hive",
         "hive_flutter",
         "image_picker",
+        "in_app_purchase",
         "path_provider",
         "permission_handler",
         "share_plus",
@@ -142,6 +146,24 @@
         "test_api",
         "vector_math",
         "vm_service"
+      ]
+    },
+    {
+      "name": "in_app_purchase",
+      "version": "3.2.3",
+      "dependencies": [
+        "flutter",
+        "in_app_purchase_android",
+        "in_app_purchase_platform_interface",
+        "in_app_purchase_storekit"
+      ]
+    },
+    {
+      "name": "equatable",
+      "version": "2.0.7",
+      "dependencies": [
+        "collection",
+        "meta"
       ]
     },
     {
@@ -399,6 +421,23 @@
       "dependencies": [
         "crypto",
         "meta"
+      ]
+    },
+    {
+      "name": "google_fonts",
+      "version": "6.3.1",
+      "dependencies": [
+        "crypto",
+        "flutter",
+        "http",
+        "path_provider"
+      ]
+    },
+    {
+      "name": "auto_size_text",
+      "version": "3.0.0",
+      "dependencies": [
+        "flutter"
       ]
     },
     {
@@ -915,6 +954,33 @@
       "dependencies": [
         "clock",
         "collection"
+      ]
+    },
+    {
+      "name": "in_app_purchase_storekit",
+      "version": "0.4.4",
+      "dependencies": [
+        "collection",
+        "flutter",
+        "in_app_purchase_platform_interface",
+        "json_annotation"
+      ]
+    },
+    {
+      "name": "in_app_purchase_platform_interface",
+      "version": "1.4.0",
+      "dependencies": [
+        "flutter",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "in_app_purchase_android",
+      "version": "0.4.0+4",
+      "dependencies": [
+        "collection",
+        "flutter",
+        "in_app_purchase_platform_interface"
       ]
     },
     {

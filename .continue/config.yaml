@@ -1,0 +1,19 @@
+name: "Local Agent"
+version: "1"
+models:
+  - name: "DeepSeek (Chat)"
+    provider: openai
+    apiBase: https://api.deepseek.com/v1
+    apiKey: "sk-b9a7f966e2db4e14b1f0389d604e9094"
+    model: deepseek-chat
+    temperature: 0.2
+    contextLength: 128000
+    systemMessage: |
+      AAC App Context
+      Stack: React Native (Expo) + TypeScript, Firebase (Auth, Firestore, Storage)
+      Rules:
+        - Minimal unified diffs
+        - Explain root cause first
+        - Keep file paths relative to repo root
+        - Add unit test or QA checklist
+

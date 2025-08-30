@@ -163,7 +163,10 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
     return SlideTransition(
       position: _slideAnimation,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: EdgeInsets.symmetric(
+          horizontal: MediaQuery.of(context).size.width * 0.016, // Reduced by 50% from 0.032
+          vertical: MediaQuery.of(context).size.height * 0.004, // Reduced by 50% from 0.008
+        ),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -198,7 +201,10 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: MediaQuery.of(context).size.width * 0.016, // Reduced by 50% from 0.032
+        vertical: MediaQuery.of(context).size.height * 0.006, // Reduced by 50% from 0.012
+      ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -213,17 +219,17 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             CupertinoIcons.bolt_fill,
             color: Colors.white,
-            size: 20,
+            size: MediaQuery.of(context).size.width * 0.03, // Reduced by 50% from 0.06
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: MediaQuery.of(context).size.width * 0.008), // Reduced by 50% from 0.016
           Text(
             'Quick Phrases',
             style: TextStyle(
-              fontSize: 16 * AACHelper.getTextSizeMultiplier(),
-              fontWeight: FontWeight.bold,
+              fontSize: MediaQuery.of(context).size.width * 0.024 * AACHelper.getTextSizeMultiplier(), // Reduced by 50% from 0.048
+              fontWeight: FontWeight.w700,
               color: Colors.white,
             ),
           ),
@@ -231,15 +237,15 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
           GestureDetector(
             onTap: _showAddPhraseDialog,
             child: Container(
-              padding: const EdgeInsets.all(6),
+              padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.006), // Reduced by 50% from 0.012
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 CupertinoIcons.add,
                 color: Colors.white,
-                size: 16,
+                size: MediaQuery.of(context).size.width * 0.024, // Reduced by 50% from 0.048
               ),
             ),
           ),
@@ -250,12 +256,12 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
 
   Widget _buildPhrasesGrid() {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.012), // Reduced by 50% from 0.024
       child: _phrases.isEmpty
           ? _buildEmptyState()
           : Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: MediaQuery.of(context).size.width * 0.008, // Reduced by 50% from 0.016
+              runSpacing: MediaQuery.of(context).size.height * 0.004, // Reduced by 50% from 0.008
               children: _phrases.map((phrase) => _buildPhraseButton(phrase)).toList(),
             ),
     );
@@ -263,21 +269,22 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
 
   Widget _buildEmptyState() {
     return Container(
-      height: 80,
+      height: MediaQuery.of(context).size.height * 0.04, // Reduced by 50% from 0.08
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               CupertinoIcons.add_circled,
-              size: 32,
+              size: MediaQuery.of(context).size.width * 0.048, // Reduced by 50% from 0.096
               color: Colors.grey.shade400,
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.004), // Reduced by 50% from 0.008
             Text(
               'Add quick phrases',
               style: TextStyle(
-                fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+                fontSize: MediaQuery.of(context).size.width * 0.021 * AACHelper.getTextSizeMultiplier(), // Reduced by 50% from 0.042
+                fontWeight: FontWeight.w600,
                 color: Colors.grey.shade600,
               ),
             ),
@@ -299,7 +306,10 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
         },
         onLongPress: () => _showEditPhraseDialog(phrase),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: MediaQuery.of(context).size.width * 0.012, // Reduced by 50% from 0.024
+            vertical: MediaQuery.of(context).size.height * 0.004, // Reduced by 50% from 0.008
+          ),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -322,14 +332,14 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
               Icon(
                 phrase.icon,
                 color: Colors.white,
-                size: 16,
+                size: MediaQuery.of(context).size.width * 0.024, // Reduced by 50% from 0.048
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: MediaQuery.of(context).size.width * 0.006), // Reduced by 50% from 0.012
               Text(
                 phrase.label,
                 style: TextStyle(
-                  fontSize: 13 * AACHelper.getTextSizeMultiplier(),
-                  fontWeight: FontWeight.bold,
+                  fontSize: MediaQuery.of(context).size.width * 0.0195 * AACHelper.getTextSizeMultiplier(), // Reduced by 50% from 0.039
+                  fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
               ),
