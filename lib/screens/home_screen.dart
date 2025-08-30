@@ -1596,8 +1596,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSearchBar() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final buttonSize = screenWidth * (isLandscape ? 0.06 : 0.08);
+    
     return Container(
-      height: 36,
+      height: buttonSize, // Match button height
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: CupertinoTextField(
         controller: _searchController,
@@ -1610,15 +1614,15 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         decoration: BoxDecoration(
           color: CupertinoColors.systemGrey6,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(12), // Match button border radius
           border: Border.all(color: CupertinoColors.systemGrey4),
         ),
-        prefix: const Padding(
-          padding: EdgeInsets.only(left: 12),
+        prefix: Padding(
+          padding: const EdgeInsets.only(left: 12),
           child: Icon(
             CupertinoIcons.search,
-            color: Color(0xFF999999),
-            size: 16,
+            color: const Color(0xFF999999),
+            size: screenWidth * (isLandscape ? 0.025 : 0.035), // Responsive icon size
           ),
         ),
         suffix: _searchQuery.isNotEmpty
@@ -1631,10 +1635,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     _searchController.clear();
                     _filterSymbols('');
                   },
-                  child: const Icon(
+                  child: Icon(
                     CupertinoIcons.clear_circled_solid,
-                    color: Color(0xFF999999),
-                    size: 16,
+                    color: const Color(0xFF999999),
+                    size: screenWidth * (isLandscape ? 0.025 : 0.035), // Responsive icon size
                   ),
                 ),
               )
@@ -1658,7 +1662,9 @@ class _HomeScreenState extends State<HomeScreen> {
     required double screenWidth,
     required bool isLandscape,
   }) {
-    final buttonSize = screenWidth * (isLandscape ? 0.04 : 0.05);
+    // Match the + button size
+    final buttonSize = screenWidth * (isLandscape ? 0.06 : 0.08);
+    final iconSize = screenWidth * (isLandscape ? 0.035 : 0.045);
     
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -1672,19 +1678,25 @@ class _HomeScreenState extends State<HomeScreen> {
           height: buttonSize,
           decoration: BoxDecoration(
             color: isActive ? const Color(0xFF4ECDC4) : Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12), // Match + button border radius
             boxShadow: isActive ? [
               BoxShadow(
                 color: const Color(0xFF4ECDC4).withOpacity(0.3),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
+                blurRadius: 8, // Match + button shadow
+                offset: const Offset(0, 4), // Match + button shadow
               ),
-            ] : null,
+            ] : [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Icon(
             icon,
             color: isActive ? Colors.white : Colors.grey.shade600,
-            size: buttonSize * 0.5,
+            size: iconSize, // Use same icon size as + button
           ),
         ),
       ),

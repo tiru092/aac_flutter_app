@@ -80,7 +80,9 @@ class _GoalsSectionState extends State<GoalsSection> with TickerProviderStateMix
           children: [
             _buildSectionHeader(context, isLandscape, screenWidth),
             SizedBox(height: isLandscape ? 12 : 8),
-            _buildGoalsGrid(context, goalsList, isLandscape, screenWidth, screenHeight),
+            Expanded(
+              child: _buildGoalsGrid(context, goalsList, isLandscape, screenWidth, screenHeight),
+            ),
           ],
         );
       },
@@ -150,14 +152,19 @@ class _GoalsSectionState extends State<GoalsSection> with TickerProviderStateMix
 
   Widget _buildPortraitLayout(BuildContext context, List<PracticeGoal> goals, 
                              double screenWidth, double screenHeight) {
-    final cardHeight = screenHeight * 0.22;
-    final cardWidth = screenWidth * 0.4;
+    const crossAxisCount = 2; // 2 columns in portrait mode
+    const cardAspectRatio = 1.2;
+    final spacing = screenWidth * 0.03;
     
-    return SizedBox(
-      height: cardHeight,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.02),
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: spacing),
+      child: GridView.builder(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: spacing,
+          mainAxisSpacing: spacing,
+          childAspectRatio: cardAspectRatio,
+        ),
         itemCount: goals.length,
         itemBuilder: (context, index) {
           return AnimatedBuilder(
@@ -165,17 +172,13 @@ class _GoalsSectionState extends State<GoalsSection> with TickerProviderStateMix
             builder: (context, child) {
               return Transform.scale(
                 scale: _cardAnimations[index].value,
-                child: Container(
-                  width: cardWidth,
-                  margin: EdgeInsets.only(right: screenWidth * 0.03),
-                  child: _buildGoalCard(
-                    context, 
-                    goals[index], 
-                    index, 
-                    false, // isLandscape
-                    screenWidth, 
-                    screenHeight
-                  ),
+                child: _buildGoalCard(
+                  context, 
+                  goals[index], 
+                  index, 
+                  false, // isLandscape
+                  screenWidth, 
+                  screenHeight
                 ),
               );
             },
@@ -188,11 +191,10 @@ class _GoalsSectionState extends State<GoalsSection> with TickerProviderStateMix
   Widget _buildLandscapeLayout(BuildContext context, List<PracticeGoal> goals, 
                               double screenWidth, double screenHeight) {
     final crossAxisCount = screenWidth > 1200 ? 5 : (screenWidth > 800 ? 4 : 3);
-    final cardAspectRatio = 0.85;
+    const cardAspectRatio = 0.85;
     final spacing = screenWidth * 0.02;
     
-    return Container(
-      height: screenHeight * 0.6,
+    return Padding(
       padding: EdgeInsets.symmetric(horizontal: spacing),
       child: GridView.builder(
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

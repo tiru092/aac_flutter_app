@@ -39,18 +39,33 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           if (isSubscribed) {
             _loadCurrentSubscription();
           }
+          // Always set loading to false after initialization
+          _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint('Error initializing billing: $e');
+      // Set loading to false even if there's an error
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
   
   Future<void> _loadCurrentSubscription() async {
-    // Placeholder method
-    setState(() {
-      _isLoading = false;
-    });
+    // Placeholder method - in a real implementation, this would load actual subscription data
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        // Set a sample subscription for demonstration
+        _currentSubscription = const Subscription(
+          plan: SubscriptionPlan.monthly,
+          price: 249.0,
+        );
+      });
+    }
   }
 
   @override
