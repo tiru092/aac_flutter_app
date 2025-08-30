@@ -2,11 +2,15 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/analytics_service.dart';
 
 /// Google Play Billing Service for handling subscription purchases
 /// This service manages all interactions with Google Play Store for subscriptions
 class GooglePlayBillingService {
   // Product IDs that must match Google Play Console configuration
+  static const String trialProductId = 'aac_trial_subscription';
   static const String monthlyProductId = 'aac_monthly_subscription';
   static const String yearlyProductId = 'aac_yearly_subscription';
   
@@ -26,12 +30,46 @@ class GooglePlayBillingService {
     debugPrint('GooglePlayBillingService: Purchase update: ${purchase.status}');
     if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
       _activePurchase = purchase;
+      
+      // Calculate expiry based on product type
+      String expiryDate;
+      bool isTrial = false;
+      
+      if (purchase.productID == trialProductId) {
+        // For trial, set expiry to 30 days from now
+        expiryDate = DateTime.now().add(const Duration(days: 30)).toIso8601String();
+        isTrial = true;
+      } else if (purchase.productID == monthlyProductId) {
+        // For monthly, set expiry to 30 days from now
+        expiryDate = DateTime.now().add(const Duration(days: 30)).toIso8601String();
+      } else if (purchase.productID == yearlyProductId) {
+        // For yearly, set expiry to 365 days from now
+        expiryDate = DateTime.now().add(const Duration(days: 365)).toIso8601String();
+      } else {
+        // Default to 30 days
+        expiryDate = DateTime.now().add(const Duration(days: 30)).toIso8601String();
+      }
+      
       _subscriptionDetails = {
         'productId': purchase.productID,
-        'expiryDate': DateTime.now().add(const Duration(days: 30)).toIso8601String(), // Placeholder expiry
-        'isTrial': false,
+        'expiryDate': expiryDate,
+        'isTrial': isTrial,
+        'transactionId': purchase.verificationData.localVerificationData,
+        'purchaseDate': DateTime.now().toIso8601String(),
       };
+      
       debugPrint('GooglePlayBillingService: Purchase successful for ${purchase.productID}');
+      
+      // Track subscription purchase in analytics
+      _trackSubscriptionEvent('subscription_purchased', {
+        'product_id': purchase.productID,
+        'is_trial': isTrial,
+        'expiry_date': expiryDate,
+      });
+      
+      // Save subscription data to Firestore
+      _saveSubscriptionData();
+      
       // Complete the purchase if pending
       if (purchase.pendingCompletePurchase) {
         _iap.completePurchase(purchase);
@@ -65,9 +103,15 @@ class GooglePlayBillingService {
       });
       _isInitialized = true;
       debugPrint('GooglePlayBillingService: Initialized successfully');
+      // Track initialization in analytics
+      _trackSubscriptionEvent('billing_initialized', {});
       return true;
     } catch (e) {
       debugPrint('GooglePlayBillingService: Initialization failed: $e');
+      // Track initialization error in analytics
+      _trackSubscriptionEvent('billing_initialization_failed', {
+        'error': e.toString(),
+      });
       return false;
     }
   }
@@ -115,11 +159,17 @@ class GooglePlayBillingService {
         return false;
       }
       final purchaseParam = PurchaseParam(productDetails: product.first);
+      // For subscriptions, we use buyNonConsumable as subscriptions are non-consumable products
       final result = await _iap.buyNonConsumable(purchaseParam: purchaseParam);
       debugPrint('GooglePlayBillingService: Purchase initiated for $productId');
       return result;
     } catch (e) {
       debugPrint('GooglePlayBillingService: Purchase failed: $e');
+      // Track purchase error in analytics
+      _trackSubscriptionEvent('subscription_purchase_failed', {
+        'product_id': productId,
+        'error': e.toString(),
+      });
       return false;
     }
   }
@@ -140,9 +190,15 @@ class GooglePlayBillingService {
         'isTrial': true,
       };
       debugPrint('GooglePlayBillingService: Free trial started successfully');
+      // Track free trial start in analytics
+      _trackSubscriptionEvent('free_trial_started', {});
       return true;
     } catch (e) {
       debugPrint('GooglePlayBillingService: Free trial failed: $e');
+      // Track free trial error in analytics
+      _trackSubscriptionEvent('free_trial_failed', {
+        'error': e.toString(),
+      });
       return false;
     }
   }
@@ -158,13 +214,8 @@ class GooglePlayBillingService {
       if (!_isInitialized) {
         await initialize();
       }
-      // If billing is not available, return false
-      if (!_billingAvailable) {
-        debugPrint('GooglePlayBillingService: Billing not available, returning false for subscription check');
-        return false;
-      }
-      // Check if we have an active purchase
-      if (_activePurchase != null && _activePurchase!.status == PurchaseStatus.purchased) {
+      // Check active purchase
+      if (_activePurchase != null) {
         return true;
       }
       // Check trial
@@ -176,8 +227,60 @@ class GooglePlayBillingService {
       }
       return false;
     } catch (e) {
-      debugPrint('GooglePlayBillingService: Error checking subscription: $e');
+      debugPrint('GooglePlayBillingService: Error checking active subscription: $e');
       return false;
+    }
+  }
+
+  /// Save subscription data to Firestore
+  static Future<void> _saveSubscriptionData() async {
+    try {
+      if (_subscriptionDetails == null) return;
+      
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      
+      // Save to Firestore
+      final firestore = FirebaseFirestore.instance;
+      await firestore.collection('subscriptions').doc(user.uid).set({
+        'userId': user.uid,
+        'productId': _subscriptionDetails!['productId'],
+        'purchaseDate': _subscriptionDetails!['purchaseDate'],
+        'expiryDate': _subscriptionDetails!['expiryDate'],
+        'isTrial': _subscriptionDetails!['isTrial'],
+        'transactionId': _subscriptionDetails!['transactionId'],
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+      
+      debugPrint('GooglePlayBillingService: Subscription data saved to Firestore');
+    } catch (e) {
+      debugPrint('GooglePlayBillingService: Error saving subscription data: $e');
+    }
+  }
+
+  /// Track subscription events in analytics
+  static Future<void> _trackSubscriptionEvent(String eventName, Map<String, dynamic> properties) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      
+      final analyticsService = AnalyticsService();
+      await analyticsService.logEvent(
+        AnalyticsEvent(
+          name: eventName,
+          userId: user.uid,
+          properties: {
+            'timestamp': DateTime.now().toIso8601String(),
+            ...properties,
+          },
+          priority: EventPriority.high,
+        ),
+      );
+      
+      debugPrint('GooglePlayBillingService: Tracked event $eventName');
+    } catch (e) {
+      debugPrint('GooglePlayBillingService: Error tracking event $eventName: $e');
     }
   }
 

@@ -1162,8 +1162,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         
-                        // Single Speak Bar at bottom with full functionality
-                        _buildSpeakBar(),
+                        // Single Speak Bar at bottom with full functionality - only show when symbols are selected
+                        if (_selectedSymbols.isNotEmpty) _buildSpeakBar(),
                       ],
                     );
                   }

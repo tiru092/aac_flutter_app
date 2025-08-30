@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
@@ -71,7 +72,7 @@ class AnalyticsService {
         if (consentRequired) {
           // For children under COPPA, analytics consent must come from parent
           return ConsentResult(
-            status: ConsentStatus.parentalConsentRequired,
+            status: AnalyticsConsentStatus.parentalConsentRequired,
             message: 'Parental consent required for analytics collection for children',
           );
         }
@@ -79,13 +80,13 @@ class AnalyticsService {
       
       // For adults or children with parental consent, request direct consent
       return ConsentResult(
-        status: ConsentStatus.pending,
+        status: AnalyticsConsentStatus.pending,
         message: 'User consent required for analytics collection',
       );
     } catch (e) {
       print('Error requesting analytics consent: $e');
       return ConsentResult(
-        status: ConsentStatus.error,
+        status: AnalyticsConsentStatus.error,
         message: 'Error requesting consent: $e',
       );
     }
@@ -480,10 +481,15 @@ class AnalyticsService {
     }
   }
   
+  Timer? _uploadTimer;
+  
   void _startPeriodicUpload() {
     try {
+      // Cancel any existing timer
+      _uploadTimer?.cancel();
+      
       // Periodically upload events
-      Future.periodic(_uploadInterval, (timer) async {
+      _uploadTimer = Timer.periodic(_uploadInterval, (timer) async {
         if (_isEnabled) {
           await _uploadEvents();
         }
@@ -496,7 +502,7 @@ class AnalyticsService {
 
 // Data classes
 
-enum ConsentStatus {
+enum AnalyticsConsentStatus {
   pending,
   granted,
   denied,
@@ -505,7 +511,7 @@ enum ConsentStatus {
 }
 
 class ConsentResult {
-  final ConsentStatus status;
+  final AnalyticsConsentStatus status;
   final String message;
   
   ConsentResult({

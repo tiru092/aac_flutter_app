@@ -13,26 +13,35 @@ class COPPAComplianceException implements Exception {
   String toString() => 'COPPAComplianceException: $message';
 }
 
+/// Consent status for COPPA compliance
+enum ConsentStatus {
+  /// Consent not required (user is not a child)
+  notRequired,
+  
+  /// Consent granted by parent
+  granted,
+  
+  /// Consent pending from parent
+  pending,
+  
+  /// Consent denied by parent
+  denied,
+  
+  /// Consent expired and needs renewal
+  expired
+}
+
 /// Service to handle COPPA compliance for child user data protection
 class COPPAComplianceService {
   static final COPPAComplianceService _instance = COPPAComplianceService._internal();
   factory COPPAComplianceService() => _instance;
   COPPAComplianceService._internal();
 
-  static const String _consentKey = 'coppa_consent_status';
-  static const String _consentDetailsKey = 'coppa_consent_details';
+  static const String _consentKey = 'coppa_consent_';
+  static const String _consentDetailsKey = 'coppa_consent_details_';
   static const String _childProfilesKey = 'coppa_child_profiles';
   
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
-  
-  /// COPPA consent status enumeration
-  enum ConsentStatus {
-    notRequired, // For users 13 and older
-    pending,     // Consent requested but not yet provided
-    granted,     // Parental consent granted
-    denied,      // Parental consent denied
-    expired      // Consent expired and needs renewal
-  }
   
   /// Check if COPPA consent is required for a user
   Future<bool> isConsentRequired(UserProfile profile) async {
@@ -56,7 +65,7 @@ class COPPAComplianceService {
   Future<ConsentStatus> getConsentStatus(String profileId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final consentDataJson = prefs.getString('$_consentKey_$profileId');
+      final consentDataJson = prefs.getString('$_consentKey$profileId');
       
       if (consentDataJson == null) {
         return ConsentStatus.notRequired;
@@ -92,7 +101,7 @@ class COPPAComplianceService {
       
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
-        '$_consentDetailsKey_$profileId',
+        '$_consentDetailsKey$profileId',
         jsonEncode(consentDetails),
       );
       
@@ -112,7 +121,7 @@ class COPPAComplianceService {
       // Store consent details securely
       final consentJson = jsonEncode(details.toJson());
       await _secureStorage.write(
-        key: '$_consentDetailsKey_$profileId',
+        key: '$_consentDetailsKey$profileId',
         value: consentJson,
       );
       
@@ -150,7 +159,7 @@ class COPPAComplianceService {
       await _updateConsentStatus(profileId, ConsentStatus.notRequired);
       
       // Clear consent details
-      await _secureStorage.delete(key: '$_consentDetailsKey_$profileId');
+      await _secureStorage.delete(key: '$_consentDetailsKey$profileId');
       
       print('Parental consent revoked for profile: $profileId');
     } catch (e) {
@@ -196,7 +205,7 @@ class COPPAComplianceService {
   Future<ConsentDetails?> getConsentDetails(String profileId) async {
     try {
       final consentJson = await _secureStorage.read(
-        key: '$_consentDetailsKey_$profileId',
+        key: '$_consentDetailsKey$profileId',
       );
       
       if (consentJson == null) {
@@ -252,8 +261,8 @@ class COPPAComplianceService {
       }
       
       // Also remove consent data
-      await _secureStorage.delete(key: '$_consentDetailsKey_$profileId');
-      await prefs.remove('$_consentKey_$profileId');
+      await _secureStorage.delete(key: '$_consentDetailsKey$profileId');
+      await prefs.remove('$_consentKey$profileId');
       await prefs.remove('consent_granted_at_$profileId');
     } catch (e) {
       print('Error removing child profile: $e');
@@ -340,7 +349,7 @@ class COPPAComplianceService {
       
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
-        '$_consentKey_$profileId',
+        '$_consentKey$profileId',
         jsonEncode(consentData),
       );
     } catch (e) {
@@ -394,7 +403,7 @@ class ConsentDetails {
 
 class ConsentReport {
   final String profileId;
-  final COPPAComplianceService.ConsentStatus status;
+  final ConsentStatus status;
   final ConsentDetails? details;
   final bool isExpired;
   final DateTime generatedAt;

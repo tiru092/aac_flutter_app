@@ -93,13 +93,15 @@ class _CommunicationGridState extends State<CommunicationGrid>
     if (isLandscape && widget.selectedSymbols != null && 
         widget.onSpeakSentence != null && 
         widget.onClearSentence != null) {
-      // Horizontal view with speak bar
+      // Horizontal view with speak bar - only show when symbols are selected
       return Column(
         children: [
           Expanded(
             child: _buildSymbolGrid(),
           ),
-          _buildSpeakBar(),
+          // Only show speak bar when there are selected symbols
+          if (widget.selectedSymbols != null && widget.selectedSymbols!.isNotEmpty) 
+            _buildSpeakBar(),
         ],
       );
     }
