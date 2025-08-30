@@ -3,16 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/practice_goal.dart';
-import '../utils/color_utils.dart';
 
-class PracticeGoalsScreen extends StatefulWidget {
-  const PracticeGoalsScreen({super.key});
+class PracticeGoalsScreenWorking extends StatefulWidget {
+  const PracticeGoalsScreenWorking({super.key});
 
   @override
-  State<PracticeGoalsScreen> createState() => _PracticeGoalsScreenState();
+  State<PracticeGoalsScreenWorking> createState() => _PracticeGoalsScreenWorkingState();
 }
 
-class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerProviderStateMixin {
+class _PracticeGoalsScreenWorkingState extends State<PracticeGoalsScreenWorking> with TickerProviderStateMixin {
   late AnimationController _cardAnimationController;
   late List<AnimationController> _cardControllers;
   late List<Animation<double>> _cardAnimations;
@@ -49,19 +48,6 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
 
     // Start animations with staggered timing
     _startStaggeredAnimations();
-    }
-
-    // Robust color parsing for hex strings like 'FF6B6B' or '4ECDC4'
-    Color _parseColor(String hex) {
-      final cleanHex = hex.replaceAll('#', '').toUpperCase();
-      final buffer = StringBuffer();
-      if (cleanHex.length == 6) buffer.write('FF');
-      buffer.write(cleanHex);
-      final hexString = buffer.toString();
-      final value = int.tryParse(hexString, radix: 16);
-      if (value == null) return const Color(0xFF6B7280);
-      return Color(value);
-    }
   }
 
   void _startStaggeredAnimations() {
@@ -101,7 +87,7 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
           ),
           centerTitle: true,
           title: const Text(
-    color: _parseColor(goal.color),
+            'Practice Goals',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
@@ -321,7 +307,7 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
       width: double.infinity,
       padding: EdgeInsets.all(isLandscape ? 8 : 12),
       decoration: BoxDecoration(
-        color: ColorUtils.fromHex(goal.color),
+        color: Color(int.parse('FF\${goal.color}', radix: 16)),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(16),
           topRight: Radius.circular(16),
@@ -397,8 +383,8 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-              CupertinoIcons.play_circle_fill,
-              color: _parseColor(goal.color),
+            CupertinoIcons.play_circle_fill,
+            color: Color(int.parse('FF\${goal.color}', radix: 16)),
             size: isLandscape ? 14 : 16,
           ),
           const SizedBox(width: 4),
@@ -407,7 +393,7 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
             style: GoogleFonts.nunito(
               fontSize: isLandscape ? 9 : 11,
               fontWeight: FontWeight.w600,
-              color: ColorUtils.fromHex(goal.color),
+              color: Color(int.parse('FF\${goal.color}', radix: 16)),
             ),
             maxLines: 1,
             minFontSize: 7,
@@ -418,34 +404,16 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
   }
 
   void _navigateToPracticeScreen(BuildContext context, PracticeGoal goal) async {
-    // Show a dialog for now since PracticeScreen navigation is temporarily disabled
+    // Temporarily disabled navigation to fix import issue
+    // TODO: Re-enable when PracticeScreen import is fixed
+    print('Goal tapped: \${goal.name}');
+    
+    // Show a simple dialog for now
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Text(goal.iconEmoji),
-            const SizedBox(width: 8),
-            Expanded(child: Text(goal.name)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(goal.description),
-            const SizedBox(height: 12),
-            Text(
-              'This goal includes \${goal.activities.length} practice activities.',
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Practice screen navigation will be enabled in a future update.',
-              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-            ),
-          ],
-        ),
+        title: Text(goal.name),
+        content: Text('This will navigate to practice activities for \${goal.name}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

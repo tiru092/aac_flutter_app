@@ -7,7 +7,10 @@
 			"command": "flutter run",
 			"isBackground": false,
 			"problemMatcher": [],
-			"group": "build"
+			"group": "build",
+			"options": {
+				"cwd": "${workspaceFolder}/aac_flutter_app"
+			}
 		}
 	]
 }

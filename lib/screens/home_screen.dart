@@ -12,12 +12,13 @@ import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
 import '../utils/sample_data.dart';
 import '../services/user_profile_service.dart';
+import '../screens/enhanced_goals_screen.dart';
 import '../services/secure_encryption_service.dart';
 import 'accessibility_settings_screen.dart';
 import 'add_symbol_screen.dart';
 import 'profile_screen.dart';
 import 'subscription_screen.dart';
-import 'enhanced_goals_screen.dart'; // Enhanced goals screen with ARASAAC integration
+// REMOVED: 'practice_goals_screen.dart' - File deleted due to compilation errors
 // import '../widgets/arasaac_asterisk_grid.dart'; // Temporarily disabled for performance testing
 
 class HomeScreen extends StatefulWidget {
@@ -33,6 +34,12 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Symbol> _filteredSymbols = []; // Add filtered symbols for search
   List<Category> _categories = [];
   List<Category> _customCategories = [];
+  final List<String> _goals = [
+    'Say "hello" to a friend',
+    'Ask for a drink',
+    'Express an emotion',
+    'Practice saying my name'
+  ];
   bool _isLoading = true;
   bool _showQuickPhrases = false;
   bool _showSpeechControls = false;
@@ -581,35 +588,36 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-            CupertinoActionSheetAction(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  CupertinoPageRoute(
-                    builder: (context) => const EnhancedGoalsScreen(),
-                  ),
-                );
-              },
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    CupertinoIcons.flag,
-                    color: Color(0xFF4ECDC4),
-                    size: 24,
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    'Goals & Progress',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            // Goals option removed as per requirements
+            // CupertinoActionSheetAction(
+            //   onPressed: () {
+            //     Navigator.pop(context);
+            //     Navigator.push(
+            //       context,
+            //       CupertinoPageRoute(
+            //         builder: (context) => const EnhancedGoalsScreen(),
+            //       ),
+            //     );
+            //   },
+            //   child: const Row(
+            //     mainAxisAlignment: MainAxisAlignment.center,
+            //     children: [
+            //       Icon(
+            //         CupertinoIcons.flag,
+            //         color: Color(0xFF4ECDC4),
+            //         size: 24,
+            //       ),
+            //       SizedBox(width: 12),
+            //       Text(
+            //         'Goals & Progress',
+            //         style: TextStyle(
+            //           fontSize: 16,
+            //           fontWeight: FontWeight.w600,
+            //         ),
+            //       ),
+            //     ],
+            //   ),
+            // ),
             CupertinoActionSheetAction(
               onPressed: () {
                 Navigator.pop(context);
@@ -682,6 +690,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openSettings() {
     _showProfileSwitcher();
+  }
+
+  void _openGoalsScreen() {
+    Navigator.push(
+      context,
+      CupertinoPageRoute(
+        builder: (context) => const EnhancedGoalsScreen(),
+      ),
+    );
   }
 
   // Helper methods for responsive design
@@ -896,6 +913,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                 SizedBox(
                                   width: screenWidth * (isLandscape ? 0.25 : 0.35),
                                   child: _buildSearchBar(),
+                                ),
+                                SizedBox(width: screenWidth * 0.01),
+                                
+                                // Goals button
+                                _buildTopControlButton(
+                                  icon: CupertinoIcons.star_circle_fill,
+                                  isActive: false,
+                                  onPressed: _openGoalsScreen,
+                                  screenWidth: screenWidth,
+                                  isLandscape: isLandscape,
                                 ),
                                 SizedBox(width: screenWidth * 0.01),
                                 
