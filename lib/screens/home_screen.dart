@@ -309,9 +309,16 @@ class _HomeScreenState extends State<HomeScreen> {
         // Update UI with database data if available
         if (mounted && (dbCategories.isNotEmpty || dbSymbols.isNotEmpty)) {
           setState(() {
-            // Keep default categories from SampleData, only update symbols
+            // Combine default symbols with user's custom symbols (don't replace)
             if (dbSymbols.isNotEmpty) {
-              _allSymbols = dbSymbols;
+              // Get default symbols
+              final defaultSymbols = SampleData.getSampleSymbols();
+              // Filter out any user symbols that might duplicate defaults (by ID)
+              final customSymbols = dbSymbols.where((userSymbol) => 
+                !defaultSymbols.any((defaultSymbol) => defaultSymbol.id == userSymbol.id)
+              ).toList();
+              // Combine: defaults + custom symbols
+              _allSymbols = [...defaultSymbols, ...customSymbols];
             }
           });
         }
@@ -1713,10 +1720,26 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _saveCustomCategories() {
-    // In a real implementation, you would save custom categories to persistent storage
-    // For now, we'll just print a message
-    print('Custom categories saved');
+  void _saveCustomCategories() async {
+    // Save all custom categories to user profile and local database
+    try {
+      final profile = await UserProfileService.getActiveProfile();
+      if (profile != null) {
+        final updatedProfile = profile.copyWith(
+          userCategories: [..._customCategories],
+          lastActiveAt: DateTime.now(),
+        );
+        await UserProfileService.saveUserProfile(updatedProfile);
+        
+        // Also update local database
+        await AACHelper.clearCustomCategories();
+        for (final category in _customCategories) {
+          await AACHelper.addCategory(category);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error saving custom categories: $e');
+    }
   }
 
   // Helper method to build top control buttons

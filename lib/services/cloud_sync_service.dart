@@ -52,17 +52,17 @@ class CloudSyncService {
       profileData['userId'] = user.uid;
       profileData['lastSyncedAt'] = FieldValue.serverTimestamp();
 
-      // Sync profile document
+      // Sync profile document - Use Firebase UID as document ID
       await _firestore
           .collection('user_profiles')
-          .doc(profile.id)
+          .doc(user.uid) // Use Firebase UID instead of profile.id
           .set(profileData, SetOptions(merge: true));
 
-      // Sync user symbols
-      await _syncSymbolsToCloud(profile.id, profile.userSymbols);
+      // Sync user symbols - Use Firebase UID
+      await _syncSymbolsToCloud(user.uid, profile.userSymbols);
       
-      // Sync user categories
-      await _syncCategoriesToCloud(profile.id, profile.userCategories);
+      // Sync user categories - Use Firebase UID  
+      await _syncCategoriesToCloud(user.uid, profile.userCategories);
 
       return true;
     } on FirebaseException catch (e) {
@@ -81,7 +81,7 @@ class CloudSyncService {
   }
 
   /// Sync symbols to Firestore with batch operations and error handling
-  Future<void> _syncSymbolsToCloud(String profileId, List<Symbol> symbols) async {
+  Future<void> _syncSymbolsToCloud(String userUid, List<Symbol> symbols) async {
     try {
       if (symbols.isEmpty) return;
       
@@ -89,14 +89,14 @@ class CloudSyncService {
       const batchSize = 500;
       for (int i = 0; i < symbols.length; i += batchSize) {
         final batch = _firestore.batch();
-        final collection = _firestore.collection('user_profiles/$profileId/symbols');
+        final collection = _firestore.collection('user_profiles/$userUid/symbols');
         
         final end = (i + batchSize < symbols.length) ? i + batchSize : symbols.length;
         final batchSymbols = symbols.sublist(i, end);
         
         for (final symbol in batchSymbols) {
           final symbolData = symbol.toJson();
-          symbolData['profileId'] = profileId;
+          symbolData['userUid'] = userUid; // Store Firebase UID instead of profile ID
           symbolData['createdAt'] = symbolData['dateCreated'];
           symbolData['updatedAt'] = FieldValue.serverTimestamp();
           symbolData.remove('dateCreated'); // Use consistent field name
@@ -122,7 +122,7 @@ class CloudSyncService {
   }
 
   /// Sync categories to Firestore with batch operations and error handling
-  Future<void> _syncCategoriesToCloud(String profileId, List<Category> categories) async {
+  Future<void> _syncCategoriesToCloud(String userUid, List<Category> categories) async {
     try {
       if (categories.isEmpty) return;
       
@@ -130,14 +130,14 @@ class CloudSyncService {
       const batchSize = 500;
       for (int i = 0; i < categories.length; i += batchSize) {
         final batch = _firestore.batch();
-        final collection = _firestore.collection('user_profiles/$profileId/categories');
+        final collection = _firestore.collection('user_profiles/$userUid/categories');
         
         final end = (i + batchSize < categories.length) ? i + batchSize : categories.length;
         final batchCategories = categories.sublist(i, end);
         
         for (final category in batchCategories) {
           final categoryData = category.toJson();
-          categoryData['profileId'] = profileId;
+          categoryData['userUid'] = userUid; // Store Firebase UID instead of profile ID
           categoryData['createdAt'] = categoryData['dateCreated'];
           categoryData['updatedAt'] = FieldValue.serverTimestamp();
           categoryData.remove('dateCreated'); // Use consistent field name
@@ -286,21 +286,14 @@ class CloudSyncService {
         throw CloudSyncException('User not authenticated', 'not_authenticated');
       }
 
-      final profilesSnapshot = await _firestore
-          .collection('user_profiles')
-          .where('userId', isEqualTo: user.uid)
-          .get();
-
-      final profiles = <UserProfile>[];
+      // Load user's profile directly using their Firebase UID
+      final profile = await loadProfileFromCloud(user.uid);
       
-      for (final doc in profilesSnapshot.docs) {
-        final profile = await loadProfileFromCloud(doc.id);
-        if (profile != null) {
-          profiles.add(profile);
-        }
+      if (profile != null) {
+        return [profile];
+      } else {
+        return [];
       }
-
-      return profiles;
     } on FirebaseException catch (e) {
       await _crashReportingService.reportException(
         CloudSyncException('Firebase error during bulk profile load: ${e.message}', e.code)

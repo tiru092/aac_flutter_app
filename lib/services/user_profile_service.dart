@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Add Firebase Auth import
 import '../models/symbol.dart';
 import '../models/subscription.dart';
 import '../models/user_profile.dart'; // Add missing import
@@ -21,6 +22,19 @@ class UserProfileService {
         return _activeProfile;
       }
       
+      // If user is authenticated, try to load their data from cloud using their Firebase UID
+      if (_cloudSyncService.isCloudSyncAvailable) {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final cloudProfile = await _cloudSyncService.loadProfileFromCloud(user.uid);
+          if (cloudProfile != null) {
+            _activeProfile = cloudProfile;
+            return _activeProfile;
+          }
+        }
+      }
+      
+      // Fallback to local storage for offline mode
       final prefs = await SharedPreferences.getInstance();
       final currentProfileId = prefs.getString(_currentProfileKey);
       
@@ -28,16 +42,6 @@ class UserProfileService {
         return null;
       }
       
-      // Try to load from cloud first if available
-      if (_cloudSyncService.isCloudSyncAvailable) {
-        final cloudProfile = await _cloudSyncService.loadProfileFromCloud(currentProfileId);
-        if (cloudProfile != null) {
-          _activeProfile = cloudProfile;
-          return _activeProfile;
-        }
-      }
-      
-      // Fallback to local storage
       return await _loadProfileById(currentProfileId);
     } catch (e) {
       print('Error in getActiveProfile: $e');
