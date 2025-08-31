@@ -129,8 +129,8 @@ class _CommunicationGridState extends State<CommunicationGrid>
           // In landscape: Always show exactly 3 columns as requested
           crossAxisCount = 3;
         } else {
-          // In portrait: fewer columns for better visibility  
-          crossAxisCount = screenWidth > 600 ? 3 : 2;
+          // In portrait: 2 columns for larger layout size
+          crossAxisCount = 2;
         }
 
         // Adjust spacing and padding based on screen size
@@ -296,8 +296,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
         final screenHeight = MediaQuery.of(context).size.height;
         final isLandscape = screenWidth > screenHeight;
         
-        final crossAxisCount = isLandscape ? 3 : // Always 3 columns in landscape
-                              screenWidth > 600 ? 4 : 3; // 4 or 3 in portrait
+        final crossAxisCount = isLandscape ? 3 : 2;
 
         final padding = MediaQuery.of(context).size.width * 0.04;
 
@@ -386,7 +385,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
                               final isLandscape = screenWidth > screenHeight;
 
                               // Calculate cell dimensions based on grid configuration
-                              final crossAxisCount = isLandscape ? 3 : (screenWidth > 600 ? 4 : 3);
+                              final crossAxisCount = isLandscape ? 3 : 2;
                               final padding = screenWidth * 0.04;
                               final spacing = screenWidth * 0.04;
 
