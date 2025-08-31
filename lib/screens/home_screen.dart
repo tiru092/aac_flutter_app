@@ -1488,11 +1488,11 @@ class _HomeScreenState extends State<HomeScreen> {
             value: _speechRate,
             min: 0.1,
             max: 1.0,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() {
                 _speechRate = value;
               });
-              AACHelper.setSpeechRate(value);
+              await AACHelper.setSpeechRate(value);
             },
           ),
           SizedBox(height: isLandscape ? screenHeight * 0.002 : screenHeight * 0.006), // Reduced by 50% from 0.004/0.012
@@ -1502,11 +1502,11 @@ class _HomeScreenState extends State<HomeScreen> {
             value: _speechPitch,
             min: 0.5,
             max: 2.0,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() {
                 _speechPitch = value;
               });
-              AACHelper.setSpeechPitch(value);
+              await AACHelper.setSpeechPitch(value);
             },
           ),
           SizedBox(height: isLandscape ? screenHeight * 0.002 : screenHeight * 0.006), // Reduced by 50% from 0.004/0.012
@@ -1516,11 +1516,11 @@ class _HomeScreenState extends State<HomeScreen> {
             value: _speechVolume,
             min: 0.0,
             max: 1.0,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() {
                 _speechVolume = value;
               });
-              AACHelper.setSpeechVolume(value);
+              await AACHelper.setSpeechVolume(value);
             },
           ),
         ],

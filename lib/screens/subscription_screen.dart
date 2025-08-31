@@ -115,7 +115,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   
   Future<void> _purchaseSubscription(String productId) async {
     try {
+      debugPrint('Attempting to purchase subscription: $productId');
+      debugPrint('Available products: ${_products.length}');
+      for (var product in _products) {
+        debugPrint('Product ID: ${product.id}, Title: ${product.title}');
+      }
+      
       final success = await GooglePlayBillingService.purchaseSubscription(productId);
+      debugPrint('Purchase result: $success');
+      
       if (success && mounted) {
         // Refresh subscription status
         await _loadCurrentSubscription();
@@ -133,7 +141,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       debugPrint('Error purchasing subscription: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Subscription purchase failed')),
+          SnackBar(content: Text('Error: $e')),
         );
       }
     }

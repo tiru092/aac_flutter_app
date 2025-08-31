@@ -128,11 +128,21 @@ class GooglePlayBillingService {
         return [];
       }
       debugPrint('GooglePlayBillingService: Fetching subscription products...');
+      debugPrint('GooglePlayBillingService: Requesting product IDs: [monthlyProductId: $monthlyProductId, yearlyProductId: $yearlyProductId]');
       const Set<String> productIds = {monthlyProductId, yearlyProductId};
+      debugPrint('GooglePlayBillingService: Querying product details for: $productIds');
       final ProductDetailsResponse response = await _iap.queryProductDetails(productIds);
+      debugPrint('GooglePlayBillingService: Received response from queryProductDetails');
       if (response.error != null) {
         debugPrint('GooglePlayBillingService: Product fetch error: ${response.error}');
+        debugPrint('GooglePlayBillingService: Error code: ${response.error?.code}');
+        debugPrint('GooglePlayBillingService: Error message: ${response.error?.message}');
         return [];
+      }
+      debugPrint('GooglePlayBillingService: Response has no error');
+      debugPrint('GooglePlayBillingService: Product details count: ${response.productDetails.length}');
+      for (var product in response.productDetails) {
+        debugPrint('GooglePlayBillingService: Product - ID: ${product.id}, Title: ${product.title}, Price: ${product.price}');
       }
       _products = response.productDetails;
       debugPrint('GooglePlayBillingService: Products loaded: ${_products.length}');
@@ -150,18 +160,28 @@ class GooglePlayBillingService {
         await initialize();
       }
       debugPrint('GooglePlayBillingService: Starting purchase for $productId');
+      debugPrint('GooglePlayBillingService: Current products count: ${_products.length}');
+      for (var product in _products) {
+        debugPrint('GooglePlayBillingService: Available product - ID: ${product.id}, Title: ${product.title}');
+      }
       if (_products.isEmpty) {
+        debugPrint('GooglePlayBillingService: No products available, fetching...');
         await getSubscriptionProducts();
+        debugPrint('GooglePlayBillingService: After fetching, products count: ${_products.length}');
+        for (var product in _products) {
+          debugPrint('GooglePlayBillingService: Available product - ID: ${product.id}, Title: ${product.title}');
+        }
       }
       final product = _products.where((p) => p.id == productId).toList();
       if (product.isEmpty) {
         debugPrint('GooglePlayBillingService: Product not found: $productId');
         return false;
       }
+      debugPrint('GooglePlayBillingService: Found product: ${product.first.title}');
       final purchaseParam = PurchaseParam(productDetails: product.first);
       // For subscriptions, we use buyNonConsumable as subscriptions are non-consumable products
       final result = await _iap.buyNonConsumable(purchaseParam: purchaseParam);
-      debugPrint('GooglePlayBillingService: Purchase initiated for $productId');
+      debugPrint('GooglePlayBillingService: Purchase initiated for $productId, result: $result');
       return result;
     } catch (e) {
       debugPrint('GooglePlayBillingService: Purchase failed: $e');
