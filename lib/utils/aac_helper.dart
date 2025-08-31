@@ -365,7 +365,19 @@ class AACHelper {
   // Category management with error handling
   static Future<void> addCategory(Category category) async {
     try {
-      await _categoryBox?.add(category);
+      // Check if category already exists to prevent duplication
+      final existingCategories = _categoryBox?.values.toList() ?? [];
+      final existingCategoryIndex = existingCategories.indexWhere(
+        (existingCategory) => existingCategory.name == category.name && !existingCategory.isDefault
+      );
+      
+      if (existingCategoryIndex != -1) {
+        // Category already exists, update it instead of adding duplicate
+        await _categoryBox?.putAt(existingCategoryIndex, category);
+      } else {
+        // Category doesn't exist, add it
+        await _categoryBox?.add(category);
+      }
     } on HiveError catch (e) {
       throw DatabaseException('Failed to add category: ${e.message}');
     } catch (e) {
@@ -399,6 +411,30 @@ class AACHelper {
     } catch (e) {
       print('Error getting all categories: $e');
       return [];
+    }
+  }
+
+  static Future<void> clearCustomCategories() async {
+    try {
+      // Get all categories
+      final allCategories = _categoryBox?.values.toList() ?? [];
+      
+      // Find indices of custom (non-default) categories
+      final indicesToDelete = <int>[];
+      for (int i = 0; i < allCategories.length; i++) {
+        if (!allCategories[i].isDefault) {
+          indicesToDelete.add(i);
+        }
+      }
+      
+      // Delete custom categories in reverse order to maintain correct indices
+      for (int i = indicesToDelete.length - 1; i >= 0; i--) {
+        await _categoryBox?.deleteAt(indicesToDelete[i]);
+      }
+    } on HiveError catch (e) {
+      throw DatabaseException('Failed to clear custom categories: ${e.message}');
+    } catch (e) {
+      throw DatabaseException('Unexpected error clearing custom categories: $e');
     }
   }
 

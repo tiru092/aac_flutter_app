@@ -255,7 +255,20 @@ class UserProfileService {
       final profile = await getActiveProfile();
       if (profile == null) return;
       
-      final updatedCategories = [...profile.userCategories, category];
+      // Check if category already exists to prevent duplication
+      final existingCategoryIndex = profile.userCategories.indexWhere(
+        (existingCategory) => existingCategory.name == category.name && !existingCategory.isDefault
+      );
+      
+      List<Category> updatedCategories;
+      if (existingCategoryIndex != -1) {
+        // Category already exists, update it instead of adding duplicate
+        updatedCategories = List<Category>.from(profile.userCategories);
+        updatedCategories[existingCategoryIndex] = category;
+      } else {
+        // Category doesn't exist, add it
+        updatedCategories = [...profile.userCategories, category];
+      }
       
       final updatedProfile = profile.copyWith(
         userCategories: updatedCategories,
@@ -266,6 +279,52 @@ class UserProfileService {
       _activeProfile = updatedProfile;
     } catch (e) {
       print('Error in addCategoryToActiveProfile: $e');
+    }
+  }
+  
+  /// Update a symbol in the current user's profile
+  static Future<void> updateSymbolInActiveProfile(Symbol oldSymbol, Symbol updatedSymbol) async {
+    try {
+      final profile = await getActiveProfile();
+      if (profile == null) return;
+      
+      // Find and replace the symbol
+      final updatedSymbols = [...profile.userSymbols];
+      final index = updatedSymbols.indexWhere((s) => s.id == oldSymbol.id);
+      if (index != -1) {
+        updatedSymbols[index] = updatedSymbol;
+      }
+      
+      final updatedProfile = profile.copyWith(
+        userSymbols: updatedSymbols,
+        lastActiveAt: DateTime.now(),
+      );
+      
+      await saveUserProfile(updatedProfile);
+      _activeProfile = updatedProfile;
+    } catch (e) {
+      print('Error in updateSymbolInActiveProfile: $e');
+    }
+  }
+  
+  /// Delete a symbol from the current user's profile
+  static Future<void> deleteSymbolFromActiveProfile(Symbol symbol) async {
+    try {
+      final profile = await getActiveProfile();
+      if (profile == null) return;
+      
+      // Remove the symbol
+      final updatedSymbols = profile.userSymbols.where((s) => s.id != symbol.id).toList();
+      
+      final updatedProfile = profile.copyWith(
+        userSymbols: updatedSymbols,
+        lastActiveAt: DateTime.now(),
+      );
+      
+      await saveUserProfile(updatedProfile);
+      _activeProfile = updatedProfile;
+    } catch (e) {
+      print('Error in deleteSymbolFromActiveProfile: $e');
     }
   }
   

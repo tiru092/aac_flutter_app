@@ -61,13 +61,15 @@ class _HomeScreenState extends State<HomeScreen> {
     _filteredSymbols = _allSymbols;
     // Load data synchronously for immediate responsiveness
     _initializeImmediately();
+    // Load user data asynchronously
+    _loadDataAsync();
   }
 
   void _initializeImmediately() {
     // Load sample data immediately - no async operations
     _allSymbols = SampleData.getSampleSymbols();
     _categories = SampleData.getSampleCategories();
-    _customCategories = [];
+    // Don't initialize _customCategories here - let it be loaded from user data
     _isLoading = false;
     _servicesInitialized = true; // Enable all UI interactions immediately
     
@@ -77,6 +79,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _speechVolume = 1.0;
     
     // Initialize services much later, completely in background
+    Timer(Duration(milliseconds: 100), () {
+      _initializeServicesAsync();
+    });
+    
+    // Initialize services even later
     Timer(Duration(seconds: 3), () {
       _initializeServicesVeryLate();
     });
@@ -213,7 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _allSymbols = sampleSymbols;
           _categories = sampleCategories;
-          _customCategories = []; // Keep empty initially
+          // Don't override _customCategories here - let it be loaded from user data
           _isLoading = false;
         });
       }
@@ -256,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _categories = defaultCategories;
-          _customCategories = []; // Keep empty to avoid encryption issues initially
+          // Don't override _customCategories here - let it be loaded from user data
           _allSymbols = defaultSymbols;
           _isLoading = false;
         });
@@ -290,20 +297,19 @@ class _HomeScreenState extends State<HomeScreen> {
         // Add small delays between each operation to prevent UI blocking
         await Future.delayed(Duration(milliseconds: 100));
         
-        // Load categories from database
-        final dbCategories = AACHelper.getAllCategories();
+        // Load profile data
+        final profile = await UserProfileService.getActiveProfile();
         await Future.delayed(Duration(milliseconds: 50));
         
-        // Load symbols from database  
-        final dbSymbols = AACHelper.getAllSymbols();
+        // Load categories and symbols from user profile
+        final dbCategories = profile?.userCategories ?? [];
+        final dbSymbols = profile?.userSymbols ?? [];
         await Future.delayed(Duration(milliseconds: 50));
         
         // Update UI with database data if available
         if (mounted && (dbCategories.isNotEmpty || dbSymbols.isNotEmpty)) {
           setState(() {
-            if (dbCategories.isNotEmpty) {
-              _categories = dbCategories;
-            }
+            // Keep default categories from SampleData, only update symbols
             if (dbSymbols.isNotEmpty) {
               _allSymbols = dbSymbols;
             }
@@ -340,7 +346,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Use only sample data to avoid encryption errors
       setState(() {
         _categories = defaultCategories;
-        _customCategories = []; // Empty custom categories to avoid encryption
+        // Don't override _customCategories here - let it be loaded from user data
         _allSymbols = defaultSymbols;
         _isLoading = false;
       });
@@ -355,7 +361,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // Fallback to just sample data
         _categories = SampleData.getSampleCategories();
         _allSymbols = SampleData.getSampleSymbols();
-        _customCategories = [];
+        // Don't override _customCategories here - let it be loaded from user data
       });
     }
   }
@@ -382,6 +388,21 @@ class _HomeScreenState extends State<HomeScreen> {
           _speechVolume = 1.0;
         });
       }
+    }
+  }
+  
+  // Refresh custom categories from user profile
+  void _refreshCustomCategories() async {
+    try {
+      final profile = await UserProfileService.getActiveProfile();
+      if (profile != null && mounted) {
+        final customCategories = profile.userCategories.where((cat) => !cat.isDefault).toList();
+        setState(() {
+          _customCategories = customCategories;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error refreshing custom categories: $e');
     }
   }
   
@@ -493,6 +514,41 @@ class _HomeScreenState extends State<HomeScreen> {
       _trySpeak(phrase);
     } catch (e) {
       print('Error in quick phrase speak: $e');
+    }
+  }
+  
+  // Handle symbol update from edit dialog
+  void _onSymbolUpdate(Symbol updatedSymbol) {
+    try {
+      setState(() {
+        // Find and replace the symbol in _allSymbols
+        final index = _allSymbols.indexWhere((s) => s.id == updatedSymbol.id);
+        if (index != -1) {
+          _allSymbols[index] = updatedSymbol;
+        }
+      });
+      
+      // Show success message
+      _trySpeak('Symbol updated successfully');
+    } catch (e) {
+      print('Error updating symbol: $e');
+      _showErrorDialog('Failed to update symbol');
+    }
+  }
+  
+  // Handle symbol deletion from edit dialog
+  void _onSymbolDelete(Symbol deletedSymbol) {
+    try {
+      setState(() {
+        // Remove the symbol from _allSymbols
+        _allSymbols.removeWhere((s) => s.id == deletedSymbol.id);
+      });
+      
+      // Show success message
+      _trySpeak('Symbol deleted successfully');
+    } catch (e) {
+      print('Error deleting symbol: $e');
+      _showErrorDialog('Failed to delete symbol');
     }
   }
 
@@ -868,6 +924,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                       if (newSymbol != null && mounted) {
                                         setState(() {
                                           _allSymbols.add(newSymbol);
+                                          
+                                          // Also refresh custom categories in case a new category was created
+                                          _refreshCustomCategories();
                                         });
                                       }
                                     } catch (e) {
@@ -1088,8 +1147,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                           ),
                                         ],
                                         
-                                        // Default categories
-                                        ..._categories.map((category) => Padding(
+                                        // Default categories (excluding custom categories)
+                                        ..._categories.where((category) => 
+                                          !_customCategories.any((customCat) => customCat.name == category.name)
+                                        ).map((category) => Padding(
                                           padding: const EdgeInsets.only(bottom: 6), // Reduced spacing
                                           child: _buildCategoryTab(category.name),
                                         )),
@@ -1141,8 +1202,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ],
 
-                                // Default categories
-                                ..._categories.map((category) => Padding(
+                                // Default categories (excluding custom categories)
+                                ..._categories.where((category) => 
+                                  !_customCategories.any((customCat) => customCat.name == category.name)
+                                ).map((category) => Padding(
                                   padding: EdgeInsets.only(right: MediaQuery.of(context).size.width * 0.016), // Reduced
                                   child: _buildCategoryTab(category.name),
                                 )),
@@ -1159,6 +1222,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             onSymbolTap: _onSymbolTap,
                             onCategoryTap: (category) {},
                             viewType: ViewType.symbols,
+                            onSymbolUpdate: _onSymbolUpdate,
+                            onSymbolEdit: _onSymbolDelete,
                           ),
                         ),
                         

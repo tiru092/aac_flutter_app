@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
+import '../services/user_profile_service.dart';
 import 'dart:io';
 
 class EditTileDialog extends StatefulWidget {
@@ -552,16 +553,31 @@ class _EditTileDialogState extends State<EditTileDialog>
   void _handleSave() async {
     if (!_canSave()) return;
 
+    // Create updated symbol with same ID if editing existing symbol
+    final symbolId = widget.symbol?.id ?? 'symbol_${DateTime.now().millisecondsSinceEpoch}';
+    
     final symbol = Symbol(
+      id: symbolId,
       label: _labelController.text.trim(),
       imagePath: _selectedImagePath!,
       category: _selectedCategory,
       description: _descriptionController.text.trim().isEmpty 
           ? null 
           : _descriptionController.text.trim(),
+      isDefault: widget.symbol?.isDefault ?? false,
+      dateCreated: widget.symbol?.dateCreated ?? DateTime.now(),
     );
 
     await AACHelper.accessibleHapticFeedback();
+    
+    // If editing existing symbol, update it in the profile
+    if (widget.symbol != null) {
+      await UserProfileService.updateSymbolInActiveProfile(widget.symbol!, symbol);
+    } else {
+      // If creating new symbol, add it to the profile
+      await UserProfileService.addSymbolToActiveProfile(symbol);
+    }
+    
     widget.onSave(symbol);
     Navigator.pop(context);
   }
@@ -586,8 +602,9 @@ class _EditTileDialogState extends State<EditTileDialog>
       ),
     );
 
-    if (confirmed == true) {
+    if (confirmed == true && widget.symbol != null) {
       await AACHelper.accessibleHapticFeedback();
+      await UserProfileService.deleteSymbolFromActiveProfile(widget.symbol!);
       widget.onDelete?.call();
       Navigator.pop(context);
     }

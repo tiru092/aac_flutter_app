@@ -213,6 +213,8 @@ class ProfileSettings {
     enableCollaboration: json['enableCollaboration'] ?? false,
     enableNotifications: json['enableNotifications'] ?? true,
     autoBackup: json['autoBackup'] ?? false,
+    preferredLanguage: json['preferredLanguage'] ?? 'en',
+    darkMode: json['darkMode'] ?? false,
   );
 
   ProfileSettings copyWith({

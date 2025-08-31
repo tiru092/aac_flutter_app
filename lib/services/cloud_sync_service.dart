@@ -37,9 +37,15 @@ class CloudSyncService {
       // Convert profile to Firestore-compatible format
       final profileData = profile.toJson();
       
-      // Remove local-only fields that shouldn't be synced
-      profileData.remove('userSymbols');
-      profileData.remove('userCategories');
+      // Convert symbols and categories to Firestore-compatible format
+      final List<Map<String, dynamic>> userSymbolsData = 
+          profile.userSymbols.map((symbol) => symbol.toJson()).toList();
+      final List<Map<String, dynamic>> userCategoriesData = 
+          profile.userCategories.map((category) => category.toJson()).toList();
+      
+      // Add symbols and categories to profile data
+      profileData['userSymbols'] = userSymbolsData;
+      profileData['userCategories'] = userCategoriesData;
       
       // Add metadata
       profileData['updatedAt'] = FieldValue.serverTimestamp();

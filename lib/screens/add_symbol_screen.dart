@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
 import '../utils/sample_data.dart';
@@ -633,11 +635,22 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
     });
 
     try {
-      // Create new symbol
+      // Copy the selected image to the app's directory
+      final appDir = await getApplicationDocumentsDirectory();
+      final imageFileName = 'symbol_${DateTime.now().millisecondsSinceEpoch}${path.extension(_selectedImage!.path)}';
+      final imageDestination = File('${appDir.path}/symbols/$imageFileName');
+      
+      // Create the symbols directory if it doesn't exist
+      await Directory('${appDir.path}/symbols').create(recursive: true);
+      
+      // Copy the image to the app's directory
+      final copiedImage = await _selectedImage!.copy(imageDestination.path);
+      
+      // Create new symbol with the copied image path
       final newSymbol = Symbol(
         id: 'symbol_${DateTime.now().millisecondsSinceEpoch}',
         label: _labelController.text.trim(),
-        imagePath: _selectedImage!.path, // Will be saved to app directory later
+        imagePath: copiedImage.path,
         category: _selectedCategory,
         description: _descriptionController.text.trim(),
         isDefault: false,
@@ -804,8 +817,8 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
                 }
               });
               
-              // In a real app, remove from database/storage
-              _saveCustomCategories();
+              // Save the updated custom categories list
+              _saveUpdatedCustomCategories();
               
               AACHelper.speak('Category ${category.name} deleted');
             },
@@ -816,9 +829,32 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
   }
 
   void _saveCustomCategories() async {
-    // Save the custom category to the user's profile
-    for (final category in _customCategories) {
-      await UserProfileService.addCategoryToActiveProfile(category);
+    // Only save the newly added category (the last one in the list)
+    // This prevents duplication of existing categories
+    if (_customCategories.isNotEmpty) {
+      final newCategory = _customCategories.last;
+      await UserProfileService.addCategoryToActiveProfile(newCategory);
+      // Also save to local database for immediate access
+      await AACHelper.addCategory(newCategory);
+    }
+  }
+  
+  void _saveUpdatedCustomCategories() async {
+    // Save all custom categories (used when deleting categories)
+    // First clear existing custom categories from profile
+    final profile = await UserProfileService.getActiveProfile();
+    if (profile != null) {
+      final updatedProfile = profile.copyWith(
+        userCategories: [..._customCategories],
+        lastActiveAt: DateTime.now(),
+      );
+      await UserProfileService.saveUserProfile(updatedProfile);
+      
+      // Also update local database
+      await AACHelper.clearCustomCategories();
+      for (final category in _customCategories) {
+        await AACHelper.addCategory(category);
+      }
     }
   }
 
