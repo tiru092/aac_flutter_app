@@ -26,6 +26,12 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   void initState() {
     super.initState();
     _startCountdown();
+    
+    // Debug: Check user status on init
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = FirebaseAuth.instance.currentUser;
+      debugPrint('VerifyEmailScreen: Init - User: ${user?.email}, Verified: ${user?.emailVerified}');
+    });
   }
 
   @override
@@ -53,7 +59,30 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     });
 
     try {
-      final isVerified = await _authService.isEmailVerified();
+      // First check if user is still signed in
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        setState(() {
+          _errorMessage = 'Your session has expired. Please sign in again to verify your email.';
+          _isVerifying = false;
+        });
+        return;
+      }
+
+      // Reload user to get latest verification status
+      await currentUser.reload();
+      final refreshedUser = FirebaseAuth.instance.currentUser;
+      
+      if (refreshedUser == null) {
+        setState(() {
+          _errorMessage = 'Your session has expired. Please sign in again to verify your email.';
+          _isVerifying = false;
+        });
+        return;
+      }
+
+      final isVerified = refreshedUser.emailVerified;
+      debugPrint('VerifyEmailScreen: Email verification status: $isVerified');
       
       if (isVerified) {
         if (mounted) {
@@ -63,11 +92,17 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
             if (isEligible) {
               final trialSubscription = await SubscriptionService.startFreeTrial();
               if (trialSubscription != null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('🎉 Welcome! Your 30-day free trial has started!'),
-                    backgroundColor: Colors.green,
-                    duration: Duration(seconds: 4),
+                showCupertinoDialog(
+                  context: context,
+                  builder: (context) => CupertinoAlertDialog(
+                    title: const Text('🎉 Welcome!'),
+                    content: const Text('Your 30-day free trial has started!'),
+                    actions: [
+                      CupertinoDialogAction(
+                        child: const Text('Great!'),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
                   ),
                 );
               }
@@ -78,38 +113,61 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           }
           
           // Show success message before navigating
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Email verified successfully!'),
-              backgroundColor: Colors.green,
+          showCupertinoDialog(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: const Text('✅ Email Verified'),
+              content: const Text('Your email has been verified successfully!'),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('Continue'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    // Navigate to home screen
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      CupertinoPageRoute(builder: (context) => const HomeScreen()),
+                      (route) => false,
+                    );
+                  },
+                ),
+              ],
             ),
-          );
-          
-          Navigator.pushAndRemoveUntil(
-            context,
-            CupertinoPageRoute(builder: (context) => const HomeScreen()),
-            (route) => false,
           );
         }
       } else {
         setState(() {
-          _errorMessage = 'Email not verified. Please check your inbox and click the verification link. '
-              'If you haven\'t received the email, please check your spam folder.';
+          _errorMessage = 'Email not verified yet. Please check your inbox and click the verification link. '
+              'If you haven\'t received the email, please check your spam folder and try resending.';
           _isVerifying = false;
-          _startCountdown();
         });
       }
     } on FirebaseAuthException catch (e) {
+      debugPrint('VerifyEmailScreen: Firebase error: $e');
       setState(() {
-        _errorMessage = 'Firebase error: ${e.message}. Please try again.';
+        switch (e.code) {
+          case 'user-not-found':
+            _errorMessage = 'Your account was not found. Please sign up again or contact support.';
+            break;
+          case 'network-request-failed':
+            _errorMessage = 'Network error. Please check your internet connection and try again.';
+            break;
+          case 'too-many-requests':
+            _errorMessage = 'Too many attempts. Please wait a moment and try again.';
+            break;
+          case 'user-token-expired':
+            _errorMessage = 'Your session has expired. Please sign in again.';
+            break;
+          default:
+            _errorMessage = 'Firebase error: ${e.message ?? "Unknown error"}. Please try again.';
+        }
         _isVerifying = false;
-        _startCountdown();
       });
     } catch (e) {
+      debugPrint('VerifyEmailScreen: Unexpected error: $e');
       setState(() {
-        _errorMessage = 'Failed to check verification status. Please check your internet connection and try again.';
+        _errorMessage = 'Verification check failed. Please ensure you have a stable internet connection and try again.';
         _isVerifying = false;
-        _startCountdown();
       });
     }
   }
@@ -132,10 +190,17 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       
       // Show success message
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Verification email sent!'),
-            backgroundColor: Colors.green,
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('📧 Email Sent'),
+            content: const Text('Verification email sent! Please check your inbox.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
           ),
         );
       }
@@ -166,10 +231,17 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to sign out. Please try again.'),
-            backgroundColor: Colors.red,
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Sign Out Failed'),
+            content: const Text('Failed to sign out. Please try again.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
           ),
         );
       }
@@ -201,19 +273,27 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     );
 
     if (shouldSkip == true && mounted) {
-      // Navigate to home screen, bypassing verification
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ Email verification skipped. You can verify later in profile settings.'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 4),
+      // Show warning and navigate to home screen
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('⚠️ Verification Skipped'),
+          content: const Text('Email verification skipped. You can verify later in profile settings.'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Navigate to home screen
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  CupertinoPageRoute(builder: (context) => const HomeScreen()),
+                  (route) => false,
+                );
+              },
+            ),
+          ],
         ),
-      );
-      
-      Navigator.pushAndRemoveUntil(
-        context,
-        CupertinoPageRoute(builder: (context) => const HomeScreen()),
-        (route) => false,
       );
     }
   }
@@ -343,24 +423,72 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               
               const SizedBox(height: 40),
               
-              // Error Message
+              // Error Message with better formatting
               if (_errorMessage != null) ...[
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFED7D7),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(
-                      color: Color(0xFFE53E3E),
-                      fontWeight: FontWeight.w500,
+                    color: _errorMessage!.contains('session') || _errorMessage!.contains('sign in again')
+                        ? const Color(0xFFFEF3C7) // Yellow for session issues
+                        : const Color(0xFFFED7D7), // Red for other errors
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _errorMessage!.contains('session') || _errorMessage!.contains('sign in again')
+                          ? const Color(0xFFF59E0B)
+                          : const Color(0xFFE53E3E),
+                      width: 1,
                     ),
-                    textAlign: TextAlign.center,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _errorMessage!.contains('session') || _errorMessage!.contains('sign in again')
+                            ? CupertinoIcons.exclamationmark_triangle
+                            : CupertinoIcons.xmark_circle,
+                        color: _errorMessage!.contains('session') || _errorMessage!.contains('sign in again')
+                            ? const Color(0xFFF59E0B)
+                            : const Color(0xFFE53E3E),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(
+                            color: _errorMessage!.contains('session') || _errorMessage!.contains('sign in again')
+                                ? const Color(0xFF92400E)
+                                : const Color(0xFFE53E3E),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 20),
+                
+                // If session expired, show sign in button
+                if (_errorMessage!.contains('session') || _errorMessage!.contains('sign in again')) ...[
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    color: const Color(0xFF6C63FF),
+                    borderRadius: BorderRadius.circular(12),
+                    onPressed: () => Navigator.pushReplacement(
+                      context,
+                      CupertinoPageRoute(builder: (context) => const LoginScreen()),
+                    ),
+                    child: const Text(
+                      'Go to Sign In',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ],
               
               // Check Verification Button
@@ -368,7 +496,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 color: const Color(0xFF4ECDC4),
                 borderRadius: BorderRadius.circular(12),
-                onPressed: _isVerifying || _countdown > 0 ? null : _checkEmailVerification,
+                onPressed: _isVerifying ? null : _checkEmailVerification,
                 child: _isVerifying
                     ? const CupertinoActivityIndicator(color: Colors.white)
                     : const Text(

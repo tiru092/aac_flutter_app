@@ -506,7 +506,11 @@ class AuthWrapperService {
       await _currentFirebaseUser!.reload();
       final updatedUser = FirebaseAuth.instance.currentUser;
       
-      if (updatedUser == null) return false;
+      if (updatedUser == null) {
+        // User was signed out during reload - they need to sign in again
+        _currentFirebaseUser = null;
+        return false;
+      }
       
       // Update our reference
       _currentFirebaseUser = updatedUser;
@@ -520,6 +524,18 @@ class AuthWrapperService {
       // Be more lenient to avoid verification loops
       return !isVerified;
       
+    } on FirebaseAuthException catch (e) {
+      debugPrint('AuthWrapperService: Firebase auth error during verification check: ${e.code} - ${e.message}');
+      
+      if (e.code == 'user-not-found' || e.code == 'user-token-expired') {
+        // User session is invalid - sign them out and require re-authentication
+        _currentFirebaseUser = null;
+        await _authService.signOut();
+        return false;
+      }
+      
+      // For other Firebase auth errors, assume verified to avoid blocking users
+      return false;
     } catch (e) {
       debugPrint('AuthWrapperService: Error checking email verification (assuming verified): $e');
       // If there's an error checking, assume verified to avoid blocking users

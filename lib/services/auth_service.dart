@@ -242,7 +242,7 @@ class AuthService {
       final user = _auth.currentUser;
       if (user == null) {
         debugPrint('AuthService: No current user for email verification check');
-        return false;
+        throw AuthException('No user is currently signed in. Please sign in again.', 'no_user');
       }
       
       // Always reload to get the latest verification status
@@ -251,17 +251,28 @@ class AuthService {
       
       if (updatedUser == null) {
         debugPrint('AuthService: User became null after reload');
-        return false;
+        throw AuthException('User session expired. Please sign in again.', 'session_expired');
       }
       
       final isVerified = updatedUser.emailVerified;
       debugPrint('AuthService: Email verification status for ${updatedUser.email}: $isVerified');
       
       return isVerified;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('AuthService: Firebase error checking email verification: $e');
+      switch (e.code) {
+        case 'network-request-failed':
+          throw AuthException('Network error. Please check your internet connection and try again.', e.code);
+        case 'too-many-requests':
+          throw AuthException('Too many requests. Please wait a moment and try again.', e.code);
+        case 'user-token-expired':
+          throw AuthException('Your session has expired. Please sign in again.', e.code);
+        default:
+          throw AuthException('Failed to check verification status: ${e.message}', e.code);
+      }
     } catch (e) {
-      debugPrint('AuthService: Error checking email verification: $e');
-      // In case of error, return false but don't throw
-      return false;
+      debugPrint('AuthService: Unexpected error checking email verification: $e');
+      throw AuthException('An unexpected error occurred. Please try again.', 'unknown_error');
     }
   }
 
