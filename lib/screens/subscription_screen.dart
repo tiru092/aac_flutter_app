@@ -128,20 +128,50 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         // Refresh subscription status
         await _loadCurrentSubscription();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Subscription purchased successfully!')),
+          showCupertinoDialog(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: const Text('✅ Success'),
+              content: const Text('Subscription purchased successfully!'),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('OK'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
           );
         }
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Subscription purchase failed')),
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('❌ Purchase Failed'),
+            content: const Text('Subscription purchase failed. Please try again.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
         );
       }
     } catch (e) {
       debugPrint('Error purchasing subscription: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('❌ Purchase Error'),
+            content: Text('Error: $e'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
         );
       }
     }
@@ -154,20 +184,50 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         // Refresh subscription status
         await _loadCurrentSubscription();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Free trial started successfully!')),
+          showCupertinoDialog(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: const Text('🎉 Free Trial Started'),
+              content: const Text('Free trial started successfully! Enjoy premium features.'),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('OK'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
           );
         }
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to start free trial')),
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('❌ Free Trial Failed'),
+            content: const Text('Failed to start free trial. Please try again.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
         );
       }
     } catch (e) {
       debugPrint('Error starting free trial: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to start free trial')),
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('❌ Error'),
+            content: const Text('Failed to start free trial. Please check your connection and try again.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
         );
       }
     }
@@ -190,12 +250,32 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 final success = await GooglePlayBillingService.restorePurchases();
                 if (success && mounted) {
                   await _loadCurrentSubscription();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Purchases restored successfully!')),
+                  showCupertinoDialog(
+                    context: context,
+                    builder: (context) => CupertinoAlertDialog(
+                      title: const Text('✅ Purchases Restored'),
+                      content: const Text('Purchases restored successfully!'),
+                      actions: [
+                        CupertinoDialogAction(
+                          child: const Text('OK'),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
                   );
                 } else if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Failed to restore purchases')),
+                  showCupertinoDialog(
+                    context: context,
+                    builder: (context) => CupertinoAlertDialog(
+                      title: const Text('❌ Restore Failed'),
+                      content: const Text('Failed to restore purchases. Please try again.'),
+                      actions: [
+                        CupertinoDialogAction(
+                          child: const Text('OK'),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
                   );
                 }
               },
@@ -205,8 +285,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               onPressed: () {
                 Navigator.pop(context);
                 // In a real implementation, you would open the Play Store subscription management page
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please open Google Play Store to manage your subscription')),
+                showCupertinoDialog(
+                  context: context,
+                  builder: (context) => CupertinoAlertDialog(
+                    title: const Text('📱 Manage Subscription'),
+                    content: const Text('Please open Google Play Store to manage your subscription.'),
+                    actions: [
+                      CupertinoDialogAction(
+                        child: const Text('OK'),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
