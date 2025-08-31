@@ -26,6 +26,7 @@ class AuthWrapperService {
   static const String _hasLocalProfilesKey = 'has_local_profiles';
   static const String _lastSignedInUserKey = 'last_signed_in_user';
   static const String _offlineModeKey = 'offline_mode_enabled';
+  static const String _hasVerifiedEmailKey = 'has_verified_email_ever';
   
   // Current state
   User? _currentFirebaseUser;
@@ -270,6 +271,12 @@ class AuthWrapperService {
       
       _currentFirebaseUser = userCredential.user;
       
+      // Check and store verification status if user is already verified
+      if (_currentFirebaseUser != null && _currentFirebaseUser!.emailVerified) {
+        await _storeVerificationStatus(true);
+        debugPrint('AuthWrapperService: User is already verified, status stored');
+      }
+      
       // Load or create user profile
       await _handleSignedInUser();
       
@@ -324,6 +331,13 @@ class AuthWrapperService {
     try {
       debugPrint('AuthWrapperService: Enabling offline mode');
       
+      // Check if user has ever verified their email before allowing offline access
+      final hasVerified = await hasEverVerifiedEmail();
+      if (!hasVerified) {
+        debugPrint('AuthWrapperService: Cannot enable offline mode - user has never verified email');
+        throw Exception('Email verification required before offline access');
+      }
+      
       _isOfflineMode = true;
       
       final prefs = await SharedPreferences.getInstance();
@@ -338,6 +352,7 @@ class AuthWrapperService {
       
     } catch (e) {
       debugPrint('AuthWrapperService: Error enabling offline mode: $e');
+      rethrow;
     }
   }
 
@@ -520,6 +535,11 @@ class AuthWrapperService {
       
       debugPrint('AuthWrapperService: Email verification check - isVerified: $isVerified');
       
+      // If user is verified, store this status permanently
+      if (isVerified) {
+        await _storeVerificationStatus(true);
+      }
+      
       // Only require verification if email is definitely not verified
       // Be more lenient to avoid verification loops
       return !isVerified;
@@ -550,6 +570,30 @@ class AuthWrapperService {
     } catch (e) {
       debugPrint('AuthWrapperService: Error sending email verification: $e');
       rethrow;
+    }
+  }
+
+  /// Store email verification status
+  Future<void> _storeVerificationStatus(bool isVerified) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_hasVerifiedEmailKey, isVerified);
+      debugPrint('AuthWrapperService: Stored verification status: $isVerified');
+    } catch (e) {
+      debugPrint('AuthWrapperService: Error storing verification status: $e');
+    }
+  }
+
+  /// Check if user has ever verified their email
+  Future<bool> hasEverVerifiedEmail() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasVerified = prefs.getBool(_hasVerifiedEmailKey) ?? false;
+      debugPrint('AuthWrapperService: Has ever verified email: $hasVerified');
+      return hasVerified;
+    } catch (e) {
+      debugPrint('AuthWrapperService: Error checking verification history: $e');
+      return false;
     }
   }
 

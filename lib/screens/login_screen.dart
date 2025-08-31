@@ -191,9 +191,26 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _errorMessage = 'Failed to continue offline. Please try again.';
-        });
+        // Check if error is due to email verification requirement
+        if (e.toString().contains('Email verification required')) {
+          showCupertinoDialog(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: const Text('📧 Email Verification Required'),
+              content: const Text('You must verify your email address before using offline mode. Please sign in and verify your email first.'),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('OK'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          );
+        } else {
+          setState(() {
+            _errorMessage = 'Failed to continue offline. Please try again.';
+          });
+        }
       }
     } finally {
       if (mounted) {
