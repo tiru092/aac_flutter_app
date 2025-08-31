@@ -144,27 +144,15 @@ class _CommunicationGridState extends State<CommunicationGrid>
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: spacing,
             mainAxisSpacing: spacing,
-            // Adjust aspect ratio to prevent categories from being too tall/wide
-            childAspectRatio: isLandscape ? 1.2 : 1.0,
+            // Adjust aspect ratio for consistent sizing
+            childAspectRatio: isLandscape ? 1.2 : 1.1,
           ),
           itemCount: widget.categories.length,
           itemBuilder: (context, index) {
             final category = widget.categories[index];
             final delay = index * 0.1;
 
-            return AnimatedBuilder(
-              animation: _gridAnimationController,
-              builder: (context, child) {
-                final animationValue = Curves.easeOutBack.transform(
-                  (_gridAnimation.value - delay).clamp(0.0, 1.0),
-                );
-                
-                return Transform.scale(
-                  scale: animationValue,
-                  child: _buildCategoryCard(category, index),
-                );
-              },
-            );
+            return _buildCategoryCard(category, index);
           },
         );
       },
@@ -320,26 +308,14 @@ class _CommunicationGridState extends State<CommunicationGrid>
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: padding, // 4% of screen width
             mainAxisSpacing: padding, // 4% of screen width
-            // Make cells slightly wider in landscape to avoid tall images pushing overflow
-            childAspectRatio: isLandscape ? 1.15 : 1.0,
+            // Make cells more consistent in sizing
+            childAspectRatio: isLandscape ? 1.15 : 1.05,
           ),
           itemCount: widget.symbols.length, // Remove +1 for add tile
           itemBuilder: (context, index) {
             final delay = index * 0.05;
 
-            return AnimatedBuilder(
-              animation: _gridAnimationController,
-              builder: (context, child) {
-                final animationValue = Curves.easeOutBack.transform(
-                  (_gridAnimation.value - delay).clamp(0.0, 1.0),
-                );
-                
-                return Transform.scale(
-                  scale: animationValue,
-                  child: _buildSymbolCard(widget.symbols[index], index),
-                );
-              },
-            );
+            return _buildSymbolCard(widget.symbols[index], index);
           },
         );
       },
@@ -372,48 +348,65 @@ class _CommunicationGridState extends State<CommunicationGrid>
                 // Show maximized view
                 _showSymbolPopup(symbol);
               },
-              onLongPress: () async {
-                await AACHelper.accessibleHapticFeedback();
+              onLongPress: () {
+                // Show edit dialog
                 _showEditSymbolDialog(symbol);
               },
               child: Container(
                 decoration: BoxDecoration(
-                  // Use solid white background with category color accent
-                  color: Colors.white,
+                  color: isHighContrast ? Colors.white : Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
+                  border: isHighContrast ? Border.all(
                     color: categoryColor,
-                    width: isHighContrast ? 4 : 3,
-                  ),
+                    width: 4,
+                  ) : null,
                   boxShadow: isHighContrast ? [] : [
                     BoxShadow(
-                      color: categoryColor.withOpacity(0.25),
+                      color: categoryColor.withOpacity(0.2),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
-                      spreadRadius: 1,
                     ),
                   ],
                 ),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Symbol image area - 70% of card height
                     Expanded(
                       flex: 3,
                       child: Padding(
                         padding: const EdgeInsets.all(8),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              // Determine a safe image size based on the available cell area
-                              final maxSide = math.min(constraints.maxWidth, constraints.maxHeight);
-                              final imageSize = maxSide.clamp(48.0, 320.0);
+                          child: Builder(
+                            builder: (context) {
+                              // Calculate deterministic image size based on screen dimensions and grid layout
+                              final screenWidth = MediaQuery.of(context).size.width;
+                              final screenHeight = MediaQuery.of(context).size.height;
+                              final isLandscape = screenWidth > screenHeight;
 
+                              // Calculate cell dimensions based on grid configuration
+                              final crossAxisCount = isLandscape ? 3 : (screenWidth > 600 ? 4 : 3);
+                              final padding = screenWidth * 0.04;
+                              final spacing = screenWidth * 0.04;
+
+                              // Available width for grid: screenWidth - (padding * 2) - (spacing * (crossAxisCount - 1))
+                              final availableWidth = screenWidth - (padding * 2) - (spacing * (crossAxisCount - 1));
+                              final cellWidth = availableWidth / crossAxisCount;
+
+                              // Cell height based on aspect ratio
+                              final aspectRatio = isLandscape ? 1.15 : 1.05;
+                              final cellHeight = cellWidth * aspectRatio;
+
+                              // Base size is minimum of width and height (typically width in this layout)
+                              final baseSize = math.min(cellWidth, cellHeight);
+                              final imageSize = (baseSize * 0.8).clamp(48.0, 200.0);
+                              
                               Widget imageWidget;
                               if (symbol.imagePath.startsWith('emoji:')) {
                                 imageWidget = Center(
                                   child: Text(
-                                    symbol.imagePath.substring(6), // Remove 'emoji:' prefix
+                                    symbol.imagePath.substring(6),
                                     style: TextStyle(fontSize: imageSize * 0.6),
                                   ),
                                 );
@@ -434,7 +427,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
                                   errorBuilder: (context, error, stackTrace) => _buildErrorIcon(),
                                 );
                               }
-
+                              
                               return Center(
                                 child: SizedBox(
                                   width: imageSize,
@@ -450,13 +443,13 @@ class _CommunicationGridState extends State<CommunicationGrid>
                         ),
                       ),
                     ),
+                    // Symbol label area - 30% of card height
                     Expanded(
                       flex: 1,
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          // Use solid category color for text background
                           color: categoryColor,
                           borderRadius: const BorderRadius.only(
                             bottomLeft: Radius.circular(17),
@@ -466,24 +459,14 @@ class _CommunicationGridState extends State<CommunicationGrid>
                         child: Center(
                           child: AutoSizeText(
                             symbol.label,
-                            style: GoogleFonts.nunito(
-                              fontSize: 15, // Slightly larger base font size
-                              fontWeight: FontWeight.w700, // Bold but soft
-                              color: Colors.white,
-                              letterSpacing: 0.3,
-                              shadows: [
-                                Shadow(
-                                  offset: const Offset(0.5, 0.5),
-                                  blurRadius: 2,
-                                  color: Colors.black.withOpacity(0.4),
-                                ),
-                              ],
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 2, // Allow 2 lines for better fit
-                            minFontSize: 11, // Slightly larger minimum
-                            maxFontSize: 18, // Slightly larger maximum
+                            maxLines: 2,
+                            minFontSize: 11,
+                            maxFontSize: 18,
                             overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
