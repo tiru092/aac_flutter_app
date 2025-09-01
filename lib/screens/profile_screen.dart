@@ -1,11 +1,14 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/subscription.dart';
 import '../models/user_profile.dart';
 import '../utils/aac_helper.dart';
 import '../services/auth_service.dart';
 import '../services/auth_wrapper_service.dart';
 import '../services/backup_service.dart';
+import '../services/user_profile_service.dart';
 import 'subscription_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -837,56 +840,136 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _saveProfile() async {
-    final updatedProfile = UserProfile(
-      id: _currentProfile.id,
-      name: _nameController.text.trim(),
-      role: _currentProfile.role,
-      email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
-      phoneNumber: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
-      createdAt: _currentProfile.createdAt,
-      lastActiveAt: DateTime.now(),
-      subscription: _currentProfile.subscription,
-      paymentHistory: _currentProfile.paymentHistory,
-      settings: _currentProfile.settings,
-    );
-
-    setState(() {
-      _currentProfile = updatedProfile;
-    });
-
-    await AACHelper.speak('Profile saved successfully');
-    
-    if (mounted) {
-      showCupertinoDialog(
-        context: context,
-        builder: (context) => CupertinoAlertDialog(
-          title: const Text('Profile Saved'),
-          content: const Text('Your profile has been updated successfully.'),
-          actions: [
-            CupertinoDialogAction(
-              child: const Text('OK'),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
+    try {
+      final updatedProfile = UserProfile(
+        id: _currentProfile.id,
+        name: _nameController.text.trim(),
+        role: _currentProfile.role,
+        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        phoneNumber: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+        createdAt: _currentProfile.createdAt,
+        lastActiveAt: DateTime.now(),
+        subscription: _currentProfile.subscription,
+        paymentHistory: _currentProfile.paymentHistory,
+        settings: _currentProfile.settings,
       );
+
+      // Update Firebase user displayName if user is signed in
+      final currentUser = _authService.currentUser;
+      if (currentUser != null && _nameController.text.trim().isNotEmpty) {
+        await _authService.updateUserProfile(name: _nameController.text.trim());
+      }
+
+      setState(() {
+        _currentProfile = updatedProfile;
+      });
+
+      await AACHelper.speak('Profile saved successfully');
+      
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Profile Saved'),
+            content: const Text('Your profile has been updated successfully.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('⚠️ Save Failed'),
+            content: Text('Failed to save profile: ${e.toString()}'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 
-  void _exportData() {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Export Data'),
-        content: const Text('This feature will be available in the next update. Your data will be exported as a JSON file.'),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('OK'),
-            onPressed: () => Navigator.pop(context),
+  void _exportData() async {
+    try {
+      // Show loading dialog
+      showCupertinoDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const CupertinoAlertDialog(
+          title: Text('Exporting Data'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CupertinoActivityIndicator(),
+              SizedBox(height: 16),
+              Text('Please wait while we prepare your data...'),
+            ],
           ),
-        ],
-      ),
-    );
+        ),
+      );
+
+      // Export data using backup service
+      final backupService = BackupService();
+      final exportFilePath = await backupService.exportProfilesToJson();
+      
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+      
+      // Share the exported file
+      await Share.shareXFiles(
+        [XFile(exportFilePath)],
+        text: 'AAC Communication Helper - Exported Data',
+        subject: 'My AAC App Data Export',
+      );
+
+      // Show success message
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('✅ Export Successful'),
+            content: const Text('Your data has been exported successfully. The file has been shared.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) Navigator.pop(context);
+      
+      // Show error message
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('⚠️ Export Failed'),
+            content: Text('Failed to export data: ${e.toString()}'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   void _signOut() async {
@@ -940,7 +1023,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: const Text('Reset App'),
-        content: const Text('This will reset all settings to default. Are you sure?'),
+        content: const Text('This will reset all settings to default and clear all local data. Are you sure?'),
         actions: [
           CupertinoDialogAction(
             child: const Text('Cancel'),
@@ -949,9 +1032,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
           CupertinoDialogAction(
             isDestructiveAction: true,
             child: const Text('Reset'),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // Implement reset logic
+              
+              try {
+                // Show loading dialog
+                showCupertinoDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const CupertinoAlertDialog(
+                    title: Text('Resetting App'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CupertinoActivityIndicator(),
+                        SizedBox(height: 16),
+                        Text('Please wait while we reset the app...'),
+                      ],
+                    ),
+                  ),
+                );
+
+                // Clear all SharedPreferences
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.clear();
+                
+                // Clear all local profiles
+                await UserProfileService.clearAllProfiles();
+                
+                // Sign out from Firebase if signed in
+                await _authWrapperService.signOut();
+                
+                // Close loading dialog
+                if (mounted) Navigator.pop(context);
+                
+                // Show success and navigate to login
+                if (mounted) {
+                  showCupertinoDialog(
+                    context: context,
+                    builder: (context) => CupertinoAlertDialog(
+                      title: const Text('✅ App Reset Complete'),
+                      content: const Text('The app has been reset successfully. You will be redirected to the login screen.'),
+                      actions: [
+                        CupertinoDialogAction(
+                          child: const Text('OK'),
+                          onPressed: () {
+                            Navigator.pop(context);
+                            // Navigate to login screen
+                            Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              } catch (e) {
+                // Close loading dialog if still open
+                if (mounted) Navigator.pop(context);
+                
+                // Show error message
+                if (mounted) {
+                  showCupertinoDialog(
+                    context: context,
+                    builder: (context) => CupertinoAlertDialog(
+                      title: const Text('⚠️ Reset Failed'),
+                      content: Text('Failed to reset app: ${e.toString()}'),
+                      actions: [
+                        CupertinoDialogAction(
+                          child: const Text('OK'),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              }
             },
           ),
         ],

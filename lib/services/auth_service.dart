@@ -84,6 +84,12 @@ class AuthService {
         password: password,
       );
 
+      // Set the display name on the Firebase user
+      if (userCredential.user != null) {
+        await userCredential.user!.updateDisplayName(name);
+        await userCredential.user!.reload(); // Reload to get updated user info
+      }
+
       // Send verification email immediately after signup
       try {
         await userCredential.user?.sendEmailVerification();
