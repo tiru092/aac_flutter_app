@@ -66,6 +66,10 @@ class _EditTileDialogState extends State<EditTileDialog>
     _speechController = TextEditingController(text: widget.symbol?.label ?? '');
     _descriptionController = TextEditingController(text: widget.symbol?.description ?? '');
     
+    // Add listeners to rebuild UI when text changes
+    _labelController.addListener(() => setState(() {}));
+    _speechController.addListener(() => setState(() {}));
+    
     if (widget.symbol != null) {
       _selectedCategory = widget.symbol!.category;
       _selectedImagePath = widget.symbol!.imagePath;
@@ -477,22 +481,64 @@ class _EditTileDialogState extends State<EditTileDialog>
   }
 
   Widget _buildActionButtons() {
+    final canSave = _canSave();
+    final hasLabel = _labelController.text.trim().isNotEmpty;
+    final hasSpeech = _speechController.text.trim().isNotEmpty;
+    final hasImage = _selectedImagePath != null;
+    
+    // Build error message for what's missing
+    List<String> missing = [];
+    if (!hasLabel) missing.add('Label');
+    if (!hasSpeech) missing.add('Speech text');
+    if (!hasImage) missing.add('Image');
+    
     return Column(
       children: [
+        // Show error message when save is disabled
+        if (!canSave && missing.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              border: Border.all(color: Colors.red.withOpacity(0.3)),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  CupertinoIcons.info_circle,
+                  color: Colors.red,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Required: ${missing.join(', ')}',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        
         // Save button
         Container(
           width: double.infinity,
           height: 56,
           child: CupertinoButton(
-            color: _selectedColor,
+            color: canSave ? _selectedColor : Colors.grey.withOpacity(0.5),
             borderRadius: BorderRadius.circular(20),
-            onPressed: _canSave() ? _handleSave : null,
+            onPressed: canSave ? _handleSave : null,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
+                Icon(
                   CupertinoIcons.checkmark_circle_fill,
-                  color: Colors.white,
+                  color: canSave ? Colors.white : Colors.white.withOpacity(0.5),
                   size: 24,
                 ),
                 const SizedBox(width: 12),
@@ -501,7 +547,7 @@ class _EditTileDialogState extends State<EditTileDialog>
                   style: TextStyle(
                     fontSize: 18 * AACHelper.getTextSizeMultiplier(),
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: canSave ? Colors.white : Colors.white.withOpacity(0.5),
                   ),
                 ),
               ],
@@ -545,13 +591,30 @@ class _EditTileDialogState extends State<EditTileDialog>
   }
 
   bool _canSave() {
-    return _labelController.text.trim().isNotEmpty &&
-           _speechController.text.trim().isNotEmpty &&
-           _selectedImagePath != null;
+    final hasLabel = _labelController.text.trim().isNotEmpty;
+    final hasSpeech = _speechController.text.trim().isNotEmpty;
+    final hasImage = _selectedImagePath != null;
+    
+    // Debug: Print what's missing
+    if (!hasLabel) print('DEBUG: Label is empty');
+    if (!hasSpeech) print('DEBUG: Speech text is empty');
+    if (!hasImage) print('DEBUG: No image selected');
+    
+    return hasLabel && hasSpeech && hasImage;
   }
 
   void _handleSave() async {
-    if (!_canSave()) return;
+    print('DEBUG: _handleSave called');
+    
+    if (!_canSave()) {
+      print('DEBUG: _canSave() returned false, save aborted');
+      return;
+    }
+
+    print('DEBUG: Creating symbol with ID: ${widget.symbol?.id}');
+    print('DEBUG: Label: ${_labelController.text.trim()}');
+    print('DEBUG: Speech: ${_speechController.text.trim()}');
+    print('DEBUG: Image Path: $_selectedImagePath');
 
     // Create updated symbol with same ID if editing existing symbol
     final symbolId = widget.symbol?.id ?? 'symbol_${DateTime.now().millisecondsSinceEpoch}';
@@ -570,15 +633,22 @@ class _EditTileDialogState extends State<EditTileDialog>
 
     await AACHelper.accessibleHapticFeedback();
     
+    print('DEBUG: About to call UserProfileService methods');
+    
     // If editing existing symbol, update it in the profile
     if (widget.symbol != null) {
+      print('DEBUG: Updating existing symbol in profile');
       await UserProfileService.updateSymbolInActiveProfile(widget.symbol!, symbol);
     } else {
+      print('DEBUG: Adding new symbol to profile');
       // If creating new symbol, add it to the profile
       await UserProfileService.addSymbolToActiveProfile(symbol);
     }
     
+    print('DEBUG: Calling widget.onSave callback');
     widget.onSave(symbol);
+    
+    print('DEBUG: Popping dialog');
     Navigator.pop(context);
   }
 

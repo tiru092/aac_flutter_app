@@ -527,16 +527,26 @@ class _HomeScreenState extends State<HomeScreen> {
   // Handle symbol update from edit dialog
   void _onSymbolUpdate(Symbol updatedSymbol) {
     try {
+      print('DEBUG: _onSymbolUpdate called with symbol ID: ${updatedSymbol.id}');
+      print('DEBUG: Updated symbol label: ${updatedSymbol.label}');
+      print('DEBUG: Updated symbol image path: ${updatedSymbol.imagePath}');
+      
       setState(() {
         // Find and replace the symbol in _allSymbols
         final index = _allSymbols.indexWhere((s) => s.id == updatedSymbol.id);
+        print('DEBUG: Found symbol at index: $index');
         if (index != -1) {
+          print('DEBUG: Old symbol: ${_allSymbols[index].label} - ${_allSymbols[index].imagePath}');
           _allSymbols[index] = updatedSymbol;
+          print('DEBUG: New symbol: ${_allSymbols[index].label} - ${_allSymbols[index].imagePath}');
+        } else {
+          print('DEBUG: Symbol not found in _allSymbols list!');
         }
       });
       
       // Show success message
       _trySpeak('Symbol updated successfully');
+      print('DEBUG: Symbol update completed successfully');
     } catch (e) {
       print('Error updating symbol: $e');
       _showErrorDialog('Failed to update symbol');
