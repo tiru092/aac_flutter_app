@@ -1022,9 +1022,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(CupertinoIcons.add_circled, size: 20),
+                            Icon(CupertinoIcons.add_circled, size: 20, color: Colors.white),
                             SizedBox(width: 8),
-                            Text('Create Profile'),
+                            Text('Create Profile', style: TextStyle(color: Colors.white)),
                           ],
                         ),
                         onPressed: _createNewProfile,
@@ -1038,9 +1038,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(CupertinoIcons.person_badge_plus, size: 20),
+                            Icon(CupertinoIcons.person_badge_plus, size: 20, color: Colors.white),
                             SizedBox(width: 8),
-                            Text('Edit Profiles'),
+                            Text('Edit Profiles', style: TextStyle(color: Colors.white)),
                           ],
                         ),
                         onPressed: _editProfiles,

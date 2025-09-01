@@ -504,6 +504,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
                       ),
               ),
