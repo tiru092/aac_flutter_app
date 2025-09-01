@@ -249,53 +249,22 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   }
 
   Future<void> _skipVerification() async {
-    // Show a confirmation dialog first
-    final bool? shouldSkip = await showCupertinoDialog<bool>(
+    // Show a dialog explaining that email verification is required
+    await showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Skip Email Verification?'),
+        title: const Text('Email Verification Required'),
         content: const Text(
-          'You can continue without verifying your email, but some features may be limited. '
-          'You can verify your email later in the profile settings.',
+          'You must verify your email before continuing. Please check your inbox for the verification link.'
         ),
         actions: [
           CupertinoDialogAction(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.pop(context, false),
-          ),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            child: const Text('Continue Anyway'),
-            onPressed: () => Navigator.pop(context, true),
+            child: const Text('OK'),
+            onPressed: () => Navigator.pop(context),
           ),
         ],
       ),
     );
-
-    if (shouldSkip == true && mounted) {
-      // Show warning and navigate to home screen
-      showCupertinoDialog(
-        context: context,
-        builder: (context) => CupertinoAlertDialog(
-          title: const Text('⚠️ Verification Skipped'),
-          content: const Text('Email verification skipped. You can verify later in profile settings.'),
-          actions: [
-            CupertinoDialogAction(
-              child: const Text('OK'),
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Navigate to home screen
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  CupertinoPageRoute(builder: (context) => const HomeScreen()),
-                  (route) => false,
-                );
-              },
-            ),
-          ],
-        ),
-      );
-    }
   }
 
   @override

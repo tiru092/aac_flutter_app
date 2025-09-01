@@ -5,6 +5,7 @@ import '../models/user_profile.dart';
 import '../utils/aac_helper.dart';
 import '../services/auth_service.dart';
 import '../services/auth_wrapper_service.dart';
+import '../services/backup_service.dart';
 import 'subscription_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -23,7 +24,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   
   UserProfile _currentProfile = UserProfile(
     id: 'user_001',
-    name: 'AAC User',
+    name: '', // Will be set from currentUser.displayName
     role: UserRole.child,
     createdAt: DateTime.now(),
     subscription: Subscription(
@@ -48,12 +49,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _currentUserEmail = currentUser.email;
         _emailController.text = currentUser.email ?? '';
-        // Update profile with current user data
+        // Always use displayName if available, else use a default
+        String displayName = currentUser.displayName ?? '';
+        if (displayName.isEmpty) {
+          displayName = 'User'; // Simple fallback instead of 'AAC User'
+        }
         _currentProfile = _currentProfile.copyWith(
           email: currentUser.email,
-          name: currentUser.displayName ?? _currentProfile.name,
+          name: displayName,
         );
-        _nameController.text = _currentProfile.name;
+        _nameController.text = displayName;
       });
     }
   }
@@ -67,7 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _loadProfile() {
-    _nameController.text = _currentProfile.name;
+    _nameController.text = _currentProfile.name.isNotEmpty ? _currentProfile.name : 'User';
     _emailController.text = _currentProfile.email ?? '';
     _phoneController.text = _currentProfile.phoneNumber ?? '';
   }
@@ -124,11 +129,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Profile Management Section
-                _buildProfileManagementCard(),
-                
-                const SizedBox(height: 24),
-                
                 // Profile Header
                 _buildProfileHeader(),
                 
@@ -578,7 +578,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'Auto Backup',
             'Automatically backup your data',
             _currentProfile.settings.autoBackup,
-            (value) {
+            (value) async {
               setState(() {
                 _currentProfile = UserProfile(
                   id: _currentProfile.id,
@@ -598,6 +598,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 );
               });
+              
+              // Trigger immediate backup if auto backup is enabled
+              if (value) {
+                try {
+                  final backupService = BackupService();
+                  await backupService.createLocalBackup();
+                  if (mounted) {
+                    showCupertinoDialog(
+                      context: context,
+                      builder: (context) => CupertinoAlertDialog(
+                        title: const Text('✅ Backup Created'),
+                        content: const Text('Your data has been backed up successfully. Auto backup is now enabled.'),
+                        actions: [
+                          CupertinoDialogAction(
+                            child: const Text('OK'),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    showCupertinoDialog(
+                      context: context,
+                      builder: (context) => CupertinoAlertDialog(
+                        title: const Text('⚠️ Backup Failed'),
+                        content: Text('Failed to create backup: ${e.toString()}'),
+                        actions: [
+                          CupertinoDialogAction(
+                            child: const Text('OK'),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                }
+              }
             },
           ),
         ],
