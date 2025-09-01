@@ -63,6 +63,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
         _nameController.text = displayName;
       });
+    } else {
+      // Offline mode - load from local storage
+      _loadFromLocalStorage();
+    }
+  }
+
+  /// Load profile data from local storage (offline mode)
+  Future<void> _loadFromLocalStorage() async {
+    try {
+      final activeProfile = await UserProfileService.getActiveProfile();
+      if (activeProfile != null) {
+        setState(() {
+          _currentProfile = activeProfile;
+          _nameController.text = activeProfile.name;
+          _emailController.text = activeProfile.email ?? '';
+          _phoneController.text = activeProfile.phoneNumber ?? '';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading from local storage: $e');
     }
   }
 
@@ -854,11 +874,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         settings: _currentProfile.settings,
       );
 
-      // Update Firebase user displayName if user is signed in
+      // Update Firebase user displayName if user is signed in (online mode)
       final currentUser = _authService.currentUser;
       if (currentUser != null && _nameController.text.trim().isNotEmpty) {
-        await _authService.updateUserProfile(name: _nameController.text.trim());
+        try {
+          await _authService.updateUserProfile(name: _nameController.text.trim());
+          debugPrint('Firebase displayName updated successfully');
+        } catch (e) {
+          debugPrint('Warning: Failed to update Firebase displayName: $e');
+          // Continue with local save even if Firebase update fails
+        }
       }
+
+      // Always save to local storage (works for both online and offline modes)
+      await UserProfileService.saveUserProfile(updatedProfile);
+      await UserProfileService.setActiveProfile(updatedProfile);
 
       setState(() {
         _currentProfile = updatedProfile;
@@ -871,7 +901,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           context: context,
           builder: (context) => CupertinoAlertDialog(
             title: const Text('Profile Saved'),
-            content: const Text('Your profile has been updated successfully.'),
+            content: const Text('Your profile has been updated successfully and will persist across app sessions.'),
             actions: [
               CupertinoDialogAction(
                 child: const Text('OK'),

@@ -91,7 +91,7 @@ class AuthWrapperService {
       UserProfile? profile = await _loadProfileForUser(user.uid);
       
       if (profile == null) {
-        // Create new profile for this user
+        // Create new profile for this user using Firebase displayName
         profile = await UserProfileService.createProfile(
           name: user.displayName ?? user.email?.split('@').first ?? 'User',
           email: user.email,
@@ -101,6 +101,12 @@ class AuthWrapperService {
         await _linkProfileWithUser(profile, user.uid);
         debugPrint('AuthWrapperService: Created new profile for user: ${profile.name}');
       } else {
+        // Update existing profile with latest Firebase displayName if available
+        if (user.displayName != null && user.displayName!.isNotEmpty && user.displayName != profile.name) {
+          profile = profile.copyWith(name: user.displayName!);
+          await UserProfileService.saveUserProfile(profile);
+          debugPrint('AuthWrapperService: Updated existing profile name to: ${profile.name}');
+        }
         debugPrint('AuthWrapperService: Loaded existing profile: ${profile.name}');
       }
       
@@ -221,11 +227,14 @@ class AuthWrapperService {
       
       _currentFirebaseUser = userCredential.user;
       
-      // Create user profile
+      // Create user profile and set as active (works for both online/offline)
       final profile = await UserProfileService.createProfile(
         name: name,
         email: email,
       );
+      
+      // Set this profile as the active profile in local storage
+      await UserProfileService.setActiveProfile(profile);
       
       // Link profile with Firebase user
       if (_currentFirebaseUser != null) {
