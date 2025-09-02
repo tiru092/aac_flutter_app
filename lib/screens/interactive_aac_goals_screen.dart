@@ -21,7 +21,8 @@ class _InteractiveAACGoalsScreenState extends State<InteractiveAACGoalsScreen>
   // Goal categories with interactive activities
   final List<Map<String, dynamic>> _interactiveGoals = [
     {
-      'title': '🤲 Request Items',
+      'title': 'Request Items',
+      'emoji': '🤲',
       'color': Colors.green,
       'description': 'Learn to ask for things you want',
       'type': 'request',
@@ -35,7 +36,8 @@ class _InteractiveAACGoalsScreenState extends State<InteractiveAACGoalsScreen>
       ]
     },
     {
-      'title': '👋 Greetings',
+      'title': 'Greetings',
+      'emoji': '👋',
       'color': Colors.blue,
       'description': 'Say hello and goodbye',
       'type': 'greetings',
@@ -49,7 +51,8 @@ class _InteractiveAACGoalsScreenState extends State<InteractiveAACGoalsScreen>
       ]
     },
     {
-      'title': '💭 Comments',
+      'title': 'Comments',
+      'emoji': '💭',
       'color': Colors.orange,
       'description': 'Share your thoughts and feelings',
       'type': 'comments',
@@ -63,7 +66,8 @@ class _InteractiveAACGoalsScreenState extends State<InteractiveAACGoalsScreen>
       ]
     },
     {
-      'title': '❓ Questions',
+      'title': 'Questions',
+      'emoji': '❓',
       'color': Colors.purple,
       'description': 'Ask questions to learn more',
       'type': 'questions',
@@ -77,7 +81,8 @@ class _InteractiveAACGoalsScreenState extends State<InteractiveAACGoalsScreen>
       ]
     },
     {
-      'title': '✋ Protest/Reject',
+      'title': 'Protest/Reject',
+      'emoji': '✋',
       'color': Colors.red,
       'description': 'Say no when you don\'t want something',
       'type': 'protest',
@@ -91,7 +96,8 @@ class _InteractiveAACGoalsScreenState extends State<InteractiveAACGoalsScreen>
       ]
     },
     {
-      'title': '😊 Emotions',
+      'title': 'Emotions',
+      'emoji': '😊',
       'color': Colors.pink,
       'description': 'Tell others how you feel',
       'type': 'emotions',
@@ -320,75 +326,82 @@ class _InteractiveAACGoalsScreenState extends State<InteractiveAACGoalsScreen>
   }
 
   Widget _buildGoalTabs() {
-    return Container(
-      height: 80,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _interactiveGoals.length,
-        itemBuilder: (context, index) {
-          final goal = _interactiveGoals[index];
-          final isSelected = index == _selectedGoalIndex;
-          
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedGoalIndex = index;
-                _messageBuilder.clear(); // Clear message when switching goals
-              });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              margin: const EdgeInsets.only(right: 12),
-              width: 120,
-              decoration: BoxDecoration(
-                color: isSelected ? goal['color'] : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: goal['color'],
-                  width: 2,
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: goal['color'].withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLandscape = constraints.maxWidth > constraints.maxHeight;
+        final screenWidth = constraints.maxWidth;
+        
+        // Calculate dynamic tab width based on screen size
+        final tabWidth = isLandscape ? screenWidth * 0.15 : screenWidth * 0.25;
+        final tabHeight = isLandscape ? 70.0 : 85.0;
+        
+        return Container(
+          height: tabHeight,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.02),
+            itemCount: _interactiveGoals.length,
+            itemBuilder: (context, index) {
+              final goal = _interactiveGoals[index];
+              final isSelected = index == _selectedGoalIndex;
+              
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedGoalIndex = index;
+                    _messageBuilder.clear(); // Clear message when switching goals
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  margin: EdgeInsets.only(right: screenWidth * 0.02),
+                  width: tabWidth,
+                  decoration: BoxDecoration(
+                    color: isSelected ? goal['color'] : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: goal['color'],
+                      width: 2,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: goal['color'].withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        goal['emoji'],
+                        style: TextStyle(
+                          fontSize: isLandscape ? 16 : 18,
                         ),
-                      ]
-                    : null,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    goal['title'],
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.white : goal['color'],
-                    ),
-                    textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        goal['title'],
+                        style: TextStyle(
+                          fontSize: isLandscape ? 11 : 12,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected ? Colors.white : goal['color'],
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    goal['description'],
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isSelected
-                          ? Colors.white.withOpacity(0.9)
-                          : Colors.grey,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -440,17 +453,39 @@ class _InteractiveAACGoalsScreenState extends State<InteractiveAACGoalsScreen>
           
           // Symbol Grid
           Expanded(
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 1.0,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: symbols.length,
-              itemBuilder: (context, index) {
-                final symbol = symbols[index];
-                return _buildSymbolCard(symbol);
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isLandscape = constraints.maxWidth > constraints.maxHeight;
+                final screenWidth = constraints.maxWidth;
+                
+                // Dynamic column calculation for better space utilization
+                int crossAxisCount;
+                if (isLandscape) {
+                  // In landscape: Always show exactly 3 columns
+                  crossAxisCount = 3;
+                } else {
+                  // In portrait: 2 columns for larger layout size
+                  crossAxisCount = 2;
+                }
+
+                // Adjust spacing and padding based on screen size
+                final spacing = isLandscape ? screenWidth * 0.02 : screenWidth * 0.04;
+
+                return GridView.builder(
+                  physics: const BouncingScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: spacing,
+                    mainAxisSpacing: spacing,
+                    // Adjust aspect ratio for consistent sizing
+                    childAspectRatio: isLandscape ? 1.2 : 1.1,
+                  ),
+                  itemCount: symbols.length,
+                  itemBuilder: (context, index) {
+                    final symbol = symbols[index];
+                    return _buildSymbolCard(symbol);
+                  },
+                );
               },
             ),
           ),
@@ -460,53 +495,70 @@ class _InteractiveAACGoalsScreenState extends State<InteractiveAACGoalsScreen>
   }
 
   Widget _buildSymbolCard(Map<String, dynamic> symbol) {
-    return ScaleTransition(
-      scale: _bounceAnimation,
-      child: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: () => _addToMessage(symbol['text'], symbol['image']),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLandscape = constraints.maxWidth > constraints.maxHeight;
+        final cardWidth = constraints.maxWidth;
+        final cardHeight = constraints.maxHeight;
+        
+        // Calculate responsive sizes
+        final emojiSize = isLandscape ? cardWidth * 0.35 : cardWidth * 0.4;
+        final fontSize = isLandscape ? cardWidth * 0.08 : cardWidth * 0.09;
+        
+        return ScaleTransition(
+          scale: _bounceAnimation,
+          child: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => _addToMessage(symbol['text'], symbol['image']),
+            child: Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                border: Border.all(
+                  color: _interactiveGoals[_selectedGoalIndex]['color'].withOpacity(0.3),
+                  width: 2,
+                ),
               ),
-            ],
-            border: Border.all(
-              color: _interactiveGoals[_selectedGoalIndex]['color'].withOpacity(0.3),
-              width: 2,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Large emoji/icon - responsive size
+                  Text(
+                    symbol['image'],
+                    style: TextStyle(fontSize: emojiSize.clamp(24, 48)),
+                  ),
+                  SizedBox(height: cardHeight * 0.08),
+                  
+                  // Text label - responsive size
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: cardWidth * 0.1),
+                    child: Text(
+                      symbol['text'],
+                      style: TextStyle(
+                        fontSize: fontSize.clamp(10, 14),
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Large emoji/icon
-              Text(
-                symbol['image'],
-                style: const TextStyle(fontSize: 40),
-              ),
-              const SizedBox(height: 8),
-              
-              // Text label
-              Text(
-                symbol['text'],
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 
