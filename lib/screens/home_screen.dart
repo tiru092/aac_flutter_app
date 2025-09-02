@@ -13,6 +13,8 @@ import '../utils/aac_helper.dart';
 import '../utils/sample_data.dart';
 import '../services/user_profile_service.dart';
 import '../screens/enhanced_goals_screen.dart';
+import '../screens/aac_learning_goals_screen.dart';
+import '../screens/interactive_aac_goals_screen.dart';
 import '../services/secure_encryption_service.dart';
 import 'accessibility_settings_screen.dart';
 import 'add_symbol_screen.dart';
@@ -769,7 +771,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       CupertinoPageRoute(
-        builder: (context) => const EnhancedGoalsScreen(),
+        builder: (context) => const InteractiveAACGoalsScreen(),
       ),
     );
   }

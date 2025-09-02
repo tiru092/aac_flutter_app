@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/goal_models.dart';
+import '../models/practice_goal.dart';
 
 class PracticeScreen extends StatefulWidget {
-  final Goal goal;
+  final PracticeGoal goal;
   
   const PracticeScreen({
     super.key,
@@ -21,6 +22,26 @@ class _PracticeScreenState extends State<PracticeScreen>
   late AnimationController _animationController;
   late List<Animation<double>> _cardAnimations;
   late Animation<double> _headerAnimation;
+
+  Color _parseColor(String colorString) {
+    // Handle color strings like "0xFF2196F3" or hex colors
+    if (colorString.startsWith('0x')) {
+      return Color(int.parse(colorString));
+    } else if (colorString.startsWith('#')) {
+      return Color(int.parse(colorString.substring(1), radix: 16) + 0xFF000000);
+    } else {
+      // Default color mapping
+      switch (colorString.toLowerCase()) {
+        case 'blue': return const Color(0xFF2196F3);
+        case 'green': return const Color(0xFF4CAF50);
+        case 'orange': return const Color(0xFFFF9800);
+        case 'purple': return const Color(0xFF9C27B0);
+        case 'red': return const Color(0xFFE91E63);
+        case 'teal': return const Color(0xFF009688);
+        default: return const Color(0xFF2196F3);
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -43,7 +64,7 @@ class _PracticeScreenState extends State<PracticeScreen>
     );
 
     _cardAnimations = List.generate(
-      widget.goal.practices.length,
+      widget.goal.activities.length,
       (index) => Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
           parent: _animationController,
@@ -71,7 +92,7 @@ class _PracticeScreenState extends State<PracticeScreen>
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: Color(widget.goal.colorValue).withOpacity(0.9),
+        backgroundColor: _parseColor(widget.goal.color).withOpacity(0.9),
         middle: Text(
           widget.goal.name,
           style: GoogleFonts.nunito(
@@ -94,7 +115,7 @@ class _PracticeScreenState extends State<PracticeScreen>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(widget.goal.colorValue).withOpacity(0.1),
+              _parseColor(widget.goal.color).withOpacity(0.1),
               Colors.white,
             ],
           ),
