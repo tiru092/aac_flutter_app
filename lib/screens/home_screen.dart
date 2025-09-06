@@ -14,9 +14,12 @@ import '../utils/sample_data.dart';
 import '../services/user_profile_service.dart';
 import '../screens/enhanced_goals_screen.dart';
 import '../screens/aac_learning_goals_screen.dart';
-import '../screens/interactive_aac_goals_screen.dart';
-import '../screens/interactive_fun_screen.dart';
+import '../screens/professional_therapeutic_goals_screen.dart';
+import '../screens/professional_communication_coach_screen.dart';
+import '../screens/favorites_screen.dart';
+import '../services/favorites_service.dart';
 import '../services/secure_encryption_service.dart';
+import '../services/aac_analytics_service.dart';
 import 'accessibility_settings_screen.dart';
 import 'add_symbol_screen.dart';
 import 'profile_screen.dart';
@@ -51,6 +54,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _servicesInitialized = false; // Track service initialization
   String _searchQuery = ''; // Add search query state
   final TextEditingController _searchController = TextEditingController(); // Add search controller
+  
+  // Favorites service for tracking user preferences
+  final FavoritesService _favoritesService = FavoritesService();
   
   // Speech control values
   double _speechRate = 0.5;
@@ -133,6 +139,22 @@ class _HomeScreenState extends State<HomeScreen> {
         debugPrint('TTS initialized (background)');
       } catch (e) {
         debugPrint('TTS skipped: $e');
+      }
+      
+      // Initialize AAC Analytics Service
+      try {
+        await AACAnalyticsService().initialize();
+        debugPrint('AAC Analytics Service initialized (background)');
+      } catch (e) {
+        debugPrint('AAC Analytics Service skipped: $e');
+      }
+      
+      // Initialize Favorites Service
+      try {
+        await _favoritesService.initialize();
+        debugPrint('Favorites Service initialized (background)');
+      } catch (e) {
+        debugPrint('Favorites Service skipped: $e');
       }
       
       debugPrint('All background services completed');
@@ -465,10 +487,26 @@ class _HomeScreenState extends State<HomeScreen> {
       
       // Try to speak in background, don't wait for it
       _trySpeak(symbol.label);
+      
+      // Record usage in favorites (non-blocking)
+      _recordSymbolUsage(symbol);
     } catch (e) {
       print('Error in symbol tap: $e');
       // Even if setState fails, don't block UI
     }
+  }
+
+  // Record symbol usage in favorites (non-blocking background operation)
+  void _recordSymbolUsage(Symbol symbol, {String action = 'tapped'}) {
+    // Don't await this - let it run in background
+    () async {
+      try {
+        await _favoritesService.recordUsage(symbol, action: action);
+      } catch (e) {
+        // Ignore errors - don't block UI
+        print('Favorites recording failed (ignored): $e');
+      }
+    }();
   }
 
   // Non-blocking speak attempt
@@ -489,6 +527,11 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_selectedSymbols.isNotEmpty) {
         final sentence = _selectedSymbols.map((s) => s.label).join(' ');
         _trySpeak(sentence);
+        
+        // Record each symbol as spoken in a sentence (non-blocking)
+        for (final symbol in _selectedSymbols) {
+          _recordSymbolUsage(symbol, action: 'spoken');
+        }
       }
     } catch (e) {
       print('Error in speak sentence: $e');
@@ -772,7 +815,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       CupertinoPageRoute(
-        builder: (context) => const InteractiveAACGoalsScreen(),
+        builder: (context) => const FavoritesScreen(),
       ),
     );
   }
@@ -781,7 +824,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       CupertinoPageRoute(
-        builder: (context) => const InteractiveFunScreen(),
+        builder: (context) => const ProfessionalCommunicationCoachScreen(),
       ),
     );
   }
@@ -974,65 +1017,72 @@ class _HomeScreenState extends State<HomeScreen> {
                             SizedBox(width: screenWidth * 0.015),
                             
                             // Right side controls (compact horizontal layout)
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Quick Phrases toggle
-                                _buildTopControlButton(
-                                  icon: CupertinoIcons.chat_bubble_2_fill,
-                                  isActive: _showQuickPhrases,
-                                  onPressed: _toggleQuickPhrases,
-                                  screenWidth: screenWidth,
-                                  isLandscape: isLandscape,
-                                ),
-                                SizedBox(width: screenWidth * 0.01),
-                                
-                                // Speech Controls toggle
-                                _buildTopControlButton(
-                                  icon: CupertinoIcons.waveform,
-                                  isActive: _showSpeechControls,
-                                  onPressed: _toggleSpeechControls,
-                                  screenWidth: screenWidth,
-                                  isLandscape: isLandscape,
-                                ),
-                                SizedBox(width: screenWidth * 0.01),
-                                
-                                // Search bar (compact)
-                                SizedBox(
-                                  width: screenWidth * (isLandscape ? 0.25 : 0.35),
-                                  child: _buildSearchBar(),
-                                ),
-                                SizedBox(width: screenWidth * 0.01),
-                                
-                                // Goals button
-                                _buildTopControlButton(
-                                  icon: CupertinoIcons.star_circle_fill,
-                                  isActive: false,
-                                  onPressed: _openGoalsScreen,
-                                  screenWidth: screenWidth,
-                                  isLandscape: isLandscape,
-                                ),
-                                SizedBox(width: screenWidth * 0.01),
-                                
-                                // Interactive Fun button
-                                _buildTopControlButton(
-                                  icon: CupertinoIcons.gamecontroller,
-                                  isActive: false,
-                                  onPressed: _openInteractiveFun,
-                                  screenWidth: screenWidth,
-                                  isLandscape: isLandscape,
-                                ),
-                                SizedBox(width: screenWidth * 0.01),
-                                
-                                // Settings button
-                                _buildTopControlButton(
-                                  icon: CupertinoIcons.settings,
-                                  isActive: false,
-                                  onPressed: _openSettings,
-                                  screenWidth: screenWidth,
-                                  isLandscape: isLandscape,
-                                ),
-                              ],
+                            Flexible(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Quick Phrases toggle
+                                  _buildTopControlButton(
+                                    icon: CupertinoIcons.chat_bubble_2_fill,
+                                    isActive: _showQuickPhrases,
+                                    onPressed: _toggleQuickPhrases,
+                                    screenWidth: screenWidth,
+                                    isLandscape: isLandscape,
+                                  ),
+                                  SizedBox(width: screenWidth * 0.008),
+                                  
+                                  // Speech Controls toggle
+                                  _buildTopControlButton(
+                                    icon: CupertinoIcons.waveform,
+                                    isActive: _showSpeechControls,
+                                    onPressed: _toggleSpeechControls,
+                                    screenWidth: screenWidth,
+                                    isLandscape: isLandscape,
+                                  ),
+                                  SizedBox(width: screenWidth * 0.008),
+                                  
+                                  // Search bar (compact)
+                                  Flexible(
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth: screenWidth * (isLandscape ? 0.25 : 0.30),
+                                        minWidth: screenWidth * 0.15,
+                                      ),
+                                      child: _buildSearchBar(),
+                                    ),
+                                  ),
+                                  SizedBox(width: screenWidth * 0.008),
+                                  
+                                  // Favorites & History button
+                                  _buildTopControlButton(
+                                    icon: CupertinoIcons.heart_fill,
+                                    isActive: false,
+                                    onPressed: _openGoalsScreen,
+                                    screenWidth: screenWidth,
+                                    isLandscape: isLandscape,
+                                  ),
+                                  SizedBox(width: screenWidth * 0.008),
+                                  
+                                  // Professional Communication Coach button
+                                  _buildTopControlButton(
+                                    icon: CupertinoIcons.person_2_alt,
+                                    isActive: false,
+                                    onPressed: _openInteractiveFun,
+                                    screenWidth: screenWidth,
+                                    isLandscape: isLandscape,
+                                  ),
+                                  SizedBox(width: screenWidth * 0.008),
+                                  
+                                  // Settings button
+                                  _buildTopControlButton(
+                                    icon: CupertinoIcons.settings,
+                                    isActive: false,
+                                    onPressed: _openSettings,
+                                    screenWidth: screenWidth,
+                                    isLandscape: isLandscape,
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         );

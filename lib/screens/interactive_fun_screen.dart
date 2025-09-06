@@ -236,41 +236,56 @@ class _InteractiveFunScreenState extends State<InteractiveFunScreen>
     required VoidCallback onTap,
     Color? color,
   }) {
-    return ScaleTransition(
-      scale: _popAnimation,
-      child: GestureDetector(
-        onTap: () {
-          _triggerPopAnimation(text);
-          onTap();
-        },
-        child: Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            color: color ?? Colors.blue.shade100,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final screenHeight = MediaQuery.of(context).size.height;
+        final isLandscape = screenWidth > screenHeight;
+        
+        // Make buttons much larger and responsive like main page
+        final buttonSize = isLandscape 
+            ? (screenWidth * 0.15).clamp(120.0, 180.0)
+            : (screenWidth * 0.2).clamp(140.0, 200.0);
+        final emojiSize = buttonSize * 0.35;
+        final textSize = (buttonSize * 0.08).clamp(12.0, 16.0);
+        
+        return ScaleTransition(
+          scale: _popAnimation,
+          child: GestureDetector(
+            onTap: () {
+              _triggerPopAnimation(text);
+              onTap();
+            },
+            child: Container(
+              width: buttonSize,
+              height: buttonSize,
+              decoration: BoxDecoration(
+                color: color ?? Colors.blue.shade100,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 32)),
-              const SizedBox(height: 4),
-              Text(
-                text,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(emoji, style: TextStyle(fontSize: emojiSize)),
+                  SizedBox(height: buttonSize * 0.05),
+                  Text(
+                    text,
+                    style: TextStyle(fontSize: textSize, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -414,35 +429,51 @@ class _InteractiveFunScreenState extends State<InteractiveFunScreen>
           const Text('Tap the symbols to see them pop and hear their sounds!'),
           const SizedBox(height: 16),
           
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: [
-              _buildPopButton(
-                text: 'Happy',
-                emoji: '😊',
-                onTap: () {},
-                color: Colors.yellow.shade100,
-              ),
-              _buildPopButton(
-                text: 'Cookie',
-                emoji: '🍪',
-                onTap: () {},
-                color: Colors.brown.shade100,
-              ),
-              _buildPopButton(
-                text: 'Music',
-                emoji: '🎵',
-                onTap: () {},
-                color: Colors.purple.shade100,
-              ),
-              _buildPopButton(
-                text: 'Heart',
-                emoji: '❤️',
-                onTap: () {},
-                color: Colors.red.shade100,
-              ),
-            ],
+          // Responsive grid layout matching main page
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final screenWidth = MediaQuery.of(context).size.width;
+              final screenHeight = MediaQuery.of(context).size.height;
+              final isLandscape = screenWidth > screenHeight;
+              
+              final crossAxisCount = isLandscape ? 4 : 2;
+              final spacing = screenWidth * 0.02;
+              
+              return GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: crossAxisCount,
+                childAspectRatio: 1.0,
+                crossAxisSpacing: spacing,
+                mainAxisSpacing: spacing,
+                children: [
+                  _buildPopButton(
+                    text: 'Happy',
+                    emoji: '😊',
+                    onTap: () {},
+                    color: Colors.yellow.shade100,
+                  ),
+                  _buildPopButton(
+                    text: 'Cookie',
+                    emoji: '🍪',
+                    onTap: () {},
+                    color: Colors.brown.shade100,
+                  ),
+                  _buildPopButton(
+                    text: 'Music',
+                    emoji: '🎵',
+                    onTap: () {},
+                    color: Colors.purple.shade100,
+                  ),
+                  _buildPopButton(
+                    text: 'Heart',
+                    emoji: '❤️',
+                    onTap: () {},
+                    color: Colors.red.shade100,
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -477,69 +508,85 @@ class _InteractiveFunScreenState extends State<InteractiveFunScreen>
           // Available routine items
           const Text('Available Activities:', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          SizedBox(
-            height: 80,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: _routineItems.length,
-              itemBuilder: (context, index) {
-                final item = _routineItems[index];
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Draggable<Map<String, String>>(
-                    data: item,
-                    feedback: Material(
-                      color: Colors.transparent,
-                      child: Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 8,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final screenWidth = MediaQuery.of(context).size.width;
+              final screenHeight = MediaQuery.of(context).size.height;
+              final isLandscape = screenWidth > screenHeight;
+              
+              final itemSize = isLandscape 
+                  ? (screenWidth * 0.08).clamp(80.0, 120.0)
+                  : (screenWidth * 0.12).clamp(90.0, 130.0);
+              final emojiSize = itemSize * 0.4;
+              final textSize = (itemSize * 0.08).clamp(8.0, 12.0);
+              
+              return SizedBox(
+                height: itemSize + 20,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _routineItems.length,
+                  itemBuilder: (context, index) {
+                    final item = _routineItems[index];
+                    return Padding(
+                      padding: EdgeInsets.only(right: screenWidth * 0.02),
+                      child: Draggable<Map<String, String>>(
+                        data: item,
+                        feedback: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            width: itemSize,
+                            height: itemSize,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 8,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(item['emoji']!, style: const TextStyle(fontSize: 24)),
-                            Text(
-                              item['name']!,
-                              style: const TextStyle(fontSize: 8),
-                              textAlign: TextAlign.center,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(item['emoji']!, style: TextStyle(fontSize: emojiSize)),
+                                SizedBox(height: itemSize * 0.02),
+                                Text(
+                                  item['name']!,
+                                  style: TextStyle(fontSize: textSize),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    child: Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.shade300),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(item['emoji']!, style: const TextStyle(fontSize: 20)),
-                          Text(
-                            item['name']!,
-                            style: const TextStyle(fontSize: 8),
-                            textAlign: TextAlign.center,
                           ),
-                        ],
+                        ),
+                        child: Container(
+                          width: itemSize,
+                          height: itemSize,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.blue.shade300),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(item['emoji']!, style: TextStyle(fontSize: emojiSize)),
+                              SizedBox(height: itemSize * 0.02),
+                              Text(
+                                item['name']!,
+                                style: TextStyle(fontSize: textSize),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                );
-              },
-            ),
+                    );
+                  },
+                ),
+              );
+            },
           ),
           const SizedBox(height: 16),
           
@@ -655,101 +702,116 @@ class _InteractiveFunScreenState extends State<InteractiveFunScreen>
           const Text('Drag each shape to its matching item!'),
           const SizedBox(height: 16),
           
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-            ),
-            itemCount: _shapeSorterItems.length,
-            itemBuilder: (context, index) {
-              final key = _shapeSorterItems.keys.elementAt(index);
-              final item = _shapeSorterItems[key]!;
-              final isMatched = _shapesMatched[key]!;
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final screenWidth = MediaQuery.of(context).size.width;
+              final screenHeight = MediaQuery.of(context).size.height;
+              final isLandscape = screenWidth > screenHeight;
               
-              return Row(
-                children: [
-                  // Draggable shape
-                  Expanded(
-                    child: isMatched 
-                        ? Container(
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade200,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Center(
-                              child: Text('✓', style: TextStyle(fontSize: 32, color: Colors.green.shade800)),
-                            ),
-                          )
-                        : Draggable<String>(
-                            data: key,
-                            feedback: Material(
-                              color: Colors.transparent,
-                              child: Container(
-                                width: 50,
-                                height: 50,
+              final crossAxisCount = isLandscape ? 2 : 1;
+              final itemHeight = isLandscape 
+                  ? (screenWidth * 0.15).clamp(100.0, 150.0)
+                  : (screenWidth * 0.2).clamp(120.0, 180.0);
+              final shapeSize = itemHeight * 0.6;
+              final spacing = screenWidth * 0.02;
+              
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  childAspectRatio: 2.5,
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: spacing,
+                ),
+                itemCount: _shapeSorterItems.length,
+                itemBuilder: (context, index) {
+                  final key = _shapeSorterItems.keys.elementAt(index);
+                  final item = _shapeSorterItems[key]!;
+                  final isMatched = _shapesMatched[key]!;
+                  
+                  return Row(
+                    children: [
+                      // Draggable shape
+                      Expanded(
+                        child: isMatched 
+                            ? Container(
+                                height: itemHeight,
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: Colors.green.shade200,
                                   borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.2),
-                                      blurRadius: 8,
-                                    ),
-                                  ],
                                 ),
                                 child: Center(
-                                  child: Text(item['shape']!, style: const TextStyle(fontSize: 32)),
+                                  child: Text('✓', style: TextStyle(fontSize: shapeSize * 0.8, color: Colors.green.shade800)),
+                                ),
+                              )
+                            : Draggable<String>(
+                                data: key,
+                                feedback: Material(
+                                  color: Colors.transparent,
+                                  child: Container(
+                                    width: itemHeight * 0.8,
+                                    height: itemHeight * 0.8,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.2),
+                                          blurRadius: 8,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Center(
+                                      child: Text(item['shape']!, style: TextStyle(fontSize: shapeSize)),
+                                    ),
+                                  ),
+                                ),
+                                child: Container(
+                                  height: itemHeight,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.green.shade300),
+                                  ),
+                                  child: Center(
+                                    child: Text(item['shape']!, style: TextStyle(fontSize: shapeSize)),
+                                  ),
                                 ),
                               ),
-                            ),
-                            child: Container(
-                              height: 60,
+                      ),
+                      
+                      SizedBox(width: spacing * 2),
+                      
+                      // Drop target
+                      Expanded(
+                        child: DragTarget<String>(
+                          onAccept: (draggedKey) => _matchShape(draggedKey, key),
+                          builder: (context, candidateData, rejectedData) {
+                            return Container(
+                              height: itemHeight,
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: candidateData.isNotEmpty 
+                                    ? Colors.yellow.shade100 
+                                    : (isMatched ? Colors.green.shade200 : Colors.grey.shade100),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.green.shade300),
+                                border: Border.all(
+                                  color: candidateData.isNotEmpty 
+                                      ? Colors.yellow.shade400 
+                                      : (isMatched ? Colors.green.shade400 : Colors.grey.shade400),
+                                  width: 2,
+                                ),
                               ),
                               child: Center(
-                                child: Text(item['shape']!, style: const TextStyle(fontSize: 32)),
+                                child: Text(item['target']!, style: TextStyle(fontSize: shapeSize)),
                               ),
-                            ),
-                          ),
-                  ),
-                  
-                  const SizedBox(width: 16),
-                  
-                  // Drop target
-                  Expanded(
-                    child: DragTarget<String>(
-                      onAccept: (draggedKey) => _matchShape(draggedKey, key),
-                      builder: (context, candidateData, rejectedData) {
-                        return Container(
-                          height: 60,
-                          decoration: BoxDecoration(
-                            color: candidateData.isNotEmpty 
-                                ? Colors.yellow.shade100 
-                                : (isMatched ? Colors.green.shade200 : Colors.grey.shade100),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: candidateData.isNotEmpty 
-                                  ? Colors.yellow.shade400 
-                                  : (isMatched ? Colors.green.shade400 : Colors.grey.shade400),
-                              width: 2,
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(item['target']!, style: const TextStyle(fontSize: 32)),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
               );
             },
           ),
@@ -785,28 +847,46 @@ class _InteractiveFunScreenState extends State<InteractiveFunScreen>
           const SizedBox(height: 16),
           
           // Story content
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.pink.shade200),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  currentPage['image'],
-                  style: const TextStyle(fontSize: 64),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final screenWidth = MediaQuery.of(context).size.width;
+              final screenHeight = MediaQuery.of(context).size.height;
+              final isLandscape = screenWidth > screenHeight;
+              
+              final imageSize = isLandscape 
+                  ? (screenWidth * 0.12).clamp(80.0, 120.0)
+                  : (screenWidth * 0.2).clamp(100.0, 150.0);
+              final textSize = isLandscape 
+                  ? (screenWidth * 0.025).clamp(16.0, 22.0)
+                  : (screenWidth * 0.04).clamp(18.0, 24.0);
+              final paddingSize = isLandscape 
+                  ? screenWidth * 0.03 
+                  : screenWidth * 0.05;
+              
+              return Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(paddingSize),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.pink.shade200),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  currentPage['text'],
-                  style: const TextStyle(fontSize: 16),
-                  textAlign: TextAlign.center,
+                child: Column(
+                  children: [
+                    Text(
+                      currentPage['image'],
+                      style: TextStyle(fontSize: imageSize),
+                    ),
+                    SizedBox(height: paddingSize * 0.8),
+                    Text(
+                      currentPage['text'],
+                      style: TextStyle(fontSize: textSize),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
           const SizedBox(height: 16),
           
@@ -923,19 +1003,31 @@ class _InteractiveFunScreenState extends State<InteractiveFunScreen>
           const Text('Coming soon: Interactive videos about emotions, routines, and social skills!'),
           const SizedBox(height: 16),
           
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            childAspectRatio: 1.2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            children: [
-              _buildVideoThumbnail('Emotions', '😊', 'Learn about feelings'),
-              _buildVideoThumbnail('Daily Routine', '⏰', 'Morning activities'),
-              _buildVideoThumbnail('Friendship', '👫', 'Making friends'),
-              _buildVideoThumbnail('Safety', '🚦', 'Staying safe'),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final screenWidth = MediaQuery.of(context).size.width;
+              final screenHeight = MediaQuery.of(context).size.height;
+              final isLandscape = screenWidth > screenHeight;
+              
+              final crossAxisCount = isLandscape ? 4 : 2;
+              final aspectRatio = isLandscape ? 1.0 : 1.2;
+              final spacing = screenWidth * 0.02;
+              
+              return GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: crossAxisCount,
+                childAspectRatio: aspectRatio,
+                crossAxisSpacing: spacing,
+                mainAxisSpacing: spacing,
+                children: [
+                  _buildVideoThumbnail('Emotions', '😊', 'Learn about feelings'),
+                  _buildVideoThumbnail('Daily Routine', '⏰', 'Morning activities'),
+                  _buildVideoThumbnail('Friendship', '👫', 'Making friends'),
+                  _buildVideoThumbnail('Safety', '🚦', 'Staying safe'),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -943,45 +1035,64 @@ class _InteractiveFunScreenState extends State<InteractiveFunScreen>
   }
 
   Widget _buildVideoThumbnail(String title, String emoji, String description) {
-    return GestureDetector(
-      onTap: () {
-        showCupertinoDialog(
-          context: context,
-          builder: (context) => CupertinoAlertDialog(
-            title: Text('$emoji $title'),
-            content: Text('$description\n\nVideo feature coming soon!'),
-            actions: [
-              CupertinoDialogAction(
-                child: const Text('OK'),
-                onPressed: () => Navigator.pop(context),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final screenHeight = MediaQuery.of(context).size.height;
+        final isLandscape = screenWidth > screenHeight;
+        
+        final emojiSize = isLandscape 
+            ? (constraints.maxWidth * 0.3).clamp(32.0, 64.0)
+            : (constraints.maxWidth * 0.25).clamp(40.0, 80.0);
+        final titleSize = isLandscape 
+            ? (constraints.maxWidth * 0.08).clamp(12.0, 18.0)
+            : (constraints.maxWidth * 0.1).clamp(14.0, 20.0);
+        final descSize = isLandscape 
+            ? (constraints.maxWidth * 0.06).clamp(10.0, 14.0)
+            : (constraints.maxWidth * 0.08).clamp(12.0, 16.0);
+        
+        return GestureDetector(
+          onTap: () {
+            showCupertinoDialog(
+              context: context,
+              builder: (context) => CupertinoAlertDialog(
+                title: Text('$emoji $title'),
+                content: Text('$description\n\nVideo feature coming soon!'),
+                actions: [
+                  CupertinoDialogAction(
+                    child: const Text('OK'),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
               ),
-            ],
+            );
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.purple.shade200),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(emoji, style: TextStyle(fontSize: emojiSize)),
+                SizedBox(height: constraints.maxHeight * 0.05),
+                Text(
+                  title,
+                  style: TextStyle(fontSize: titleSize, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: constraints.maxHeight * 0.02),
+                Text(
+                  description,
+                  style: TextStyle(fontSize: descSize, color: Colors.grey.shade600),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         );
       },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.purple.shade200),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 32)),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              description,
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
