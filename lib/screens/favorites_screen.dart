@@ -45,6 +45,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     try {
       await _favoritesService.initialize();
       
+      // Load initial data first
+      final initialFavorites = _favoritesService.favoriteSymbols;
+      final initialHistory = _favoritesService.usageHistory;
+      
+      // Update state with initial data immediately
+      if (mounted) {
+        setState(() {
+          _favorites = initialFavorites;
+          _history = initialHistory;
+          _mostUsed = _favoritesService.getMostUsedSymbols(limit: 10);
+        });
+      }
+      
       // Set up real-time streams
       _favoritesSubscription = _favoritesService.favoritesStream.listen((favorites) {
         if (mounted) {
@@ -62,13 +75,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             _mostUsed = _favoritesService.getMostUsedSymbols(limit: 10);
           });
         }
-      });
-      
-      // Load initial data
-      setState(() {
-        _favorites = _favoritesService.favoriteSymbols;
-        _history = _favoritesService.usageHistory;
-        _mostUsed = _favoritesService.getMostUsedSymbols(limit: 10);
       });
       
     } catch (e) {
@@ -285,6 +291,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   Widget _buildSymbolCard(Symbol symbol, {bool showRemoveButton = false, int? usageCount}) {
+    final categoryColor = AACHelper.getCategoryColor(symbol.category);
+    
     return GestureDetector(
       onTap: () => _onSymbolTap(symbol),
       child: Container(
@@ -292,12 +300,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           color: _cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: AACHelper.getCategoryColor(symbol.category).withOpacity(0.3),
+            color: categoryColor.withOpacity(0.3),
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: categoryColor.withOpacity(0.2),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -317,19 +325,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     child: Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: AACHelper.getCategoryColor(symbol.category).withOpacity(0.1),
+                        color: categoryColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: symbol.imagePath.isNotEmpty
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.asset(
-                                symbol.imagePath,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return _buildDefaultIcon(symbol.category);
-                                },
-                              ),
+                              child: _buildSymbolImage(symbol),
                             )
                           : _buildDefaultIcon(symbol.category),
                     ),
@@ -551,20 +553,24 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     if (symbol.imagePath.startsWith('emoji:')) {
       return Center(
         child: Text(
-          symbol.imagePath.substring(6),
-          style: const TextStyle(fontSize: 30),
+          symbol.imagePath.substring(6), // Remove 'emoji:' prefix
+          style: const TextStyle(fontSize: 40),
         ),
       );
     } else if (symbol.imagePath.startsWith('assets/')) {
       return Image.asset(
         symbol.imagePath,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain,
+        semanticLabel: symbol.label,
+        filterQuality: FilterQuality.high,
         errorBuilder: (context, error, stackTrace) => _buildDefaultIcon(symbol.category),
       );
     } else {
       return Image.file(
         File(symbol.imagePath),
-        fit: BoxFit.cover,
+        fit: BoxFit.contain,
+        semanticLabel: symbol.label,
+        filterQuality: FilterQuality.high,
         errorBuilder: (context, error, stackTrace) => _buildDefaultIcon(symbol.category),
       );
     }
@@ -918,15 +924,73 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   void _onSymbolTap(Symbol symbol) async {
     try {
+      // Provide haptic feedback first
+      await AACHelper.accessibleHapticFeedback();
+      
       // Play the symbol
       await AACHelper.speak(symbol.label);
       
       // Record usage
       await _favoritesService.recordUsage(symbol, action: 'played');
       
+      // Show maximized view like the main page
+      _showSymbolPopup(symbol);
+      
     } catch (e) {
       debugPrint('Error playing symbol: $e');
     }
+  }
+
+  void _showSymbolPopup(Symbol symbol) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss symbol view',
+      barrierColor: Colors.black.withOpacity(0.6),
+      transitionDuration: const Duration(milliseconds: 450),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final scaleAnimation = Tween<double>(
+          begin: 0.2,
+          end: 1.0,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutQuint,
+        ));
+        
+        final fadeAnimation = Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        ));
+        
+        return ScaleTransition(
+          scale: scaleAnimation,
+          child: FadeTransition(
+            opacity: fadeAnimation,
+            child: child,
+          ),
+        );
+      },
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              color: Colors.transparent,
+              child: Center(
+                child: GestureDetector(
+                  onTap: () {}, // Prevent tap from bubbling up
+                  child: _SymbolMaximizedView(symbol: symbol),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _playSymbol(Symbol symbol) async {
@@ -1137,6 +1201,280 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     Timer(const Duration(milliseconds: 2500), () {
       overlayEntry.remove();
     });
+  }
+}
+
+class _SymbolMaximizedView extends StatefulWidget {
+  final Symbol symbol;
+
+  const _SymbolMaximizedView({required this.symbol});
+
+  @override
+  State<_SymbolMaximizedView> createState() => _SymbolMaximizedViewState();
+}
+
+class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
+    with TickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.1,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+    
+    // Start pulse animation
+    _pulseController.repeat(reverse: true);
+    
+    // Speak the symbol immediately when maximized
+    AACHelper.speak(widget.symbol.label);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categoryColor = AACHelper.getCategoryColor(widget.symbol.category);
+    final isHighContrast = AACHelper.isHighContrastEnabled;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isLandscape = screenWidth > screenHeight;
+    
+    return Container(
+      margin: EdgeInsets.all(MediaQuery.of(context).size.width * 0.06),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.9,
+        maxHeight: MediaQuery.of(context).size.height * 0.8,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        border: isHighContrast ? Border.all(
+          color: categoryColor,
+          width: 6,
+        ) : null,
+        boxShadow: isHighContrast ? [] : [
+          BoxShadow(
+            color: categoryColor.withOpacity(0.3),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+            spreadRadius: 5,
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with category color and action buttons
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                vertical: isLandscape 
+                  ? MediaQuery.of(context).size.height * 0.012
+                  : MediaQuery.of(context).size.height * 0.015,
+              ),
+              decoration: BoxDecoration(
+                color: categoryColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(30),
+                  topRight: Radius.circular(30),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Action buttons on left
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(width: MediaQuery.of(context).size.width * 0.02),
+                      // Speak Again button
+                      GestureDetector(
+                        onTap: () async {
+                          try {
+                            await AACHelper.accessibleHapticFeedback();
+                            await AACHelper.speak(widget.symbol.label);
+                          } catch (e) {
+                            print('Error speaking symbol: $e');
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF8C00),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF8C00).withOpacity(0.3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.speaker_3_fill,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: MediaQuery.of(context).size.width * 0.015),
+                      // Close button  
+                      GestureDetector(
+                        onTap: () async {
+                          try {
+                            await AACHelper.accessibleHapticFeedback();
+                            Navigator.pop(context);
+                          } catch (e) {
+                            print('Error closing popup: $e');
+                            Navigator.pop(context);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF8C00),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF8C00).withOpacity(0.3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.xmark,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Symbol label in center
+                  Expanded(
+                    child: Text(
+                      widget.symbol.label,
+                      style: TextStyle(
+                        fontSize: MediaQuery.of(context).size.width * 0.06,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                    ),
+                  ),
+                  // Empty space for balance
+                  SizedBox(width: MediaQuery.of(context).size.width * 0.1),
+                ],
+              ),
+            ),
+            
+            // Symbol image with pulse animation
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: MediaQuery.of(context).size.width * 0.04,
+                vertical: MediaQuery.of(context).size.height * 0.015,
+              ),
+              child: AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  final screenWidth = MediaQuery.of(context).size.width;
+                  final screenHeight = MediaQuery.of(context).size.height;
+                  final isLandscape = screenWidth > screenHeight;
+                  
+                  final maxImageSize = isLandscape 
+                    ? screenHeight * 0.6
+                    : screenWidth * 0.75;
+                  final imageSize = maxImageSize.clamp(250.0, 500.0);
+                  
+                  return Transform.scale(
+                    scale: _pulseAnimation.value,
+                    child: Container(
+                      width: imageSize,
+                      height: imageSize,
+                      decoration: BoxDecoration(
+                        color: categoryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(
+                          color: categoryColor.withOpacity(0.3),
+                          width: 3,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: widget.symbol.imagePath.startsWith('emoji:')
+                            ? Center(
+                                child: Text(
+                                  widget.symbol.imagePath.substring(6),
+                                  style: TextStyle(fontSize: imageSize * 0.4),
+                                ),
+                              )
+                            : widget.symbol.imagePath.startsWith('assets/')
+                                ? Image.asset(
+                                    widget.symbol.imagePath,
+                                    fit: BoxFit.contain,
+                                    semanticLabel: widget.symbol.label,
+                                    filterQuality: FilterQuality.high,
+                                    width: imageSize,
+                                    height: imageSize,
+                                  )
+                                : Image.file(
+                                    File(widget.symbol.imagePath),
+                                    fit: BoxFit.contain,
+                                    semanticLabel: widget.symbol.label,
+                                    filterQuality: FilterQuality.high,
+                                    width: imageSize,
+                                    height: imageSize,
+                                  ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            
+            // Description if available
+            if (widget.symbol.description != null && widget.symbol.description!.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: MediaQuery.of(context).size.width * 0.05,
+                  vertical: MediaQuery.of(context).size.height * 0.015,
+                ),
+                child: Text(
+                  widget.symbol.description!,
+                  style: TextStyle(
+                    fontSize: MediaQuery.of(context).size.width * 0.045 * AACHelper.getTextSizeMultiplier(),
+                    color: Colors.grey[700],
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            
+            SizedBox(height: MediaQuery.of(context).size.height * 0.025),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 }
 
