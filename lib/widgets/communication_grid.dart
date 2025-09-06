@@ -946,7 +946,7 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
             width: double.infinity,
             padding: EdgeInsets.symmetric(
               vertical: isLandscape 
-                ? MediaQuery.of(context).size.height * 0.012  // Reduced by 20% for horizontal view
+                ? MediaQuery.of(context).size.height * 0.01   // Reduced by 20% for horizontal view (0.012 * 0.8 = 0.0096 ≈ 0.01)
                 : MediaQuery.of(context).size.height * 0.015, // Keep original for vertical view
             ),
             decoration: BoxDecoration(

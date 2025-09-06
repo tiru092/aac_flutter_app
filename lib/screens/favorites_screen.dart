@@ -91,36 +91,47 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: _backgroundColor,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: _primaryColor,
-        border: null,
-        middle: const Text(
-          'Favorites & History',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        leading: Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: CupertinoButton(
-            padding: const EdgeInsets.all(8),
-            onPressed: () => Navigator.pop(context),
-            child: const Icon(
-              CupertinoIcons.chevron_back,
+    return PopScope(
+      canPop: true,
+      onPopInvoked: (didPop) {
+        if (didPop) {
+          // Ensure we're properly returning to the home screen
+          debugPrint('FavoritesScreen: Back navigation triggered');
+        }
+      },
+      child: CupertinoPageScaffold(
+        backgroundColor: _backgroundColor,
+        navigationBar: CupertinoNavigationBar(
+          backgroundColor: _primaryColor,
+          border: null,
+          middle: const Text(
+            'Favorites & History',
+            style: TextStyle(
               color: Colors.white,
-              size: 24,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
             ),
           ),
+          leading: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: CupertinoButton(
+              padding: const EdgeInsets.all(8),
+              onPressed: () {
+                debugPrint('FavoritesScreen: Back button pressed');
+                Navigator.pop(context);
+              },
+              child: const Icon(
+                CupertinoIcons.chevron_back,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+          ),
+          trailing: _isSelectionMode ? _buildSelectionModeButtons() : _buildClearButton(),
         ),
-        trailing: _isSelectionMode ? _buildSelectionModeButtons() : _buildClearButton(),
-      ),
       child: SafeArea(
         child: Column(
           children: [
@@ -216,7 +227,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             ],
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildClearButton() {
