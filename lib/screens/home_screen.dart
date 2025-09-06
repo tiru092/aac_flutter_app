@@ -637,6 +637,136 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _showMenuOptions() {
+    try {
+      showCupertinoModalPopup(
+        context: context,
+        builder: (context) => CupertinoActionSheet(
+          title: const Text(
+            'Menu',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          message: const Text('Access app features and settings'),
+          actions: [
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(context);
+                _toggleQuickPhrases();
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    CupertinoIcons.chat_bubble_2_fill,
+                    color: _showQuickPhrases ? Color(0xFF4ECDC4) : Colors.grey[600],
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    _showQuickPhrases ? 'Hide Quick Phrases' : 'Show Quick Phrases',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(context);
+                _toggleSpeechControls();
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    CupertinoIcons.waveform,
+                    color: _showSpeechControls ? Color(0xFF4ECDC4) : Colors.grey[600],
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    _showSpeechControls ? 'Hide Speech Controls' : 'Show Speech Controls',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(context);
+                _openInteractiveFun();
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    CupertinoIcons.person_2_alt,
+                    color: Color(0xFF6C63FF),
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Communication Coach',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(context);
+                _openSettings();
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    CupertinoIcons.settings,
+                    color: Colors.grey,
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Settings',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: CupertinoColors.destructiveRed,
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Error showing menu options: $e');
+      _showErrorDialog('Failed to show menu options');
+    }
+  }
+
   void _showProfileSwitcher() async {
     try {
       // Get all available profiles
@@ -946,151 +1076,166 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               child: Column(
                 children: [
-                  // Top row: + symbol (top left), communication words area, and top controls
-                  Padding(
-                    padding: _getResponsivePadding(context),
-                    child: LayoutBuilder(
-                      builder: (context, topConstraints) {
-                        final screenWidth = topConstraints.maxWidth;
-                        final screenHeight = MediaQuery.of(context).size.height;
-                        final isLandscape = screenWidth > screenHeight;
-                        
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // + Symbol button (top left corner)
-                            Container(
-                              width: screenWidth * (isLandscape ? 0.06 : 0.08),
-                              height: screenWidth * (isLandscape ? 0.06 : 0.08),
-                              margin: EdgeInsets.only(right: screenWidth * 0.015),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFF6C63FF), Color(0xFF4ECDC4)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
+                  // Top row: only show in portrait mode
+                  if (!MediaQuery.of(context).orientation.isLandscape)
+                    Padding(
+                      padding: _getResponsivePadding(context),
+                      child: LayoutBuilder(
+                        builder: (context, topConstraints) {
+                          final screenWidth = topConstraints.maxWidth;
+                          final screenHeight = MediaQuery.of(context).size.height;
+                          final isLandscape = screenWidth > screenHeight;
+                          
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // + Symbol button (top left corner) - only in portrait
+                              if (!isLandscape) ...[
+                                Container(
+                                  width: screenWidth * 0.08,
+                                  height: screenWidth * 0.08,
+                                  margin: EdgeInsets.only(right: screenWidth * 0.015),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFF6C63FF), Color(0xFF4ECDC4)],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFF6C63FF).withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: CupertinoButton(
+                                      padding: EdgeInsets.zero,
+                                      onPressed: () async {
+                                        try {
+                                          // Navigate to Add Symbol screen with full functionality
+                                          final Symbol? newSymbol = await Navigator.push(
+                                            context,
+                                            CupertinoPageRoute(
+                                              builder: (context) => const AddSymbolScreen(),
+                                            ),
+                                          );
+                                          
+                                          // If user created a new symbol, add it to our symbols list
+                                          if (newSymbol != null && mounted) {
+                                            setState(() {
+                                              _allSymbols.add(newSymbol);
+                                              
+                                              // Also refresh custom categories in case a new category was created
+                                              _refreshCustomCategories();
+                                            });
+                                          }
+                                        } catch (e) {
+                                          _showErrorDialog('Error opening Add Symbol screen: $e');
+                                        }
+                                      },
+                                      child: Icon(
+                                        CupertinoIcons.add,
+                                        color: Colors.white,
+                                        size: screenWidth * 0.045,
+                                      ),
+                                    ),
                                   ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF6C63FF).withOpacity(0.3),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4),
+                                ),
+                                SizedBox(width: screenWidth * 0.015),
+                              ],
+                              
+                              // Right side controls (compact horizontal layout)
+                              Flexible(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // In portrait: show all buttons as before
+                                    // Quick Phrases toggle
+                                    _buildTopControlButton(
+                                      icon: CupertinoIcons.chat_bubble_2_fill,
+                                      isActive: _showQuickPhrases,
+                                      onPressed: _toggleQuickPhrases,
+                                      screenWidth: screenWidth,
+                                      isLandscape: isLandscape,
+                                    ),
+                                    SizedBox(width: screenWidth * 0.008),
+                                    
+                                    // Speech Controls toggle
+                                    _buildTopControlButton(
+                                      icon: CupertinoIcons.waveform,
+                                      isActive: _showSpeechControls,
+                                      onPressed: _toggleSpeechControls,
+                                      screenWidth: screenWidth,
+                                      isLandscape: isLandscape,
+                                    ),
+                                    SizedBox(width: screenWidth * 0.008),
+                                    
+                                    // Search bar (compact)
+                                    Flexible(
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxWidth: screenWidth * 0.30,
+                                          minWidth: screenWidth * 0.15,
+                                        ),
+                                        child: _buildSearchBar(),
+                                      ),
+                                    ),
+                                    SizedBox(width: screenWidth * 0.008),
+                                    
+                                    // Favorites & History button
+                                    _buildTopControlButton(
+                                      icon: CupertinoIcons.heart_fill,
+                                      isActive: false,
+                                      onPressed: _openGoalsScreen,
+                                      screenWidth: screenWidth,
+                                      isLandscape: isLandscape,
+                                    ),
+                                    SizedBox(width: screenWidth * 0.008),
+                                    
+                                    // Professional Communication Coach button
+                                    _buildTopControlButton(
+                                      icon: CupertinoIcons.person_2_alt,
+                                      isActive: false,
+                                      onPressed: _openInteractiveFun,
+                                      screenWidth: screenWidth,
+                                      isLandscape: isLandscape,
+                                    ),
+                                    SizedBox(width: screenWidth * 0.008),
+                                    
+                                    // Settings button
+                                    _buildTopControlButton(
+                                      icon: CupertinoIcons.settings,
+                                      isActive: false,
+                                      onPressed: _openSettings,
+                                      screenWidth: screenWidth,
+                                      isLandscape: isLandscape,
                                     ),
                                   ],
                                 ),
-                                child: CupertinoButton(
-                                  padding: EdgeInsets.zero,
-                                  onPressed: () async {
-                                    try {
-                                      // Navigate to Add Symbol screen with full functionality
-                                      final Symbol? newSymbol = await Navigator.push(
-                                        context,
-                                        CupertinoPageRoute(
-                                          builder: (context) => const AddSymbolScreen(),
-                                        ),
-                                      );
-                                      
-                                      // If user created a new symbol, add it to our symbols list
-                                      if (newSymbol != null && mounted) {
-                                        setState(() {
-                                          _allSymbols.add(newSymbol);
-                                          
-                                          // Also refresh custom categories in case a new category was created
-                                          _refreshCustomCategories();
-                                        });
-                                      }
-                                    } catch (e) {
-                                      _showErrorDialog('Error opening Add Symbol screen: $e');
-                                    }
-                                  },
-                                  child: Icon(
-                                    CupertinoIcons.add,
-                                    color: Colors.white,
-                                    size: screenWidth * (isLandscape ? 0.035 : 0.045),
-                                  ),
-                                ),
                               ),
-                            ),
-                            
-                            SizedBox(width: screenWidth * 0.015),
-                            
-                            // Right side controls (compact horizontal layout)
-                            Flexible(
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Quick Phrases toggle
-                                  _buildTopControlButton(
-                                    icon: CupertinoIcons.chat_bubble_2_fill,
-                                    isActive: _showQuickPhrases,
-                                    onPressed: _toggleQuickPhrases,
-                                    screenWidth: screenWidth,
-                                    isLandscape: isLandscape,
-                                  ),
-                                  SizedBox(width: screenWidth * 0.008),
-                                  
-                                  // Speech Controls toggle
-                                  _buildTopControlButton(
-                                    icon: CupertinoIcons.waveform,
-                                    isActive: _showSpeechControls,
-                                    onPressed: _toggleSpeechControls,
-                                    screenWidth: screenWidth,
-                                    isLandscape: isLandscape,
-                                  ),
-                                  SizedBox(width: screenWidth * 0.008),
-                                  
-                                  // Search bar (compact)
-                                  Flexible(
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxWidth: screenWidth * (isLandscape ? 0.25 : 0.30),
-                                        minWidth: screenWidth * 0.15,
-                                      ),
-                                      child: _buildSearchBar(),
-                                    ),
-                                  ),
-                                  SizedBox(width: screenWidth * 0.008),
-                                  
-                                  // Favorites & History button
-                                  _buildTopControlButton(
-                                    icon: CupertinoIcons.heart_fill,
-                                    isActive: false,
-                                    onPressed: _openGoalsScreen,
-                                    screenWidth: screenWidth,
-                                    isLandscape: isLandscape,
-                                  ),
-                                  SizedBox(width: screenWidth * 0.008),
-                                  
-                                  // Professional Communication Coach button
-                                  _buildTopControlButton(
-                                    icon: CupertinoIcons.person_2_alt,
-                                    isActive: false,
-                                    onPressed: _openInteractiveFun,
-                                    screenWidth: screenWidth,
-                                    isLandscape: isLandscape,
-                                  ),
-                                  SizedBox(width: screenWidth * 0.008),
-                                  
-                                  // Settings button
-                                  _buildTopControlButton(
-                                    icon: CupertinoIcons.settings,
-                                    isActive: false,
-                                    onPressed: _openSettings,
-                                    screenWidth: screenWidth,
-                                    isLandscape: isLandscape,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        );
-                },
-              ),
-            ),
-            
-            // Error message display
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    
+                  // Menu button for landscape mode - positioned absolutely in top right
+                  if (MediaQuery.of(context).orientation.isLandscape)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: _buildTopControlButton(
+                        icon: CupertinoIcons.ellipsis_circle_fill,
+                        isActive: false,
+                        onPressed: _showMenuOptions,
+                        screenWidth: MediaQuery.of(context).size.width,
+                        isLandscape: true,
+                      ),
+                    ),            // Error message display
             if (_errorMessage != null)
               Container(
                 padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.03), // 3% of screen width
@@ -1243,6 +1388,216 @@ class _HomeScreenState extends State<HomeScreen> {
                                           padding: const EdgeInsets.only(bottom: 6), // Reduced spacing
                                           child: _buildCategoryTab(category.name),
                                         )),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              
+                              // Add button and Search bar above favorites
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.008), // Match categories padding
+                                child: Column(
+                                  children: [
+                                    // Add symbol button - match category tab size and style
+                                    GestureDetector(
+                                      onTap: () async {
+                                        try {
+                                          final Symbol? newSymbol = await Navigator.push(
+                                            context,
+                                            CupertinoPageRoute(
+                                              builder: (context) => const AddSymbolScreen(),
+                                            ),
+                                          );
+                                          if (newSymbol != null && mounted) {
+                                            setState(() {
+                                              _allSymbols.add(newSymbol);
+                                              _refreshCustomCategories();
+                                            });
+                                          }
+                                        } catch (e) {
+                                          _showErrorDialog('Error opening Add Symbol screen: $e');
+                                        }
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        width: double.infinity,
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: screenWidth * 0.02, // Match category tab horizontal padding
+                                          vertical: screenHeight * 0.008, // Match category tab vertical padding
+                                        ),
+                                        margin: EdgeInsets.only(bottom: 6), // Match category spacing
+                                        constraints: BoxConstraints(
+                                          minHeight: 38, // Match category tab minimum height
+                                          maxHeight: 48, // Match category tab maximum height
+                                        ),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [Color(0xFF6C63FF), Color(0xFF4ECDC4)],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                          borderRadius: BorderRadius.circular(20), // Match category tab border radius
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Color(0xFF6C63FF).withOpacity(0.3),
+                                              blurRadius: 8,
+                                              offset: Offset(0, 3),
+                                              spreadRadius: 1,
+                                            ),
+                                          ],
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              CupertinoIcons.add,
+                                              size: 16, // Match category icon size
+                                              color: Colors.white,
+                                            ),
+                                            SizedBox(width: 4), // Match category icon spacing
+                                            AutoSizeText(
+                                              'Add Symbol',
+                                              style: GoogleFonts.nunito(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700, // Match category text weight
+                                                fontSize: 16, // Match category text size
+                                                letterSpacing: 0.3, // Match category letter spacing
+                                              ),
+                                              maxLines: 1,
+                                              minFontSize: 12, // Match category min font size
+                                              maxFontSize: 20, // Match category max font size
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    
+                                    // Search bar - match category tab size and style
+                                    AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      width: double.infinity,
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: screenWidth * 0.02, // Match category tab horizontal padding
+                                        vertical: screenHeight * 0.008, // Match category tab vertical padding
+                                      ),
+                                      margin: EdgeInsets.only(bottom: 6), // Match category spacing
+                                      constraints: BoxConstraints(
+                                        minHeight: 38, // Match category tab minimum height
+                                        maxHeight: 48, // Match category tab maximum height
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(20), // Match category tab border radius
+                                        border: Border.all(
+                                          color: Colors.grey.shade300,
+                                          width: 1.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.05),
+                                            blurRadius: 2,
+                                            offset: Offset(0, 1),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            CupertinoIcons.search,
+                                            size: 16, // Match category icon size
+                                            color: Colors.grey.shade600,
+                                          ),
+                                          SizedBox(width: 4), // Match category icon spacing
+                                          Expanded(
+                                            child: CupertinoTextField(
+                                              controller: _searchController,
+                                              onChanged: _filterSymbols,
+                                              style: GoogleFonts.nunito(
+                                                fontSize: 16, // Match category text size
+                                                fontWeight: FontWeight.w700, // Match category text weight
+                                                color: Colors.grey.shade700,
+                                                letterSpacing: 0.3, // Match category letter spacing
+                                              ),
+                                              placeholder: 'Search...',
+                                              placeholderStyle: GoogleFonts.nunito(
+                                                fontSize: 16, // Match category text size
+                                                fontWeight: FontWeight.w700, // Match category text weight
+                                                color: Colors.grey.shade400,
+                                                letterSpacing: 0.3, // Match category letter spacing
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.transparent,
+                                              ),
+                                              suffix: _searchQuery.isNotEmpty
+                                                  ? CupertinoButton(
+                                                      padding: EdgeInsets.zero,
+                                                      minSize: 16,
+                                                      onPressed: () {
+                                                        _searchController.clear();
+                                                        _filterSymbols('');
+                                                      },
+                                                      child: Icon(
+                                                        CupertinoIcons.clear_circled_solid,
+                                                        color: Colors.grey.shade400,
+                                                        size: 16, // Match category icon size
+                                                      ),
+                                                    )
+                                                  : null,
+                                              padding: EdgeInsets.zero,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              // Favorites button at bottom of sidebar
+                              Container(
+                                padding: EdgeInsets.all(screenWidth * 0.008),
+                                child: GestureDetector(
+                                  onTap: _openGoalsScreen,
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                      vertical: screenHeight * 0.012,
+                                      horizontal: screenWidth * 0.01,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [Color(0xFFFF6B6B), Color(0xFFE63946)],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Color(0xFFE63946).withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          CupertinoIcons.heart_fill,
+                                          color: Colors.white,
+                                          size: screenWidth * 0.025,
+                                        ),
+                                        SizedBox(width: screenWidth * 0.008),
+                                        Text(
+                                          'Favorites',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: screenWidth * 0.022,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
