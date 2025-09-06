@@ -206,21 +206,19 @@ class FavoritesService extends ChangeNotifier {
   /// Check if symbol is in favorites
   bool isFavorite(Symbol symbol) {
     if (!_isInitialized) {
-      debugPrint('FavoritesService not initialized, returning false for isFavorite check');
+      // Only log this once per session to avoid spam
       return false;
     }
     
     if (symbol.id != null) {
       final result = _favoriteSymbols.any((fav) => fav.id == symbol.id);
-      debugPrint('isFavorite: Checking symbol ${symbol.label} (ID: ${symbol.id}) - Result: $result');
       return result;
     } else {
       // Fallback for symbols without IDs: match by label and category
       final result = _favoriteSymbols.any((fav) => 
         fav.label == symbol.label && fav.category == symbol.category);
-      debugPrint('isFavorite: Checking symbol ${symbol.label} (NO ID, using label+category) - Result: $result');
       
-      // Log warning for symbols without IDs
+      // Only log warning for fallback matches to avoid spam
       if (result) {
         debugPrint('WARNING: Symbol ${symbol.label} matched as favorite using fallback method (no ID). This could cause false positives.');
       }

@@ -6,6 +6,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'widgets/auth_wrapper.dart';  // Use auth wrapper instead of direct home screen
 import 'services/migration_service.dart';  // NEW: Add migration service
 import 'services/data_recovery_service.dart';  // NEW: Add data recovery service
+import 'services/connectivity_service.dart';  // NEW: Add connectivity service
+import 'services/data_cache_service.dart';  // NEW: Add data cache service
+import 'services/offline_features_service.dart';  // NEW: Add offline features service
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +51,9 @@ void main() async {
       debugPrint('Migration error (app will continue): $migrationError');
       // Don't fail app startup if migration fails
     }
+    // NOTE: Enterprise services will be initialized in background after UI loads
+    // This ensures offline-first functionality with fast app startup
+    
   } catch (e) {
     debugPrint('Firebase initialization error: $e');
     firebaseAvailable = false;
@@ -97,7 +103,7 @@ class AACApp extends StatelessWidget {
           primaryColor: Color(0xFF2C3E50),
         ),
       ),
-      // Use auth wrapper to handle authentication flow
+      // Direct auth wrapper - connectivity indicators removed since we have offline-first architecture
       home: AuthWrapper(firebaseAvailable: firebaseAvailable),
     );
   }

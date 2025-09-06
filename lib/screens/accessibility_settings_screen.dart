@@ -6,6 +6,10 @@ import '../screens/language_settings_screen.dart';
 import '../screens/voice_settings_screen.dart';
 import '../screens/backup_management_screen.dart';
 import '../models/user_profile.dart';
+import '../services/connectivity_service.dart';
+import '../widgets/connectivity_indicator.dart';
+import '../screens/data_availability_screen.dart';
+import '../screens/offline_features_screen.dart';
 
 class AccessibilitySettingsScreen extends StatefulWidget {
   const AccessibilitySettingsScreen({super.key});
@@ -89,6 +93,12 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
             _buildVoiceSettingsSection(),
             const SizedBox(height: 16),
             _buildBackupSection(),
+            const SizedBox(height: 16),
+            _buildConnectivitySection(),
+            const SizedBox(height: 16),
+            _buildDataAvailabilitySection(),
+            const SizedBox(height: 16),
+            _buildOfflineFeaturesSection(),
           ],
         ),
       ),
@@ -752,5 +762,489 @@ class _AccessibilitySettingsScreenState extends State<AccessibilitySettingsScree
         ),
       ),
     );
+  }
+
+  Widget _buildConnectivitySection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AACHelper.isHighContrastEnabled 
+            ? Colors.white 
+            : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: AACHelper.isHighContrastEnabled
+            ? Border.all(color: Colors.black, width: 2)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: Column(
+          children: [
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              leading: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4ECDC4).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  CupertinoIcons.wifi,
+                  color: Color(0xFF4ECDC4),
+                  size: 24,
+                ),
+              ),
+              title: Text(
+                'Connectivity & Offline Settings',
+                style: TextStyle(
+                  fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+                  fontWeight: FontWeight.w600,
+                  color: AACHelper.isHighContrastEnabled 
+                      ? Colors.black 
+                      : Colors.black87,
+                ),
+              ),
+              subtitle: Text(
+                'Configure connectivity monitoring and offline features',
+                style: TextStyle(
+                  fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+                  color: AACHelper.isHighContrastEnabled 
+                      ? Colors.black54 
+                      : Colors.grey[600],
+                ),
+              ),
+              trailing: const Icon(
+                CupertinoIcons.chevron_right,
+                color: Colors.grey,
+              ),
+              onTap: () {
+                _showConnectivitySettings();
+              },
+            ),
+            const Divider(height: 1),
+            // Real-time connectivity status display
+            StreamBuilder<ConnectivityStatus>(
+              stream: ConnectivityService.instance.statusStream,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const SizedBox.shrink();
+                }
+                
+                final status = snapshot.data!;
+                final isOnline = status.isOnline;
+                
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: (isOnline ? Colors.green : Colors.orange).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      isOnline ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.wifi_slash,
+                      color: isOnline ? Colors.green : Colors.orange,
+                      size: 24,
+                    ),
+                  ),
+                  title: Text(
+                    'Current Status: ${isOnline ? 'Online' : 'Offline'}',
+                    style: TextStyle(
+                      fontSize: 15 * AACHelper.getTextSizeMultiplier(),
+                      fontWeight: FontWeight.w500,
+                      color: AACHelper.isHighContrastEnabled 
+                          ? Colors.black 
+                          : Colors.black87,
+                    ),
+                  ),
+                  subtitle: Text(
+                    isOnline 
+                        ? 'Connection quality: ${status.connectionQuality.name.toUpperCase()}'
+                        : 'All core features available offline',
+                    style: TextStyle(
+                      fontSize: 13 * AACHelper.getTextSizeMultiplier(),
+                      color: AACHelper.isHighContrastEnabled 
+                          ? Colors.black54 
+                          : Colors.grey[600],
+                    ),
+                  ),
+                  onTap: () {
+                    _showConnectivityDetails();
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showConnectivitySettings() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (BuildContext context) {
+        return CupertinoActionSheet(
+          title: const Text(
+            'Connectivity Settings',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          message: const Text('Configure how the app monitors and displays connectivity status'),
+          actions: [
+            CupertinoActionSheetAction(
+              child: const Text('Show Connectivity Indicator'),
+              onPressed: () async {
+                Navigator.pop(context);
+                await ConnectivityService.instance.setIndicatorVisible(true);
+                if (mounted) {
+                  _showSettingsConfirmation('Connectivity indicator enabled');
+                }
+              },
+            ),
+            CupertinoActionSheetAction(
+              child: const Text('Hide Connectivity Indicator'),
+              onPressed: () async {
+                Navigator.pop(context);
+                await ConnectivityService.instance.setIndicatorVisible(false);
+                if (mounted) {
+                  _showSettingsConfirmation('Connectivity indicator disabled');
+                }
+              },
+            ),
+            CupertinoActionSheetAction(
+              child: const Text('Enable Background Monitoring'),
+              onPressed: () async {
+                Navigator.pop(context);
+                await ConnectivityService.instance.setBackgroundMonitoring(true);
+                if (mounted) {
+                  _showSettingsConfirmation('Background monitoring enabled');
+                }
+              },
+            ),
+            CupertinoActionSheetAction(
+              child: const Text('Disable Background Monitoring'),
+              onPressed: () async {
+                Navigator.pop(context);
+                await ConnectivityService.instance.setBackgroundMonitoring(false);
+                if (mounted) {
+                  _showSettingsConfirmation('Background monitoring disabled');
+                }
+              },
+            ),
+            CupertinoActionSheetAction(
+              child: const Text('View Connectivity Statistics'),
+              onPressed: () {
+                Navigator.pop(context);
+                _showConnectivityStatistics();
+              },
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            isDefaultAction: true,
+            child: const Text('Cancel'),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _showConnectivityDetails() {
+    showCupertinoDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StreamBuilder<ConnectivityStatus>(
+          stream: ConnectivityService.instance.statusStream,
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const CupertinoAlertDialog(
+                title: Text('Loading...'),
+                content: Text('Fetching connectivity information'),
+              );
+            }
+            
+            final status = snapshot.data!;
+            
+            return CupertinoAlertDialog(
+              title: const Text('Connectivity Details'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  Text('Status: ${status.isOnline ? 'Online' : 'Offline'}'),
+                  Text('Connection Type: ${status.connectionType.name}'),
+                  Text('Quality: ${status.connectionQuality.name.toUpperCase()}'),
+                  if (status.lastConnected != null)
+                    Text('Last Connected: ${_formatDateTime(status.lastConnected!)}'),
+                  if (status.lastDisconnected != null)
+                    Text('Last Disconnected: ${_formatDateTime(status.lastDisconnected!)}'),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'All core AAC features work offline. Online features include cloud sync and backup.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('OK'),
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showConnectivityStatistics() {
+    showCupertinoDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return FutureBuilder<Map<String, dynamic>>(
+          future: ConnectivityService.instance.getStatistics(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const CupertinoAlertDialog(
+                title: Text('Loading...'),
+                content: Text('Fetching connectivity statistics'),
+              );
+            }
+            
+            final stats = snapshot.data!;
+            
+            return CupertinoAlertDialog(
+              title: const Text('Connectivity Statistics'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  Text('Total Checks: ${stats['totalChecks'] ?? 0}'),
+                  Text('Successful Connections: ${stats['successfulConnections'] ?? 0}'),
+                  Text('Failed Connections: ${stats['failedConnections'] ?? 0}'),
+                  Text('Average Response Time: ${stats['averageResponseTime']?.toStringAsFixed(1) ?? 'N/A'} ms'),
+                  Text('Uptime: ${((stats['uptime'] ?? 0) * 100).toStringAsFixed(1)}%'),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Statistics are collected to improve offline experience.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('Reset Statistics'),
+                  onPressed: () async {
+                    await ConnectivityService.instance.resetStatistics();
+                    Navigator.pop(context);
+                    if (mounted) {
+                      _showSettingsConfirmation('Statistics reset successfully');
+                    }
+                  },
+                ),
+                CupertinoDialogAction(
+                  child: const Text('OK'),
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showSettingsConfirmation(String message) {
+    showCupertinoDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return CupertinoAlertDialog(
+          title: const Text('Settings Updated'),
+          content: Text(message),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDataAvailabilitySection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AACHelper.isHighContrastEnabled 
+            ? Colors.white 
+            : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: AACHelper.isHighContrastEnabled
+            ? Border.all(color: Colors.black, width: 2)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          leading: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.purple.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              CupertinoIcons.archivebox_fill,
+              color: Colors.purple,
+              size: 24,
+            ),
+          ),
+          title: Text(
+            'Data Availability & Caching',
+            style: TextStyle(
+              fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+              fontWeight: FontWeight.w600,
+              color: AACHelper.isHighContrastEnabled 
+                  ? Colors.black 
+                  : Colors.black87,
+            ),
+          ),
+          subtitle: Text(
+            'Configure intelligent pre-caching for optimal offline experience',
+            style: TextStyle(
+              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+              color: AACHelper.isHighContrastEnabled 
+                  ? Colors.black54 
+                  : Colors.grey[600],
+            ),
+          ),
+          trailing: const Icon(
+            CupertinoIcons.chevron_right,
+            color: Colors.grey,
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              CupertinoPageRoute(
+                builder: (context) => const DataAvailabilityScreen(),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOfflineFeaturesSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AACHelper.isHighContrastEnabled 
+            ? Colors.white 
+            : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: AACHelper.isHighContrastEnabled
+            ? Border.all(color: Colors.black, width: 2)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          leading: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.indigo.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              CupertinoIcons.rocket_fill,
+              color: Colors.indigo,
+              size: 24,
+            ),
+          ),
+          title: Text(
+            'Advanced Offline Features',
+            style: TextStyle(
+              fontSize: 17 * AACHelper.getTextSizeMultiplier(),
+              fontWeight: FontWeight.w600,
+              color: AACHelper.isHighContrastEnabled 
+                  ? Colors.black 
+                  : Colors.black87,
+            ),
+          ),
+          subtitle: Text(
+            'Analytics, insights, achievements, and personalized recommendations',
+            style: TextStyle(
+              fontSize: 14 * AACHelper.getTextSizeMultiplier(),
+              color: AACHelper.isHighContrastEnabled 
+                  ? Colors.black54 
+                  : Colors.grey[600],
+            ),
+          ),
+          trailing: const Icon(
+            CupertinoIcons.chevron_right,
+            color: Colors.grey,
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              CupertinoPageRoute(
+                builder: (context) => const OfflineFeaturesScreen(),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${difference.inDays}d ago';
+    }
   }
 }

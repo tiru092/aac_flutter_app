@@ -23,6 +23,10 @@ import '../screens/favorites_screen.dart';
 import '../services/favorites_service.dart';
 import '../services/secure_encryption_service.dart';
 import '../services/aac_analytics_service.dart';
+import '../services/connectivity_service.dart';  // NEW: Add connectivity service
+import '../services/data_cache_service.dart';  // NEW: Add data cache service
+import '../services/offline_features_service.dart';  // NEW: Add offline features service
+import '../services/user_data_service.dart';  // NEW: Add user data service for local storage
 import 'accessibility_settings_screen.dart';
 import 'add_symbol_screen.dart';
 import 'profile_screen.dart';
@@ -158,6 +162,28 @@ class _HomeScreenState extends State<HomeScreen> {
         debugPrint('Favorites Service initialized (background)');
       } catch (e) {
         debugPrint('Favorites Service skipped: $e');
+      }
+      
+      // Initialize Enterprise Services in background for offline-first experience
+      try {
+        await ConnectivityService().initialize();
+        debugPrint('ConnectivityService initialized (background)');
+      } catch (e) {
+        debugPrint('ConnectivityService skipped: $e');
+      }
+      
+      try {
+        await DataCacheService.instance.initialize();
+        debugPrint('DataCacheService initialized (background)');
+      } catch (e) {
+        debugPrint('DataCacheService skipped: $e');
+      }
+      
+      try {
+        await OfflineFeaturesService.instance.initialize();
+        debugPrint('OfflineFeaturesService initialized (background)');
+      } catch (e) {
+        debugPrint('OfflineFeaturesService skipped: $e');
       }
       
       debugPrint('All background services completed');
@@ -517,6 +543,9 @@ class _HomeScreenState extends State<HomeScreen> {
       
       // Record usage in favorites (non-blocking)
       _recordSymbolUsage(symbol);
+      
+      // Record in user's communication history (non-blocking)
+      _recordCommunicationHistory(symbol);
     } catch (e) {
       AACLogger.error('Error in symbol tap: $e', tag: 'HomeScreen');
       // Even if setState fails, don't block UI
@@ -532,6 +561,38 @@ class _HomeScreenState extends State<HomeScreen> {
       } catch (e) {
         // Ignore errors - don't block UI
         AACLogger.warning('Favorites recording failed (ignored): $e', tag: 'HomeScreen');
+      }
+    }();
+  }
+
+  // Record communication history in local storage (non-blocking background operation)
+  void _recordCommunicationHistory(Symbol symbol) {
+    // Don't await this - let it run in background
+    () async {
+      try {
+        await UserDataService().addCommunicationHistory(
+          symbolLabels: [symbol.label],
+          spokenText: symbol.label,
+        );
+      } catch (e) {
+        // Ignore errors - don't block UI
+        AACLogger.warning('Communication history recording failed (ignored): $e', tag: 'HomeScreen');
+      }
+    }();
+  }
+
+  // Record full sentence in communication history (non-blocking background operation)
+  void _recordSentenceHistory(List<Symbol> symbols, String sentence) {
+    // Don't await this - let it run in background
+    () async {
+      try {
+        await UserDataService().addCommunicationHistory(
+          symbolLabels: symbols.map((s) => s.label).toList(),
+          spokenText: sentence,
+        );
+      } catch (e) {
+        // Ignore errors - don't block UI
+        AACLogger.warning('Sentence history recording failed (ignored): $e', tag: 'HomeScreen');
       }
     }();
   }
@@ -559,6 +620,9 @@ class _HomeScreenState extends State<HomeScreen> {
         for (final symbol in _selectedSymbols) {
           _recordSymbolUsage(symbol, action: 'spoken');
         }
+        
+        // Record full sentence in communication history (non-blocking)
+        _recordSentenceHistory(_selectedSymbols, sentence);
       }
     } catch (e) {
       AACLogger.error('Error in speak sentence: $e', tag: 'HomeScreen');

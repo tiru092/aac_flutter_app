@@ -6,6 +6,8 @@ import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/user_profile_service.dart';
 import '../services/cloud_sync_service.dart';
+import '../services/local_data_manager.dart';  // NEW: Add local data manager
+import '../services/user_data_service.dart';  // NEW: Add user data service
 
 /// Comprehensive authentication wrapper that handles:
 /// - Firebase authentication
@@ -113,6 +115,16 @@ class AuthWrapperService {
       // Set as active profile
       await UserProfileService.setActiveProfile(profile);
       _currentProfile = profile;
+      
+      // Initialize local data storage for this user (store default icons, setup user data)
+      try {
+        debugPrint('AuthWrapperService: Initializing local data for user: ${profile.name}');
+        await LocalDataManager().initializeAfterLogin(profile);
+        debugPrint('AuthWrapperService: Local data initialization completed');
+      } catch (e) {
+        debugPrint('AuthWrapperService: Error initializing local data: $e');
+        // Continue without local data initialization
+      }
       
       // Sync with cloud if available
       if (!_isOfflineMode) {
@@ -243,6 +255,16 @@ class AuthWrapperService {
       
       _currentProfile = profile;
       
+      // Initialize local data storage for new user
+      try {
+        debugPrint('AuthWrapperService: Initializing local data for new user: ${profile.name}');
+        await LocalDataManager().initializeAfterLogin(profile);
+        debugPrint('AuthWrapperService: Local data initialization completed for new user');
+      } catch (e) {
+        debugPrint('AuthWrapperService: Error initializing local data for new user: $e');
+        // Continue without local data initialization
+      }
+      
       // Save sign-in state
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_lastSignedInUserKey, email);
@@ -332,6 +354,31 @@ class AuthWrapperService {
       
     } catch (e) {
       debugPrint('AuthWrapperService: Error during sign out: $e');
+    }
+  }
+
+  /// Complete logout - clears all user data (for data reset or switching users)
+  Future<void> completeLogout() async {
+    try {
+      debugPrint('AuthWrapperService: Performing complete logout');
+      
+      // Clear user data from local storage
+      await UserDataService().clearUserDataOnLogout();
+      
+      // Sign out from Firebase
+      await _authService.signOut();
+      _currentFirebaseUser = null;
+      _currentProfile = null;
+      
+      // Clear all sign-in state
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_lastSignedInUserKey);
+      await prefs.remove(_offlineModeKey);
+      
+      debugPrint('AuthWrapperService: Complete logout successful');
+      
+    } catch (e) {
+      debugPrint('AuthWrapperService: Error during complete logout: $e');
     }
   }
 

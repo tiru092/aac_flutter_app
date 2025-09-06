@@ -8,6 +8,7 @@ import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
 import '../utils/sample_data.dart';
 import '../services/user_profile_service.dart';
+import '../services/user_data_service.dart';  // NEW: Add user data service for local storage
 
 class AddSymbolScreen extends StatefulWidget {
   const AddSymbolScreen({super.key});
@@ -659,6 +660,9 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
 
       // Save to user profile
       await UserProfileService.addSymbolToActiveProfile(newSymbol);
+      
+      // Also save to local data manager for offline-first storage and cloud sync
+      await UserDataService().addUserSymbol(newSymbol);
       
       await AACHelper.speak('New symbol ${newSymbol.label} added successfully to ${_selectedCategory} category');
       
