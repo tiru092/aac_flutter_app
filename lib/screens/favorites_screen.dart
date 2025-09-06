@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:io';
 import '../services/favorites_service.dart';
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
@@ -242,13 +243,15 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       );
     }
 
-    return ListView.separated(
+    // Group history by date like Avaz app
+    final groupedHistory = _groupHistoryByDate(_history);
+    
+    return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _history.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemCount: groupedHistory.length,
       itemBuilder: (context, index) {
-        final historyItem = _history[index];
-        return _buildHistoryItem(historyItem);
+        final dateGroup = groupedHistory[index];
+        return _buildDateGroup(dateGroup);
       },
     );
   }
@@ -405,43 +408,49 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   Widget _buildHistoryItem(HistoryItem historyItem) {
     final symbol = historyItem.symbol;
     final timeAgo = _getTimeAgo(historyItem.timestamp);
+    final actionIcon = _getActionIcon(historyItem.action);
+    final actionColor = _getActionColor(historyItem.action);
     
     return Container(
+      margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: _cardColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AACHelper.getCategoryColor(symbol.category).withOpacity(0.3),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           // Symbol image
           Container(
-            width: 50,
-            height: 50,
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(
               color: AACHelper.getCategoryColor(symbol.category).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AACHelper.getCategoryColor(symbol.category).withOpacity(0.3),
+                width: 1,
+              ),
             ),
-            child: symbol.imagePath.isNotEmpty
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.asset(
-                      symbol.imagePath,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return _buildDefaultIcon(symbol.category);
-                      },
-                    ),
-                  )
-                : _buildDefaultIcon(symbol.category),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(11),
+              child: _buildSymbolImage(symbol),
+            ),
           ),
           
           const SizedBox(width: 12),
           
-          // Symbol info
+          // Symbol info and action
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -455,35 +464,348 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  '${historyItem.action} • $timeAgo',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
+                Row(
+                  children: [
+                    Icon(
+                      actionIcon,
+                      size: 14,
+                      color: actionColor,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      historyItem.action,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: actionColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      ' • $timeAgo',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+                if (symbol.category.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    symbol.category,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AACHelper.getCategoryColor(symbol.category),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          
+          // Action buttons
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Add to favorites button
+              CupertinoButton(
+                padding: const EdgeInsets.all(8),
+                onPressed: () async {
+                  if (_favoritesService.isFavorite(symbol)) {
+                    await _favoritesService.removeFromFavorites(symbol);
+                  } else {
+                    await _favoritesService.addToFavorites(symbol);
+                  }
+                },
+                child: Icon(
+                  _favoritesService.isFavorite(symbol) 
+                      ? CupertinoIcons.heart_fill 
+                      : CupertinoIcons.heart,
+                  size: 20,
+                  color: _favoritesService.isFavorite(symbol) 
+                      ? CupertinoColors.systemRed 
+                      : CupertinoColors.systemGrey,
+                ),
+              ),
+              
+              // Play button
+              CupertinoButton(
+                padding: const EdgeInsets.all(8),
+                onPressed: () => _playSymbol(symbol),
+                child: const Icon(
+                  CupertinoIcons.play_circle_fill,
+                  size: 24,
+                  color: CupertinoColors.systemBlue,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to build symbol image
+  Widget _buildSymbolImage(Symbol symbol) {
+    if (symbol.imagePath.startsWith('emoji:')) {
+      return Center(
+        child: Text(
+          symbol.imagePath.substring(6),
+          style: const TextStyle(fontSize: 30),
+        ),
+      );
+    } else if (symbol.imagePath.startsWith('assets/')) {
+      return Image.asset(
+        symbol.imagePath,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildDefaultIcon(symbol.category),
+      );
+    } else {
+      return Image.file(
+        File(symbol.imagePath),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildDefaultIcon(symbol.category),
+      );
+    }
+  }
+
+  // Helper method to get action icon
+  IconData _getActionIcon(String action) {
+    switch (action.toLowerCase()) {
+      case 'played':
+      case 'spoken':
+        return CupertinoIcons.speaker_3_fill;
+      case 'added':
+        return CupertinoIcons.plus_circle_fill;
+      case 'favorited':
+        return CupertinoIcons.heart_fill;
+      case 'edited':
+        return CupertinoIcons.pencil_circle_fill;
+      default:
+        return CupertinoIcons.circle_fill;
+    }
+  }
+
+  // Helper method to get action color
+  Color _getActionColor(String action) {
+    switch (action.toLowerCase()) {
+      case 'played':
+      case 'spoken':
+        return CupertinoColors.systemGreen;
+      case 'added':
+        return CupertinoColors.systemBlue;
+      case 'favorited':
+        return CupertinoColors.systemRed;
+      case 'edited':
+        return CupertinoColors.systemOrange;
+      default:
+        return CupertinoColors.systemGrey;
+    }
+  }
+
+  // Group history by date like Avaz app
+  List<DateHistoryGroup> _groupHistoryByDate(List<HistoryItem> history) {
+    final Map<String, List<HistoryItem>> groupedMap = {};
+    
+    for (final item in history) {
+      final dateKey = _getDateKey(item.timestamp);
+      if (!groupedMap.containsKey(dateKey)) {
+        groupedMap[dateKey] = [];
+      }
+      groupedMap[dateKey]!.add(item);
+    }
+    
+    // Convert to list and sort by date (newest first)
+    final groups = groupedMap.entries.map((entry) {
+      return DateHistoryGroup(
+        dateKey: entry.key,
+        items: entry.value,
+        date: entry.value.first.timestamp,
+      );
+    }).toList();
+    
+    groups.sort((a, b) => b.date.compareTo(a.date));
+    return groups;
+  }
+
+  String _getDateKey(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final itemDate = DateTime(date.year, date.month, date.day);
+    
+    if (itemDate == today) {
+      return 'Today';
+    } else if (itemDate == yesterday) {
+      return 'Yesterday';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  Widget _buildDateGroup(DateHistoryGroup group) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _primaryColor.withOpacity(0.2),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Date header with play all button (like Avaz)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _primaryColor.withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        group.dateKey,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${group.items.length} symbols used',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Play all button like Avaz app
+                CupertinoButton(
+                  padding: const EdgeInsets.all(12),
+                  onPressed: () => _playAllFromGroup(group),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _primaryColor,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _primaryColor.withOpacity(0.3),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(
+                          CupertinoIcons.play_fill,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Play All',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           
-          // Play button
-          CupertinoButton(
-            padding: EdgeInsets.zero,
-            onPressed: () => _onSymbolTap(symbol),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _primaryColor,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                CupertinoIcons.play_fill,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
+          // History items for this date
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            itemCount: group.items.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              return _buildHistoryItem(group.items[index]);
+            },
           ),
         ],
+      ),
+    );
+  }
+
+  // Play all symbols from a date group like Avaz app
+  Future<void> _playAllFromGroup(DateHistoryGroup group) async {
+    try {
+      await AACHelper.accessibleHapticFeedback();
+      
+      // Create sentence from all symbols in the group
+      final allSymbols = group.items.map((item) => item.symbol.label).toList();
+      final sentence = allSymbols.join(' ');
+      
+      // Show loading indicator
+      _showPlayingAllDialog(group.dateKey, allSymbols.length);
+      
+      // Speak the combined sentence
+      await AACHelper.speak(sentence);
+      
+      // Record this as a group play action
+      for (final item in group.items) {
+        await _favoritesService.recordUsage(item.symbol, action: 'group_played');
+      }
+      
+      // Close loading dialog
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      
+    } catch (e) {
+      debugPrint('Error playing group: $e');
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    }
+  }
+
+  void _showPlayingAllDialog(String dateKey, int count) {
+    showCupertinoDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => CupertinoAlertDialog(
+        title: Text('🔊 Playing $dateKey'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            const CupertinoActivityIndicator(),
+            const SizedBox(height: 16),
+            Text('Speaking $count symbols together...'),
+          ],
+        ),
       ),
     );
   }
@@ -607,11 +929,56 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
   }
 
+  void _playSymbol(Symbol symbol) async {
+    try {
+      // Play the symbol
+      await AACHelper.speak(symbol.label);
+      
+      // Record usage
+      await _favoritesService.recordUsage(symbol, action: 'played');
+      
+    } catch (e) {
+      debugPrint('Error playing symbol: $e');
+    }
+  }
+
   void _removeFromFavorites(Symbol symbol) async {
     try {
-      await _favoritesService.removeFromFavorites(symbol);
+      // Add haptic feedback
+      await AACHelper.accessibleHapticFeedback();
+      
+      // Show confirmation dialog for better user experience
+      final bool? confirmed = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return CupertinoAlertDialog(
+            title: const Text('Remove from Favorites'),
+            content: Text('Remove "${symbol.label}" from your favorites?'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('Cancel'),
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+              CupertinoDialogAction(
+                isDestructiveAction: true,
+                child: const Text('Remove'),
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+            ],
+          );
+        },
+      );
+      
+      if (confirmed == true) {
+        await _favoritesService.removeFromFavorites(symbol);
+        
+        // Show success feedback
+        _showRemovalFeedback(symbol.label);
+      }
     } catch (e) {
       debugPrint('Error removing from favorites: $e');
+      // Show error feedback
+      _showErrorFeedback('Failed to remove from favorites');
     }
   }
 
@@ -653,4 +1020,135 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       ),
     );
   }
+
+  // Show success feedback when symbol is removed
+  void _showRemovalFeedback(String symbolLabel) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+    
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).size.height * 0.12,
+        left: 20,
+        right: 20,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: _successColor.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  CupertinoIcons.checkmark_circle_fill,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '✅ Removed "$symbolLabel" from favorites',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    overlay.insert(overlayEntry);
+    
+    // Remove after 2.5 seconds
+    Timer(const Duration(milliseconds: 2500), () {
+      overlayEntry.remove();
+    });
+  }
+
+  // Show error feedback
+  void _showErrorFeedback(String message) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+    
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).size.height * 0.12,
+        left: 20,
+        right: 20,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemRed.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  CupertinoIcons.exclamationmark_triangle_fill,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    overlay.insert(overlayEntry);
+    
+    // Remove after 2.5 seconds
+    Timer(const Duration(milliseconds: 2500), () {
+      overlayEntry.remove();
+    });
+  }
+}
+
+/// Date-grouped history for Avaz-style display
+class DateHistoryGroup {
+  final String dateKey;
+  final List<HistoryItem> items;
+  final DateTime date;
+
+  DateHistoryGroup({
+    required this.dateKey,
+    required this.items,
+    required this.date,
+  });
 }

@@ -100,7 +100,16 @@ class FavoritesService extends ChangeNotifier {
     
     try {
       // Check if already in favorites (handle null ids)
-      if (symbol.id != null && _favoriteSymbols.any((fav) => fav.id == symbol.id)) {
+      bool isAlreadyFavorite = false;
+      if (symbol.id != null) {
+        isAlreadyFavorite = _favoriteSymbols.any((fav) => fav.id == symbol.id);
+      } else {
+        // Fallback for symbols without IDs: match by label and category
+        isAlreadyFavorite = _favoriteSymbols.any((fav) => 
+          fav.label == symbol.label && fav.category == symbol.category);
+      }
+      
+      if (isAlreadyFavorite) {
         return; // Already in favorites
       }
       
@@ -117,16 +126,43 @@ class FavoritesService extends ChangeNotifier {
   
   /// Remove symbol from favorites
   Future<void> removeFromFavorites(Symbol symbol) async {
-    if (!_isInitialized) return;
+    if (!_isInitialized) {
+      debugPrint('FavoritesService: Not initialized, cannot remove');
+      return;
+    }
     
     try {
+      debugPrint('Attempting to remove symbol: ${symbol.label}, ID: ${symbol.id}');
+      debugPrint('Current favorites count: ${_favoriteSymbols.length}');
+      
       if (symbol.id != null) {
+        final initialCount = _favoriteSymbols.length;
         _favoriteSymbols.removeWhere((fav) => fav.id == symbol.id);
+        final newCount = _favoriteSymbols.length;
+        
+        debugPrint('Removed ${initialCount - newCount} items. New count: $newCount');
+        
         await _saveFavorites();
         _favoritesController.add(_favoriteSymbols);
         notifyListeners();
         
-        debugPrint('Removed from favorites: ${symbol.label}');
+        debugPrint('Successfully removed from favorites: ${symbol.label}');
+      } else {
+        // Fallback: try to match by label and category if ID is null
+        debugPrint('Symbol ID is null, trying to match by label and category');
+        final initialCount = _favoriteSymbols.length;
+        _favoriteSymbols.removeWhere((fav) => 
+          fav.label == symbol.label && fav.category == symbol.category);
+        final newCount = _favoriteSymbols.length;
+        
+        debugPrint('Removed ${initialCount - newCount} items by label/category match. New count: $newCount');
+        
+        if (newCount < initialCount) {
+          await _saveFavorites();
+          _favoritesController.add(_favoriteSymbols);
+          notifyListeners();
+          debugPrint('Successfully removed from favorites: ${symbol.label}');
+        }
       }
     } catch (e) {
       debugPrint('Error removing from favorites: $e');
@@ -135,8 +171,13 @@ class FavoritesService extends ChangeNotifier {
   
   /// Check if symbol is in favorites
   bool isFavorite(Symbol symbol) {
-    if (symbol.id == null) return false;
-    return _favoriteSymbols.any((fav) => fav.id == symbol.id);
+    if (symbol.id != null) {
+      return _favoriteSymbols.any((fav) => fav.id == symbol.id);
+    } else {
+      // Fallback for symbols without IDs: match by label and category
+      return _favoriteSymbols.any((fav) => 
+        fav.label == symbol.label && fav.category == symbol.category);
+    }
   }
   
   /// Record symbol usage in history
