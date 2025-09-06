@@ -1223,42 +1223,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     
-                  // Menu button for landscape mode - positioned absolutely in top right corner
-                  if (MediaQuery.of(context).orientation == Orientation.landscape)
-                    Positioned(
-                      top: 12, // Moved closer to edge
-                      right: 12, // Moved closer to edge
-                      child: Container(
-                        width: MediaQuery.of(context).size.width * 0.05, // Smaller size
-                        height: MediaQuery.of(context).size.width * 0.05,
-                        child: CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          onPressed: _showMenuOptions,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF6C63FF), Color(0xFF4ECDC4)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(8), // Smaller radius
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF6C63FF).withOpacity(0.3),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              CupertinoIcons.ellipsis_circle_fill,
-                              color: Colors.white,
-                              size: MediaQuery.of(context).size.width * 0.025, // Smaller icon
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),            // Error message display
+            // Error message display
             if (_errorMessage != null)
               Container(
                 padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.03), // 3% of screen width
@@ -1362,6 +1327,67 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: Column(
                             children: [
+                              // Settings button at top of categories - only in landscape
+                              if (MediaQuery.of(context).orientation == Orientation.landscape)
+                                Container(
+                                  margin: EdgeInsets.symmetric(
+                                    horizontal: screenWidth * 0.006,
+                                    vertical: screenHeight * 0.008,
+                                  ),
+                                  child: GestureDetector(
+                                    onTap: _showMenuOptions,
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: screenWidth * 0.015,
+                                        vertical: screenHeight * 0.008,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [Color(0xFF6C63FF), Color(0xFF4ECDC4)],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFF6C63FF).withOpacity(0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 3),
+                                            spreadRadius: 1,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            CupertinoIcons.settings,
+                                            size: 16,
+                                            color: Colors.white,
+                                          ),
+                                          SizedBox(width: 6),
+                                          Flexible(
+                                            child: AutoSizeText(
+                                              'Settings',
+                                              style: GoogleFonts.nunito(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 14,
+                                                letterSpacing: 0.2,
+                                              ),
+                                              maxLines: 1,
+                                              minFontSize: 10,
+                                              maxFontSize: 16,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              
                               // Compact categories header with better spacing
                               Container(
                                 padding: EdgeInsets.symmetric(
