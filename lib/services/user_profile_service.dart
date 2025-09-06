@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart'; // Add Firebase Auth import
 import '../models/symbol.dart';
 import '../models/subscription.dart';
 import '../models/user_profile.dart'; // Add missing import
+import '../utils/aac_logger.dart';
 import 'cloud_sync_service.dart'; // Add cloud sync service
 import 'encryption_service.dart'; // Add encryption service
 
@@ -44,7 +45,7 @@ class UserProfileService {
       
       return await _loadProfileById(currentProfileId);
     } catch (e) {
-      print('Error in getActiveProfile: $e');
+      AACLogger.error('Error in getActiveProfile: $e', tag: 'UserProfileService');
       return null;
     }
   }
@@ -65,7 +66,7 @@ class UserProfileService {
         await _cloudSyncService.syncProfileToCloud(profile);
       }
     } catch (e) {
-      print('Error in setActiveProfile: $e');
+      AACLogger.error('Error in setActiveProfile: $e', tag: 'UserProfileService');
       // Still set the active profile in memory even if storage fails
       _activeProfile = profile;
     }
@@ -107,7 +108,7 @@ class UserProfileService {
       
       return newProfile;
     } catch (e) {
-      print('Error in createProfile: $e');
+      AACLogger.error('Error in createProfile: $e', tag: 'UserProfileService');
       // Create a fallback profile that doesn't require storage
       return UserProfile(
         id: 'fallback_${DateTime.now().millisecondsSinceEpoch}',
@@ -161,7 +162,7 @@ class UserProfileService {
         await _cloudSyncService.syncProfileToCloud(profile);
       }
     } catch (e) {
-      print('Error in saveUserProfile: $e');
+      AACLogger.error('Error in saveUserProfile: $e', tag: 'UserProfileService');
       // We'll continue even if saving fails
     }
   }
@@ -190,14 +191,14 @@ class UserProfileService {
           final profile = UserProfile.fromJson(decryptedProfileMap);
           profiles.add(profile);
         } catch (e) {
-          print('Error decrypting profile: $e');
+          AACLogger.error('Error decrypting profile: $e', tag: 'UserProfileService');
           // Skip this profile if decryption fails
         }
       }
       
       return profiles;
     } catch (e) {
-      print('Error in getAllProfiles: $e');
+      AACLogger.error('Error in getAllProfiles: $e', tag: 'UserProfileService');
       return [];
     }
   }
@@ -229,7 +230,7 @@ class UserProfileService {
         await prefs.remove(_currentProfileKey);
       }
     } catch (e) {
-      print('Error in deleteProfile: $e');
+      AACLogger.error('Error in deleteProfile: $e', tag: 'UserProfileService');
     }
   }
   
@@ -249,7 +250,7 @@ class UserProfileService {
       await saveUserProfile(updatedProfile);
       _activeProfile = updatedProfile;
     } catch (e) {
-      print('Error in addSymbolToActiveProfile: $e');
+      AACLogger.error('Error in addSymbolToActiveProfile: $e');
     }
   }
   
@@ -282,7 +283,7 @@ class UserProfileService {
       await saveUserProfile(updatedProfile);
       _activeProfile = updatedProfile;
     } catch (e) {
-      print('Error in addCategoryToActiveProfile: $e');
+      AACLogger.error('Error in addCategoryToActiveProfile: $e');
     }
   }
   
@@ -307,7 +308,7 @@ class UserProfileService {
       await saveUserProfile(updatedProfile);
       _activeProfile = updatedProfile;
     } catch (e) {
-      print('Error in updateSymbolInActiveProfile: $e');
+      AACLogger.error('Error in updateSymbolInActiveProfile: $e');
     }
   }
   
@@ -328,7 +329,7 @@ class UserProfileService {
       await saveUserProfile(updatedProfile);
       _activeProfile = updatedProfile;
     } catch (e) {
-      print('Error in deleteSymbolFromActiveProfile: $e');
+      AACLogger.error('Error in deleteSymbolFromActiveProfile: $e');
     }
   }
   
@@ -349,7 +350,7 @@ class UserProfileService {
       
       return null;
     } catch (e) {
-      print('Error in _loadProfileById: $e');
+      AACLogger.error('Error in _loadProfileById: $e');
       return null;
     }
   }
@@ -360,7 +361,7 @@ class UserProfileService {
       final profile = await getActiveProfile();
       return profile?.userSymbols ?? [];
     } catch (e) {
-      print('Error in getUserSymbols: $e');
+      AACLogger.error('Error in getUserSymbols: $e');
       return [];
     }
   }
@@ -371,7 +372,7 @@ class UserProfileService {
       final profile = await getActiveProfile();
       return profile?.userCategories ?? [];
     } catch (e) {
-      print('Error in getUserCategories: $e');
+      AACLogger.error('Error in getUserCategories: $e');
       return [];
     }
   }
@@ -383,7 +384,7 @@ class UserProfileService {
         await _cloudSyncService.syncAllProfilesToCloud();
       }
     } catch (e) {
-      print('Error in syncAllProfilesToCloud: $e');
+      AACLogger.error('Error in syncAllProfilesToCloud: $e');
     }
   }
 
@@ -394,9 +395,9 @@ class UserProfileService {
       await prefs.remove(_profilesKey);
       await prefs.remove(_currentProfileKey);
       _activeProfile = null;
-      print('All profiles cleared successfully');
+      AACLogger.info('All profiles cleared successfully', tag: 'UserProfile');
     } catch (e) {
-      print('Error clearing profiles: $e');
+      AACLogger.error('Error clearing profiles: $e');
     }
   }
 
@@ -406,7 +407,7 @@ class UserProfileService {
       final profiles = await getAllProfiles();
       return profiles.length;
     } catch (e) {
-      print('Error getting profiles count: $e');
+      AACLogger.error('Error getting profiles count: $e');
       return 0;
     }
   }

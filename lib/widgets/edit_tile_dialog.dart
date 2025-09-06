@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
+import '../utils/aac_logger.dart';
 import '../services/user_profile_service.dart';
 import 'dart:io';
 
@@ -595,26 +596,26 @@ class _EditTileDialogState extends State<EditTileDialog>
     final hasSpeech = _speechController.text.trim().isNotEmpty;
     final hasImage = _selectedImagePath != null;
     
-    // Debug: Print what's missing
-    if (!hasLabel) print('DEBUG: Label is empty');
-    if (!hasSpeech) print('DEBUG: Speech text is empty');
-    if (!hasImage) print('DEBUG: No image selected');
+    // Debug: Log what's missing
+    if (!hasLabel) AACLogger.debug('Label is empty', tag: 'EditDialog');
+    if (!hasSpeech) AACLogger.debug('Speech text is empty', tag: 'EditDialog');
+    if (!hasImage) AACLogger.debug('No image selected', tag: 'EditDialog');
     
     return hasLabel && hasSpeech && hasImage;
   }
 
   void _handleSave() async {
-    print('DEBUG: _handleSave called');
+    AACLogger.debug('_handleSave called', tag: 'EditDialog');
     
     if (!_canSave()) {
-      print('DEBUG: _canSave() returned false, save aborted');
+      AACLogger.debug('_canSave() returned false, save aborted', tag: 'EditDialog');
       return;
     }
 
-    print('DEBUG: Creating symbol with ID: ${widget.symbol?.id}');
-    print('DEBUG: Label: ${_labelController.text.trim()}');
-    print('DEBUG: Speech: ${_speechController.text.trim()}');
-    print('DEBUG: Image Path: $_selectedImagePath');
+    AACLogger.debug('Creating symbol with ID: ${widget.symbol?.id}', tag: 'EditDialog');
+    AACLogger.debug('Label: ${_labelController.text.trim()}', tag: 'EditDialog');
+    AACLogger.debug('Speech: ${_speechController.text.trim()}', tag: 'EditDialog');
+    AACLogger.debug('Image Path: $_selectedImagePath', tag: 'EditDialog');
 
     // Create updated symbol with same ID if editing existing symbol
     final symbolId = widget.symbol?.id ?? 'symbol_${DateTime.now().millisecondsSinceEpoch}';
@@ -633,22 +634,22 @@ class _EditTileDialogState extends State<EditTileDialog>
 
     await AACHelper.accessibleHapticFeedback();
     
-    print('DEBUG: About to call UserProfileService methods');
+    AACLogger.debug('About to call UserProfileService methods', tag: 'EditDialog');
     
     // If editing existing symbol, update it in the profile
     if (widget.symbol != null) {
-      print('DEBUG: Updating existing symbol in profile');
+      AACLogger.debug('Updating existing symbol in profile', tag: 'EditDialog');
       await UserProfileService.updateSymbolInActiveProfile(widget.symbol!, symbol);
     } else {
-      print('DEBUG: Adding new symbol to profile');
+      AACLogger.debug('Adding new symbol to profile', tag: 'EditDialog');
       // If creating new symbol, add it to the profile
       await UserProfileService.addSymbolToActiveProfile(symbol);
     }
     
-    print('DEBUG: Calling widget.onSave callback');
+    AACLogger.debug('Calling widget.onSave callback', tag: 'EditDialog');
     widget.onSave(symbol);
     
-    print('DEBUG: Popping dialog');
+    AACLogger.debug('Popping dialog', tag: 'EditDialog');
     Navigator.pop(context);
   }
 
@@ -734,7 +735,7 @@ class _EditTileDialogState extends State<EditTileDialog>
         });
       }
     } catch (e) {
-      print('Error picking image: $e');
+      AACLogger.error('Error picking image: $e', tag: 'EditDialog');
     }
   }
 

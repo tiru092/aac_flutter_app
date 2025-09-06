@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'widgets/goals_section.dart';
+import 'utils/aac_logger.dart';
 
 void main() {
-  print('Testing GoalsSection import');
+  AACLogger.info('Testing GoalsSection import', tag: 'Test');
   const widget = GoalsSection();
-  print('GoalsSection imported successfully: ${widget.runtimeType}');
+  AACLogger.info('GoalsSection imported successfully: ${widget.runtimeType}', tag: 'Test');
 }

@@ -8,6 +8,11 @@ class PracticeGoal {
   final int completedActivities;
   final int totalStars;
   final String color;
+  
+  // Add missing properties for practice screen
+  final List<Practice> practices;
+  final int completedPractices;
+  final int colorValue;
 
   PracticeGoal({
     required this.id,
@@ -19,6 +24,9 @@ class PracticeGoal {
     this.completedActivities = 0,
     this.totalStars = 0,
     required this.color,
+    this.practices = const [],
+    this.completedPractices = 0,
+    this.colorValue = 0xFF2196F3,
   });
 
   double get progress => activities.isEmpty ? 0.0 : completedActivities / activities.length;
@@ -33,6 +41,9 @@ class PracticeGoal {
     int? completedActivities,
     int? totalStars,
     String? color,
+    List<Practice>? practices,
+    int? completedPractices,
+    int? colorValue,
   }) {
     return PracticeGoal(
       id: id ?? this.id,
@@ -44,6 +55,9 @@ class PracticeGoal {
       completedActivities: completedActivities ?? this.completedActivities,
       totalStars: totalStars ?? this.totalStars,
       color: color ?? this.color,
+      practices: practices ?? this.practices,
+      completedPractices: completedPractices ?? this.completedPractices,
+      colorValue: colorValue ?? this.colorValue,
     );
   }
 }
@@ -438,5 +452,54 @@ class PracticeGoalsData {
         ),
       ],
     ));
+  }
+}
+
+// Practice class for individual practice activities
+class Practice {
+  final String id;
+  final String name;
+  final String description;
+  final String type;
+  final int difficulty;
+  final Duration estimatedTime;
+  final bool isCompleted;
+  final int starsEarned;
+  final DateTime? lastPlayed;
+
+  const Practice({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.type,
+    this.difficulty = 1,
+    this.estimatedTime = const Duration(minutes: 5),
+    this.isCompleted = false,
+    this.starsEarned = 0,
+    this.lastPlayed,
+  });
+
+  Practice copyWith({
+    String? id,
+    String? name,
+    String? description,
+    String? type,
+    int? difficulty,
+    Duration? estimatedTime,
+    bool? isCompleted,
+    int? starsEarned,
+    DateTime? lastPlayed,
+  }) {
+    return Practice(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      type: type ?? this.type,
+      difficulty: difficulty ?? this.difficulty,
+      estimatedTime: estimatedTime ?? this.estimatedTime,
+      isCompleted: isCompleted ?? this.isCompleted,
+      starsEarned: starsEarned ?? this.starsEarned,
+      lastPlayed: lastPlayed ?? this.lastPlayed,
+    );
   }
 }

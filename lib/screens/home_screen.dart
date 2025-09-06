@@ -10,6 +10,7 @@ import '../widgets/communication_grid.dart';
 import '../widgets/quick_phrases_bar.dart';
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
+import '../utils/aac_logger.dart';
 import '../utils/sample_data.dart';
 import '../services/user_profile_service.dart';
 import '../screens/enhanced_goals_screen.dart';
@@ -386,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Load speech settings with fallback defaults
       _loadSpeechSettings();
     } catch (e) {
-      print('Error in _loadData: $e');
+      AACLogger.error('Error in _loadData: $e', tag: 'HomeScreen');
       setState(() {
         _errorMessage = 'Error loading data: Using sample data only';
         _isLoading = false;
@@ -411,7 +412,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
     } catch (e) {
-      print('Error loading speech settings: $e');
+      AACLogger.error('Error loading speech settings: $e', tag: 'HomeScreen');
       // Use default values if loading fails
       if (mounted) {
         setState(() {
@@ -460,7 +461,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }).toList();
       }
     } catch (e) {
-      print('Error filtering symbols: $e');
+      AACLogger.error('Error filtering symbols: $e', tag: 'HomeScreen');
       return _allSymbols; // Return all symbols if filtering fails
     }
   }
@@ -471,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _currentCategory = category;
       });
     } catch (e) {
-      print('Error changing category: $e');
+      AACLogger.error('Error changing category: $e', tag: 'HomeScreen');
       // Show error to user
       _showErrorDialog('Failed to change category');
     }
@@ -491,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Record usage in favorites (non-blocking)
       _recordSymbolUsage(symbol);
     } catch (e) {
-      print('Error in symbol tap: $e');
+      AACLogger.error('Error in symbol tap: $e', tag: 'HomeScreen');
       // Even if setState fails, don't block UI
     }
   }
@@ -504,7 +505,7 @@ class _HomeScreenState extends State<HomeScreen> {
         await _favoritesService.recordUsage(symbol, action: action);
       } catch (e) {
         // Ignore errors - don't block UI
-        print('Favorites recording failed (ignored): $e');
+        AACLogger.warning('Favorites recording failed (ignored): $e', tag: 'HomeScreen');
       }
     }();
   }
@@ -517,7 +518,7 @@ class _HomeScreenState extends State<HomeScreen> {
         await AACHelper.speak(text);
       } catch (e) {
         // Ignore speech errors - don't block UI
-        print('Speech failed (ignored): $e');
+        AACLogger.warning('Speech failed (ignored): $e', tag: 'HomeScreen');
       }
     }();
   }
@@ -534,7 +535,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     } catch (e) {
-      print('Error in speak sentence: $e');
+      AACLogger.error('Error in speak sentence: $e', tag: 'HomeScreen');
     }
   }
 
@@ -544,7 +545,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedSymbols.clear();
       });
     } catch (e) {
-      print('Error clearing sentence: $e');
+      AACLogger.error('Error clearing sentence: $e', tag: 'HomeScreen');
       _showErrorDialog('Failed to clear sentence');
     }
   }
@@ -557,7 +558,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      print('Error removing symbol: $e');
+      AACLogger.error('Error removing symbol: $e', tag: 'HomeScreen');
       _showErrorDialog('Failed to remove symbol');
     }
   }
@@ -566,27 +567,27 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       _trySpeak(phrase);
     } catch (e) {
-      print('Error in quick phrase speak: $e');
+      AACLogger.error('Error in quick phrase speak: $e', tag: 'HomeScreen');
     }
   }
   
   // Handle symbol update from edit dialog
   void _onSymbolUpdate(Symbol updatedSymbol) {
     try {
-      print('DEBUG: _onSymbolUpdate called with symbol ID: ${updatedSymbol.id}');
-      print('DEBUG: Updated symbol label: ${updatedSymbol.label}');
-      print('DEBUG: Updated symbol image path: ${updatedSymbol.imagePath}');
+      AACLogger.debug('_onSymbolUpdate called with symbol ID: ${updatedSymbol.id}', tag: 'HomeScreen');
+      AACLogger.debug('Updated symbol label: ${updatedSymbol.label}', tag: 'HomeScreen');
+      AACLogger.debug('Updated symbol image path: ${updatedSymbol.imagePath}', tag: 'HomeScreen');
       
       setState(() {
         // Find and replace the symbol in _allSymbols
         final index = _allSymbols.indexWhere((s) => s.id == updatedSymbol.id);
-        print('DEBUG: Found symbol at index: $index');
+        AACLogger.debug('Found symbol at index: $index', tag: 'HomeScreen');
         if (index != -1) {
-          print('DEBUG: Old symbol: ${_allSymbols[index].label} - ${_allSymbols[index].imagePath}');
+          AACLogger.debug('Old symbol: ${_allSymbols[index].label} - ${_allSymbols[index].imagePath}', tag: 'HomeScreen');
           _allSymbols[index] = updatedSymbol;
-          print('DEBUG: New symbol: ${_allSymbols[index].label} - ${_allSymbols[index].imagePath}');
+          AACLogger.debug('New symbol: ${_allSymbols[index].label} - ${_allSymbols[index].imagePath}', tag: 'HomeScreen');
         } else {
-          print('DEBUG: Symbol not found in _allSymbols list!');
+          AACLogger.debug('Symbol not found in _allSymbols list!', tag: 'HomeScreen');
         }
       });
       

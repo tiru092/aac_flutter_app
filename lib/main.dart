@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'widgets/auth_wrapper.dart';  // Use auth wrapper instead of direct home screen
 
 void main() async {
@@ -9,9 +10,20 @@ void main() async {
   
   bool firebaseAvailable = false;
   
-  // Initialize Firebase
+  // Initialize Firebase with corruption fix
   try {
     await Firebase.initializeApp();
+    
+    // EMERGENCY FIX: Clear corrupt Firebase cache to prevent crashes
+    try {
+      final firestore = FirebaseFirestore.instance;
+      await firestore.terminate();  // Disconnect from Firestore
+      await firestore.clearPersistence();  // Clear local cache
+      debugPrint('Firebase cache cleared to fix corruption');
+    } catch (clearError) {
+      debugPrint('Could not clear Firebase cache (normal on fresh install): $clearError');
+    }
+    
     firebaseAvailable = true;
     debugPrint('Firebase initialized successfully');
   } catch (e) {

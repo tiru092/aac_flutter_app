@@ -4,6 +4,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'main.dart';
+import 'models/symbol.dart';
 
 class SymbolGridScreen extends StatefulWidget {
   final Category category;

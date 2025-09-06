@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/semantics.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../services/voice_service.dart';
+import '../utils/aac_logger.dart';
 
 // Sound effect types for children
 enum SoundEffect {
@@ -287,7 +288,7 @@ class AACHelper {
         await _flutterTts!.setSpeechRate(speechRate);
       }
     } catch (e) {
-      print('Error in speakWithEmotion: $e');
+      AACLogger.error('Error in speakWithEmotion: $e', tag: 'TTS');
       // Fallback to regular speak
       await speak(text);
     }
@@ -307,7 +308,7 @@ class AACHelper {
         debugPrint('Error stopping voice service playback: $voiceError');
       }
     } catch (e) {
-      print('Error stopping speech: $e');
+      AACLogger.error('Error stopping speech: $e', tag: 'TTS');
     }
   }
 
@@ -346,7 +347,7 @@ class AACHelper {
     try {
       return _symbolBox?.values.toList() ?? [];
     } catch (e) {
-      print('Error getting all symbols: $e');
+      AACLogger.error('Error getting all symbols: $e', tag: 'Database');
       return [];
     }
   }
@@ -357,7 +358,7 @@ class AACHelper {
           .where((symbol) => symbol.category == categoryName)
           .toList() ?? [];
     } catch (e) {
-      print('Error getting symbols by category: $e');
+      AACLogger.error('Error getting symbols by category: $e', tag: 'Database');
       return [];
     }
   }
@@ -409,7 +410,7 @@ class AACHelper {
     try {
       return _categoryBox?.values.toList() ?? [];
     } catch (e) {
-      print('Error getting all categories: $e');
+      AACLogger.error('Error getting all categories: $e', tag: 'Database');
       return [];
     }
   }
@@ -551,7 +552,7 @@ class AACHelper {
         await addSymbol(symbol);
       }
     } catch (e) {
-      print('Error initializing default data: $e');
+      AACLogger.error('Error initializing default data: $e', tag: 'Database');
       // Continue without default data if initialization fails
     }
   }
@@ -622,7 +623,7 @@ class AACHelper {
         }
       }
     } catch (e) {
-      print('Error in speakWithAccessibility: $e');
+      AACLogger.error('Error in speakWithAccessibility: $e', tag: 'TTS');
       // Fallback to system sound if TTS fails
       await _playErrorSound();
     }
@@ -636,7 +637,7 @@ class AACHelper {
           .replaceAll(RegExp(r'\s+'), ' ')    // Normalize whitespace
           .trim();
     } catch (e) {
-      print('Error cleaning text for speech: $e');
+      AACLogger.error('Error cleaning text for speech: $e', tag: 'TTS');
       return text;
     }
   }
@@ -651,7 +652,7 @@ class AACHelper {
         await speakWithAccessibility(text, haptic: false);
       }
     } catch (e) {
-      print('Error in autoSpeakSymbol: $e');
+      AACLogger.error('Error in autoSpeakSymbol: $e', tag: 'TTS');
     }
   }
   
@@ -660,7 +661,7 @@ class AACHelper {
     try {
       return getSetting<bool>(_highContrastKey, defaultValue: false)!;
     } catch (e) {
-      print('Error getting high contrast setting: $e');
+      AACLogger.error('Error getting high contrast setting: $e', tag: 'Settings');
       return false;
     }
   }
@@ -669,7 +670,7 @@ class AACHelper {
     try {
       await setSetting(_highContrastKey, enabled);
     } catch (e) {
-      print('Error setting high contrast: $e');
+      AACLogger.error('Error setting high contrast: $e', tag: 'Settings');
     }
   }
   
@@ -677,7 +678,7 @@ class AACHelper {
     try {
       return getSetting<bool>(_largeTextKey, defaultValue: false)!;
     } catch (e) {
-      print('Error getting large text setting: $e');
+      AACLogger.error('Error getting large text setting: $e');
       return false;
     }
   }
@@ -686,7 +687,7 @@ class AACHelper {
     try {
       await setSetting(_largeTextKey, enabled);
     } catch (e) {
-      print('Error setting large text: $e');
+      AACLogger.error('Error setting large text: $e', tag: 'Settings');
     }
   }
   
@@ -694,7 +695,7 @@ class AACHelper {
     try {
       return getSetting<bool>(_voiceFeedbackKey, defaultValue: true)!;
     } catch (e) {
-      print('Error getting voice feedback setting: $e');
+      AACLogger.error('Error getting voice feedback setting: $e', tag: 'Settings');
       return true; // Default to enabled
     }
   }
@@ -703,7 +704,7 @@ class AACHelper {
     try {
       await setSetting(_voiceFeedbackKey, enabled);
     } catch (e) {
-      print('Error setting voice feedback: $e');
+      AACLogger.error('Error setting voice feedback: $e', tag: 'Settings');
     }
   }
   
@@ -711,7 +712,7 @@ class AACHelper {
     try {
       return getSetting<bool>(_hapticFeedbackKey, defaultValue: true)!;
     } catch (e) {
-      print('Error getting haptic feedback setting: $e');
+      AACLogger.error('Error getting haptic feedback setting: $e', tag: 'Settings');
       return true; // Default to enabled
     }
   }
@@ -720,7 +721,7 @@ class AACHelper {
     try {
       await setSetting(_hapticFeedbackKey, enabled);
     } catch (e) {
-      print('Error setting haptic feedback: $e');
+      AACLogger.error('Error setting haptic feedback: $e', tag: 'Settings');
     }
   }
   
@@ -728,7 +729,7 @@ class AACHelper {
     try {
       return getSetting<bool>(_autoSpeakKey, defaultValue: true)!;
     } catch (e) {
-      print('Error getting auto speak setting: $e');
+      AACLogger.error('Error getting auto speak setting: $e', tag: 'Settings');
       return true; // Default to enabled
     }
   }
@@ -737,7 +738,7 @@ class AACHelper {
     try {
       await setSetting(_autoSpeakKey, enabled);
     } catch (e) {
-      print('Error setting auto speak: $e');
+      AACLogger.error('Error setting auto speak: $e', tag: 'Settings');
     }
   }
   
@@ -746,7 +747,7 @@ class AACHelper {
     try {
       return getSetting<double>(_speechRateKey, defaultValue: 0.5)!;
     } catch (e) {
-      print('Error getting speech rate: $e');
+      AACLogger.error('Error getting speech rate: $e', tag: 'Settings');
       return 0.5; // Default value
     }
   }
@@ -759,7 +760,7 @@ class AACHelper {
         await _flutterTts!.setSpeechRate(clampedRate);
       }
     } catch (e) {
-      print('Error setting speech rate: $e');
+      AACLogger.error('Error setting speech rate: $e', tag: 'Settings');
     }
   }
   
@@ -768,7 +769,7 @@ class AACHelper {
     try {
       return getSetting<double>(_speechPitchKey, defaultValue: 1.2)!;
     } catch (e) {
-      print('Error getting speech pitch: $e');
+      AACLogger.error('Error getting speech pitch: $e', tag: 'Settings');
       return 1.2; // Default value
     }
   }
@@ -1034,7 +1035,7 @@ class AACHelper {
       // Preload common sound effects for better performance
       _preloadSoundEffects();
     } catch (e) {
-      print('Error initializing sound effects: $e');
+      AACLogger.error('Error initializing sound effects: $e', tag: 'Audio');
     }
   }
   
@@ -1043,7 +1044,7 @@ class AACHelper {
       // Preload sound effects to reduce latency (platform-dependent implementation)
       // This helps ensure smooth audio playback for children
     } catch (e) {
-      print('Error preloading sound effects: $e');
+      AACLogger.error('Error preloading sound effects: $e', tag: 'Audio');
     }
   }
   
@@ -1119,7 +1120,7 @@ class AACHelper {
         await announceToScreenReader(text);
       }
     } catch (e) {
-      print('Error in provideFeedback: $e');
+      AACLogger.error('Error in provideFeedback: $e', tag: 'Feedback');
     }
   }
   
@@ -1131,7 +1132,7 @@ class AACHelper {
     try {
       return getSetting<bool>(_soundEffectsKey, defaultValue: true)!;
     } catch (e) {
-      print('Error getting sound effects setting: $e');
+      AACLogger.error('Error getting sound effects setting: $e', tag: 'Settings');
       return true; // Default to enabled
     }
   }
@@ -1140,7 +1141,7 @@ class AACHelper {
     try {
       await setSetting(_soundEffectsKey, enabled);
     } catch (e) {
-      print('Error setting sound effects: $e');
+      AACLogger.error('Error setting sound effects: $e', tag: 'Settings');
     }
   }
   
@@ -1148,7 +1149,7 @@ class AACHelper {
     try {
       return getSetting<double>(_soundVolumeKey2, defaultValue: 0.8)!;
     } catch (e) {
-      print('Error getting sound volume: $e');
+      AACLogger.error('Error getting sound volume: $e', tag: 'Settings');
       return 0.8; // Default value
     }
   }
@@ -1159,7 +1160,7 @@ class AACHelper {
       await setSetting(_soundVolumeKey2, clampedVolume);
       await _audioPlayer.setVolume(clampedVolume);
     } catch (e) {
-      print('Error setting sound volume: $e');
+      AACLogger.error('Error setting sound volume: $e', tag: 'Settings');
     }
   }
 }

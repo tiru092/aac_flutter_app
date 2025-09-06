@@ -7,6 +7,7 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
+import '../utils/aac_logger.dart';
 import '../services/favorites_service.dart';
 import 'edit_tile_dialog.dart';
 
@@ -970,7 +971,7 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
                           await AACHelper.accessibleHapticFeedback();
                           await AACHelper.speak(widget.symbol.label);
                         } catch (e) {
-                          print('Error speaking symbol: $e');
+                          AACLogger.error('Error speaking symbol: $e', tag: 'Communication');
                         }
                       },
                       child: Container(
@@ -1001,7 +1002,7 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
                           await AACHelper.accessibleHapticFeedback();
                           Navigator.pop(context);
                         } catch (e) {
-                          print('Error closing popup: $e');
+                          AACLogger.error('Error closing popup: $e', tag: 'Communication');
                           Navigator.pop(context); // Fallback close
                         }
                       },

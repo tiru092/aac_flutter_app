@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_profile.dart';
+import '../utils/aac_logger.dart';
 import 'cloud_sync_service.dart';
 import 'user_profile_service.dart';
 
@@ -36,9 +38,9 @@ class SyncManagementService {
       // Start monitoring for changes
       _startChangeMonitoring();
       
-      print('Sync management service initialized');
+      AACLogger.info('Sync management service initialized', tag: 'SyncManager');
     } catch (e) {
-      print('Error initializing sync management service: $e');
+      AACLogger.error('Error initializing sync management service: $e', tag: 'SyncManager');
     }
   }
 
@@ -460,13 +462,13 @@ class SyncManagementService {
       }
       
       // Periodically check if sync is needed
-      Future.periodic(settings.syncFrequency, (timer) async {
+      Timer.periodic(settings.syncFrequency, (timer) async {
         if (await isSyncNeeded()) {
           await performFullSync();
         }
       });
     } catch (e) {
-      print('Error starting periodic sync: $e');
+      AACLogger.error('Error starting periodic sync: $e', tag: 'SyncManager');
     }
   }
 
