@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Add Firebase Auth import
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/symbol.dart';
 import '../models/subscription.dart';
-import '../models/user_profile.dart'; // Add missing import
+import '../models/user_profile.dart';
 import '../utils/aac_logger.dart';
-import 'cloud_sync_service.dart'; // Add cloud sync service
-import 'encryption_service.dart'; // Add encryption service
+import 'cloud_sync_service.dart';
+import 'encryption_service.dart';
 
 /// Service to manage user profiles and ensure data separation
 class UserProfileService {
@@ -167,14 +167,19 @@ class UserProfileService {
     }
   }
   
-  /// Get all user profiles with decryption
+  /// Get all user profiles with decryption and enhanced error handling
   static Future<List<UserProfile>> getAllProfiles() async {
     try {
       // Try to load from cloud first if available
       if (_cloudSyncService.isCloudSyncAvailable) {
-        final cloudProfiles = await _cloudSyncService.loadAllProfilesFromCloud();
-        if (cloudProfiles.isNotEmpty) {
-          return cloudProfiles;
+        try {
+          final cloudProfiles = await _cloudSyncService.loadAllProfilesFromCloud();
+          if (cloudProfiles.isNotEmpty) {
+            return cloudProfiles;
+          }
+        } catch (e) {
+          AACLogger.error('Error loading from cloud: $e', tag: 'UserProfileService');
+          // Continue to local fallback
         }
       }
       
@@ -186,13 +191,14 @@ class UserProfileService {
       for (final json in profilesJson) {
         try {
           final profileMap = jsonDecode(json) as Map<String, dynamic>;
-          // Decrypt sensitive data
+          // Decrypt sensitive data with enhanced error handling
           final decryptedProfileMap = await _encryptionService.decryptProfileData(profileMap);
           final profile = UserProfile.fromJson(decryptedProfileMap);
           profiles.add(profile);
         } catch (e) {
           AACLogger.error('Error decrypting profile: $e', tag: 'UserProfileService');
-          // Skip this profile if decryption fails
+          // Skip this profile if decryption fails but continue with others
+          continue;
         }
       }
       

@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'widgets/auth_wrapper.dart';  // Use auth wrapper instead of direct home screen
+import 'services/migration_service.dart';  // NEW: Add migration service
+import 'services/data_recovery_service.dart';  // NEW: Add data recovery service
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +28,26 @@ void main() async {
     
     firebaseAvailable = true;
     debugPrint('Firebase initialized successfully');
+    
+    // NEW: Perform data health check and recovery if needed
+    try {
+      debugPrint('Performing data health check...');
+      await DataRecoveryService.performDataHealthCheck();
+      debugPrint('Data health check completed');
+    } catch (recoveryError) {
+      debugPrint('Data recovery error (app will continue): $recoveryError');
+      // Don't fail app startup if data recovery fails
+    }
+    
+    // NEW: Perform migration to shared architecture if needed
+    try {
+      debugPrint('Checking for migration to shared architecture...');
+      await MigrationService.performMigrationIfNeeded();
+      debugPrint('Migration check completed successfully');
+    } catch (migrationError) {
+      debugPrint('Migration error (app will continue): $migrationError');
+      // Don't fail app startup if migration fails
+    }
   } catch (e) {
     debugPrint('Firebase initialization error: $e');
     firebaseAvailable = false;

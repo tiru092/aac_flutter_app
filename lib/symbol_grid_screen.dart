@@ -47,35 +47,15 @@ class _SymbolGridScreenState extends State<SymbolGridScreen> {
   }
 
   void _editSymbol(int index) async {
-    String newLabel = await _showEditDialog(context, 'Edit Symbol', widget.category.symbols[index].label);
-    if (newLabel.isNotEmpty) {
-      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
-        setState(() {
-          widget.category.symbols[index] = SymbolItem(
-            label: newLabel,
-            imagePath: image.path,
-          );
-        });
-      }
-    }
+    // TODO: Implement symbol editing with enterprise architecture
+    // This needs to be updated to work with SharedResourceService
+    print('Edit symbol functionality needs to be implemented');
   }
 
   void _addSymbol() async {
-    String label = await _showEditDialog(context, 'New Symbol', '');
-    if (label.isNotEmpty) {
-      final XFile? image = await picker.pickImage(source: ImageSource.camera);
-      if (image != null) {
-        setState(() {
-          widget.category.symbols.add(
-            SymbolItem(
-              label: label,
-              imagePath: image.path,
-            ),
-          );
-        });
-      }
-    }
+    // TODO: Implement symbol addition with enterprise architecture
+    // This needs to be updated to work with SharedResourceService
+    print('Add symbol functionality needs to be implemented');
   }
 
   @override
@@ -95,112 +75,10 @@ class _SymbolGridScreenState extends State<SymbolGridScreen> {
                 mainAxisSpacing: 12,
                 childAspectRatio: 0.9,
               ),
-              itemCount: widget.category.symbols.length,
+              itemCount: 0, // Temporarily disabled until enterprise architecture integration
               itemBuilder: (context, index) {
-                final symbol = widget.category.symbols[index];
-                return GestureDetector(
-                  onTap: () async {
-                    await flutterTts.speak(symbol.label);
-                    if (!context.mounted) return;
-                    
-                    await showDialog(
-                      context: context,
-                      builder: (context) => Dialog(
-                        backgroundColor: Colors.transparent,
-                        child: Container(
-                          width: MediaQuery.of(context).size.width * 0.8,
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 24,
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            children: [
-                              Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  symbol.imagePath.startsWith('assets/')
-                                      ? Image.asset(symbol.imagePath, height: 180)
-                                      : Image.file(File(symbol.imagePath), height: 180),
-                                  const SizedBox(height: 18),
-                                  Text(
-                                    symbol.label,
-                                    style: const TextStyle(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.bold
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Positioned(
-                                top: 12,
-                                right: 12,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black26,
-                                        blurRadius: 6,
-                                      ),
-                                    ],
-                                  ),
-                                  child: CupertinoButton(
-                                    padding: const EdgeInsets.all(2),
-                                    minSize: 32,
-                                    child: const Icon(
-                                      CupertinoIcons.pencil,
-                                      size: 24,
-                                      color: Colors.black87
-                                    ),
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      _editSymbol(index);
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: CupertinoColors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        symbol.imagePath.startsWith('assets/')
-                            ? Image.asset(symbol.imagePath, height: 70)
-                            : Image.file(File(symbol.imagePath), height: 70),
-                        const SizedBox(height: 10),
-                        Text(
-                          symbol.label,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                );
+                // This will be replaced with SharedResourceService integration
+                return Container();
               },
             ),
           ),

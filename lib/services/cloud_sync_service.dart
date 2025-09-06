@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/symbol.dart';
 import '../models/user_profile.dart';
+import '../models/subscription.dart';  // Add missing import
 import '../services/auth_service.dart';
 import '../services/user_profile_service.dart';
 import '../services/crash_reporting_service.dart';
@@ -200,22 +201,19 @@ class CloudSyncService {
           .map((doc) => Category.fromJson(doc.data()))
           .toList();
 
-      // Create profile with cloud data with null safety
+      // Create profile with cloud data with comprehensive null safety
       final profile = UserProfile(
-        id: profileData['id'] ?? '',
-        name: profileData['name'] ?? 'Unnamed Profile',
-        role: UserRole.values.firstWhere(
-          (role) => role.toString() == profileData['role'],
-          orElse: () => UserRole.child,
-        ),
-        avatarPath: profileData['avatarPath'],
-        createdAt: profileData['createdAt'] != null 
-            ? DateTime.parse(profileData['createdAt'])
-            : DateTime.now(),
-        settings: ProfileSettings.fromJson(profileData['settings'] ?? {}),
-        pin: profileData['pin'],
-        email: profileData['email'],
-        phoneNumber: profileData['phoneNumber'],
+        id: profileData['id']?.toString() ?? profileId,
+        name: profileData['name']?.toString() ?? 'Unnamed Profile',
+        role: _parseUserRole(profileData['role']),
+        avatarPath: profileData['avatarPath']?.toString(),
+        createdAt: _parseDateTime(profileData['createdAt']) ?? DateTime.now(),
+        lastActiveAt: _parseDateTime(profileData['lastActiveAt']) ?? DateTime.now(),
+        settings: _parseProfileSettings(profileData['settings']),
+        pin: profileData['pin']?.toString(),
+        email: profileData['email']?.toString(),
+        phoneNumber: profileData['phoneNumber']?.toString(),
+        subscription: _parseSubscription(profileData['subscription']),
         userSymbols: symbols,
         userCategories: categories,
       );
@@ -312,6 +310,85 @@ class CloudSyncService {
   /// Check if cloud sync is available (user is authenticated)
   bool get isCloudSyncAvailable {
     return _authService.currentUser != null;
+  }
+  
+  /// Helper method to safely parse UserRole
+  UserRole _parseUserRole(dynamic roleData) {
+    try {
+      if (roleData == null) return UserRole.child;
+      
+      final roleString = roleData.toString();
+      return UserRole.values.firstWhere(
+        (role) => role.toString() == roleString || role.name == roleString,
+        orElse: () => UserRole.child,
+      );
+    } catch (e) {
+      print('Error parsing user role: $e');
+      return UserRole.child;
+    }
+  }
+  
+  /// Helper method to safely parse DateTime
+  DateTime? _parseDateTime(dynamic dateData) {
+    try {
+      if (dateData == null) return null;
+      
+      if (dateData is Timestamp) {
+        return dateData.toDate();
+      } else if (dateData is String) {
+        return DateTime.parse(dateData);
+      } else if (dateData is int) {
+        return DateTime.fromMillisecondsSinceEpoch(dateData);
+      }
+      
+      return null;
+    } catch (e) {
+      print('Error parsing DateTime: $e');
+      return null;
+    }
+  }
+  
+  /// Helper method to safely parse ProfileSettings
+  ProfileSettings _parseProfileSettings(dynamic settingsData) {
+    try {
+      if (settingsData == null) return ProfileSettings();
+      
+      if (settingsData is Map<String, dynamic>) {
+        return ProfileSettings.fromJson(settingsData);
+      }
+      
+      return ProfileSettings();
+    } catch (e) {
+      print('Error parsing ProfileSettings: $e');
+      return ProfileSettings();
+    }
+  }
+  
+  /// Helper method to safely parse Subscription
+  Subscription _parseSubscription(dynamic subscriptionData) {
+    try {
+      if (subscriptionData == null) {
+        return const Subscription(
+          plan: SubscriptionPlan.free,
+          price: 0.0,
+        );
+      }
+      
+      if (subscriptionData is Map<String, dynamic>) {
+        return Subscription.fromJson(subscriptionData);
+      }
+      
+      return const Subscription(
+        plan: SubscriptionPlan.free,
+        price: 0.0,
+      );
+    } catch (e) {
+      print('Error parsing Subscription: $e');
+      return const Subscription(
+        plan: SubscriptionPlan.free,
+        price: 0.0,
+      );
+    }
   }
   
   /// Debug method to check profile data integrity

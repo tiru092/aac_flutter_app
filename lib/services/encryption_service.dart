@@ -54,12 +54,18 @@ class EncryptionService {
     }
   }
 
-  /// Decrypt a string using AES-like decryption with error handling
+  /// Decrypt a string using AES-like decryption with comprehensive error handling
   String decrypt(String encryptedText) {
     try {
       // Handle empty or null input
       if (encryptedText.isEmpty) {
         return '';
+      }
+      
+      // Check if the input looks like base64
+      if (!_isValidBase64(encryptedText)) {
+        print('Invalid base64 format, returning original text');
+        return encryptedText;
       }
       
       // Decode from base64
@@ -71,12 +77,50 @@ class EncryptionService {
         decryptedBytes.add(encryptedBytes[i] ^ keyBytes[i % keyBytes.length]);
       }
       
-      // Convert back to string
-      return utf8.decode(decryptedBytes);
+      // Convert back to string with validation
+      final decryptedString = utf8.decode(decryptedBytes);
+      
+      // Validate the decrypted string is reasonable
+      if (_isValidDecryptedString(decryptedString)) {
+        return decryptedString;
+      } else {
+        print('Decrypted string appears corrupted, returning original');
+        return encryptedText;
+      }
     } catch (e) {
       print('Error decrypting data: $e');
       // Return encrypted text if decryption fails
       return encryptedText;
+    }
+  }
+  
+  /// Check if a string is valid base64
+  bool _isValidBase64(String str) {
+    try {
+      base64Decode(str);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  /// Check if decrypted string appears to be valid
+  bool _isValidDecryptedString(String str) {
+    try {
+      // Check for reasonable length
+      if (str.length > 10000) return false;
+      
+      // Check for too many null bytes or control characters
+      final nullCount = str.codeUnits.where((c) => c == 0).length;
+      if (nullCount > str.length * 0.1) return false;
+      
+      // Check if it contains mostly printable characters
+      final printableCount = str.codeUnits.where((c) => c >= 32 && c <= 126 || c == 10 || c == 13).length;
+      if (printableCount < str.length * 0.7) return false;
+      
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 
@@ -205,34 +249,60 @@ class EncryptionService {
     }
   }
 
-  /// Decrypt user profile data with comprehensive error handling
+  /// Decrypt user profile data with comprehensive error handling and recovery
   Future<Map<String, dynamic>> decryptProfileData(Map<String, dynamic> encryptedData) async {
     try {
-      // Verify integrity
-      final integrityHash = encryptedData['_integrityHash'] as String?;
+      // Create a copy to avoid modifying original
       final dataCopy = Map<String, dynamic>.from(encryptedData);
-      dataCopy.remove('_integrityHash');
       
-      final dataString = jsonEncode(dataCopy);
-      final computedHash = generateHash(dataString);
+      // Remove integrity hash for verification
+      final integrityHash = dataCopy.remove('_integrityHash') as String?;
       
-      if (integrityHash != null && integrityHash != computedHash) {
-        print('Data integrity check failed');
-        // In a real app, you might want to handle this differently
-        // For now, we'll continue with decryption
+      // Skip integrity check if hash is missing (older data)
+      if (integrityHash != null) {
+        final dataString = jsonEncode(dataCopy);
+        final computedHash = generateHash(dataString);
+        
+        if (integrityHash != computedHash) {
+          print('Data integrity check failed - data may be corrupted');
+          // Continue with caution
+        }
       }
       
       final decryptedData = <String, dynamic>{};
       
-      // Decrypt sensitive fields
+      // Decrypt sensitive fields with fallback handling
       for (final entry in encryptedData.entries) {
         if (entry.key == '_integrityHash') {
           continue; // Skip integrity hash
         }
         
         if (_isSensitiveField(entry.key)) {
-          final decryptedValue = await secureDecrypt(entry.value.toString());
-          decryptedData[entry.key] = decryptedValue ?? entry.value; // Fallback to original if decryption fails
+          try {
+            final value = entry.value;
+            if (value == null || value.toString().isEmpty) {
+              decryptedData[entry.key] = null;
+              continue;
+            }
+            
+            final decryptedValue = await secureDecrypt(value.toString());
+            if (decryptedValue != null && decryptedValue.isNotEmpty) {
+              decryptedData[entry.key] = decryptedValue;
+            } else {
+              // Try simple decrypt as fallback
+              final simpleDecrypted = decrypt(value.toString());
+              if (simpleDecrypted != value.toString()) {
+                decryptedData[entry.key] = simpleDecrypted;
+              } else {
+                // Data appears corrupted, use safe fallback
+                print('Warning: Could not decrypt field ${entry.key}, using null fallback');
+                decryptedData[entry.key] = null;
+              }
+            }
+          } catch (e) {
+            print('Error decrypting field ${entry.key}: $e');
+            decryptedData[entry.key] = null; // Safe fallback
+          }
         } else {
           decryptedData[entry.key] = entry.value;
         }
@@ -241,8 +311,16 @@ class EncryptionService {
       return decryptedData;
     } catch (e) {
       print('Error decrypting profile data: $e');
-      // Return original data if decryption fails
-      return encryptedData;
+      // Return a sanitized version of the data with nulled sensitive fields
+      final safeFallback = <String, dynamic>{};
+      for (final entry in encryptedData.entries) {
+        if (_isSensitiveField(entry.key)) {
+          safeFallback[entry.key] = null; // Null out corrupted sensitive data
+        } else {
+          safeFallback[entry.key] = entry.value;
+        }
+      }
+      return safeFallback;
     }
   }
 
