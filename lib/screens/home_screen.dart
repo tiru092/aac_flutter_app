@@ -1223,17 +1223,40 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     
-                  // Menu button for landscape mode - positioned absolutely in top right
+                  // Menu button for landscape mode - positioned absolutely in top right corner
                   if (MediaQuery.of(context).orientation == Orientation.landscape)
                     Positioned(
-                      top: 8,
-                      right: 8,
-                      child: _buildTopControlButton(
-                        icon: CupertinoIcons.ellipsis_circle_fill,
-                        isActive: false,
-                        onPressed: _showMenuOptions,
-                        screenWidth: MediaQuery.of(context).size.width,
-                        isLandscape: true,
+                      top: 12, // Moved closer to edge
+                      right: 12, // Moved closer to edge
+                      child: Container(
+                        width: MediaQuery.of(context).size.width * 0.05, // Smaller size
+                        height: MediaQuery.of(context).size.width * 0.05,
+                        child: CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: _showMenuOptions,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF6C63FF), Color(0xFF4ECDC4)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(8), // Smaller radius
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF6C63FF).withOpacity(0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              CupertinoIcons.ellipsis_circle_fill,
+                              color: Colors.white,
+                              size: MediaQuery.of(context).size.width * 0.025, // Smaller icon
+                            ),
+                          ),
+                        ),
                       ),
                     ),            // Error message display
             if (_errorMessage != null)
@@ -1339,55 +1362,74 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: Column(
                             children: [
-                              // Categories header
+                              // Compact categories header with better spacing
                               Container(
                                 padding: EdgeInsets.symmetric(
-                                  vertical: screenHeight * 0.015, // Slightly reduced
-                                  horizontal: screenWidth * 0.01, // Reduced padding
+                                  vertical: screenHeight * 0.01, // Reduced vertical padding
+                                  horizontal: screenWidth * 0.008, // Reduced horizontal padding
                                 ),
-                                child: AutoSizeText(
-                                  'Categories',
-                                  style: GoogleFonts.nunito(
-                                    fontSize: 18, // Increased from 16 to 18
-                                    fontWeight: FontWeight.w700, // Increased from w600 to w700
-                                    color: Colors.grey.shade700,
-                                  ),
-                                  maxLines: 1,
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      CupertinoIcons.square_grid_2x2,
+                                      size: 16,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Expanded(
+                                      child: AutoSizeText(
+                                        'Categories',
+                                        style: GoogleFonts.nunito(
+                                          fontSize: 16, // Slightly smaller
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey.shade700,
+                                        ),
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                               
-                              // Categories list
+                              // Optimized categories list with better spacing
                               Expanded(
                                 child: SingleChildScrollView(
                                   child: Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.008), // Reduced padding
+                                    padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.006), // Reduced padding
                                     child: Column(
                                       children: [
-                                        _buildCategoryTab('All'),
-                                        SizedBox(height: 6), // Reduced spacing
+                                        // All category with special styling
+                                        Container(
+                                          margin: EdgeInsets.only(bottom: 4),
+                                          child: _buildCategoryTab('All'),
+                                        ),
                                         
-                                        // Custom categories
+                                        // Custom categories with compact spacing
                                         if (_customCategories.isNotEmpty) ...[
-                                          ..._customCategories.map((category) => Padding(
-                                            padding: const EdgeInsets.only(bottom: 6), // Reduced spacing
+                                          SizedBox(height: 2),
+                                          ..._customCategories.map((category) => Container(
+                                            margin: EdgeInsets.only(bottom: 3), // More compact spacing
                                             child: _buildCategoryTab(category.name, isCustom: true),
                                           )),
                                           
-                                          // Divider
+                                          // Thin divider
                                           Container(
-                                            height: 1,
-                                            margin: EdgeInsets.symmetric(vertical: 8), // Reduced margin
+                                            height: 0.5,
+                                            margin: EdgeInsets.symmetric(vertical: 6),
                                             color: Colors.grey.shade300,
                                           ),
                                         ],
                                         
-                                        // Default categories (excluding custom categories)
+                                        // Default categories with compact spacing
                                         ..._categories.where((category) => 
                                           !_customCategories.any((customCat) => customCat.name == category.name)
-                                        ).map((category) => Padding(
-                                          padding: const EdgeInsets.only(bottom: 6), // Reduced spacing
+                                        ).map((category) => Container(
+                                          margin: EdgeInsets.only(bottom: 3), // More compact spacing
                                           child: _buildCategoryTab(category.name),
                                         )),
+                                        
+                                        // Add some bottom padding for scroll comfort
+                                        SizedBox(height: 8),
                                       ],
                                     ),
                                   ),
@@ -1760,12 +1802,12 @@ class _HomeScreenState extends State<HomeScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: EdgeInsets.symmetric(
-          horizontal: isLandscape ? screenWidth * 0.02 : screenWidth * 0.025, // Slightly reduced for compactness 
-          vertical: isLandscape ? screenHeight * 0.008 : screenHeight * 0.01, // Increased for better touch area
+          horizontal: isLandscape ? screenWidth * 0.015 : screenWidth * 0.025, // More compact in landscape
+          vertical: isLandscape ? screenHeight * 0.006 : screenHeight * 0.01, // More compact vertical padding
         ),
         constraints: BoxConstraints(
-          minHeight: isLandscape ? 38 : 42, // Increased minimum height
-          maxHeight: isLandscape ? 48 : 52, // Increased maximum height
+          minHeight: isLandscape ? 32 : 42, // Smaller minimum height in landscape
+          maxHeight: isLandscape ? 40 : 52, // Smaller maximum height in landscape
         ),
         decoration: BoxDecoration(
           color: isSelected ? categoryColor : Colors.white,
@@ -1795,27 +1837,29 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Category icon - only show in landscape view for pill-style tabs
+            // Category icon - more compact in landscape
             if (isLandscape) ...[
               Icon(
                 categoryIcon,
-                size: 16,
+                size: 14, // Smaller icon size for landscape
                 color: isSelected ? Colors.white : categoryColor,
               ),
-              SizedBox(width: 4),
+              SizedBox(width: 3), // Reduced spacing
             ],
-            AutoSizeText(
-              categoryName,
-              style: GoogleFonts.nunito(
-                color: isSelected ? Colors.white : Colors.grey.shade700,
-                fontWeight: FontWeight.w700, // Increased from w600 to w700 for more professional look
-                fontSize: isLandscape ? 16 : 18, // Increased from 13/14 to 16/18 for better readability
-                letterSpacing: 0.3, // Slightly increased letter spacing
+            Flexible(
+              child: AutoSizeText(
+                categoryName,
+                style: GoogleFonts.nunito(
+                  color: isSelected ? Colors.white : Colors.grey.shade700,
+                  fontWeight: FontWeight.w600, // Slightly reduced for compactness
+                  fontSize: isLandscape ? 13 : 18, // Smaller font in landscape for more categories
+                  letterSpacing: 0.2, // Reduced letter spacing for compactness
+                ),
+                maxLines: 1,
+                minFontSize: isLandscape ? 10 : 12, // Smaller minimum in landscape
+                maxFontSize: isLandscape ? 14 : 20, // Smaller maximum in landscape
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 1,
-              minFontSize: 12, // Increased from 10
-              maxFontSize: 20, // Increased from 16
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
