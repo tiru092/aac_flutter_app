@@ -24,6 +24,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   List<HistoryItem> _history = [];
   List<Symbol> _mostUsed = [];
   
+  // Selection mode state
+  bool _isSelectionMode = false;
+  Set<String> _selectedSymbols = {}; // Store symbol IDs for selection
+  
   StreamSubscription? _favoritesSubscription;
   StreamSubscription? _historySubscription;
   
@@ -108,7 +112,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           onPressed: () => Navigator.pop(context),
           child: const Icon(CupertinoIcons.back, color: Colors.white),
         ),
-        trailing: _buildClearButton(),
+        trailing: _isSelectionMode ? _buildSelectionModeButtons() : _buildClearButton(),
       ),
       child: SafeArea(
         child: Column(
@@ -199,6 +203,35 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     );
   }
 
+  Widget _buildSelectionModeButtons() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Delete selected button
+        CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: _selectedSymbols.isNotEmpty ? () => _showRemoveSelectedDialog() : null,
+          child: Icon(
+            CupertinoIcons.delete,
+            color: _selectedSymbols.isNotEmpty ? Colors.white : Colors.white54,
+            size: 24,
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Cancel selection mode button
+        CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: _exitSelectionMode,
+          child: const Icon(
+            CupertinoIcons.xmark,
+            color: Colors.white,
+            size: 24,
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Build the current tab based on selected index
   Widget _buildCurrentTab() {
     switch (_selectedTab) {
@@ -234,7 +267,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         itemCount: _favorites.length,
         itemBuilder: (context, index) {
           final symbol = _favorites[index];
-          return _buildSymbolCard(symbol, showRemoveButton: true);
+          return _buildSymbolCard(symbol);
         },
       ),
     );
@@ -290,18 +323,27 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     );
   }
 
-  Widget _buildSymbolCard(Symbol symbol, {bool showRemoveButton = false, int? usageCount}) {
+  Widget _buildSymbolCard(Symbol symbol, {int? usageCount}) {
     final categoryColor = AACHelper.getCategoryColor(symbol.category);
+    final symbolId = symbol.id ?? symbol.label; // Use label as fallback ID
+    final isSelected = _selectedSymbols.contains(symbolId);
     
     return GestureDetector(
-      onTap: () => _onSymbolTap(symbol),
+      onTap: () {
+        if (_isSelectionMode) {
+          _toggleSymbolSelection(symbol);
+        } else {
+          _onSymbolTap(symbol);
+        }
+      },
+      onLongPress: () => _startSelectionMode(symbol),
       child: Container(
         decoration: BoxDecoration(
-          color: _cardColor,
+          color: isSelected ? categoryColor.withOpacity(0.3) : _cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: categoryColor.withOpacity(0.3),
-            width: 2,
+            color: isSelected ? categoryColor : categoryColor.withOpacity(0.3),
+            width: isSelected ? 3 : 2,
           ),
           boxShadow: [
             BoxShadow(
@@ -358,24 +400,21 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               ),
             ),
             
-            // Remove button for favorites
-            if (showRemoveButton)
+            // Selection checkbox in selection mode
+            if (_isSelectionMode)
               Positioned(
                 top: 4,
                 right: 4,
-                child: GestureDetector(
-                  onTap: () => _removeFromFavorites(symbol),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      CupertinoIcons.minus,
-                      color: Colors.white,
-                      size: 16,
-                    ),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: isSelected ? _successColor : Colors.grey,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isSelected ? CupertinoIcons.check_mark : CupertinoIcons.circle,
+                    color: Colors.white,
+                    size: 16,
                   ),
                 ),
               ),
@@ -922,15 +961,51 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
   }
 
+  void _startSelectionMode(Symbol symbol) {
+    final symbolId = symbol.id ?? symbol.label;
+    setState(() {
+      _isSelectionMode = true;
+      _selectedSymbols.clear();
+      _selectedSymbols.add(symbolId);
+    });
+  }
+
+  void _toggleSymbolSelection(Symbol symbol) {
+    final symbolId = symbol.id ?? symbol.label;
+    setState(() {
+      if (_selectedSymbols.contains(symbolId)) {
+        _selectedSymbols.remove(symbolId);
+        // Exit selection mode if no symbols are selected
+        if (_selectedSymbols.isEmpty) {
+          _isSelectionMode = false;
+        }
+      } else {
+        _selectedSymbols.add(symbolId);
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _isSelectionMode = false;
+      _selectedSymbols.clear();
+    });
+  }
+
+  void _removeSelectedSymbols() async {
+    for (String symbolId in _selectedSymbols) {
+      final symbol = _favorites.firstWhere((s) => (s.id ?? s.label) == symbolId);
+      await _favoritesService.removeFromFavorites(symbol);
+    }
+    _exitSelectionMode();
+  }
+
   void _onSymbolTap(Symbol symbol) async {
     try {
       // Provide haptic feedback first
       await AACHelper.accessibleHapticFeedback();
       
-      // Play the symbol
-      await AACHelper.speak(symbol.label);
-      
-      // Record usage
+      // Record usage (don't speak here - it will be spoken in the maximized view)
       await _favoritesService.recordUsage(symbol, action: 'played');
       
       // Show maximized view like the main page
@@ -1006,46 +1081,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
   }
 
-  void _removeFromFavorites(Symbol symbol) async {
-    try {
-      // Add haptic feedback
-      await AACHelper.accessibleHapticFeedback();
-      
-      // Show confirmation dialog for better user experience
-      final bool? confirmed = await showCupertinoDialog<bool>(
-        context: context,
-        builder: (BuildContext context) {
-          return CupertinoAlertDialog(
-            title: const Text('Remove from Favorites'),
-            content: Text('Remove "${symbol.label}" from your favorites?'),
-            actions: [
-              CupertinoDialogAction(
-                child: const Text('Cancel'),
-                onPressed: () => Navigator.of(context).pop(false),
-              ),
-              CupertinoDialogAction(
-                isDestructiveAction: true,
-                child: const Text('Remove'),
-                onPressed: () => Navigator.of(context).pop(true),
-              ),
-            ],
-          );
-        },
-      );
-      
-      if (confirmed == true) {
-        await _favoritesService.removeFromFavorites(symbol);
-        
-        // Show success feedback
-        _showRemovalFeedback(symbol.label);
-      }
-    } catch (e) {
-      debugPrint('Error removing from favorites: $e');
-      // Show error feedback
-      _showErrorFeedback('Failed to remove from favorites');
-    }
-  }
-
   void _showClearDialog() {
     showCupertinoDialog(
       context: context,
@@ -1073,6 +1108,32 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               Navigator.pop(context);
               _favoritesService.clearFavorites();
               _favoritesService.clearHistory();
+            },
+          ),
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRemoveSelectedDialog() {
+    final selectedCount = _selectedSymbols.length;
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Remove from Favorites'),
+        content: Text('Remove $selectedCount selected symbol${selectedCount > 1 ? 's' : ''} from favorites?'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Remove'),
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(context);
+              _removeSelectedSymbols();
             },
           ),
           CupertinoDialogAction(
