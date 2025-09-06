@@ -1298,6 +1298,44 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: Column(
                             children: [
+                              // Settings button above categories in landscape
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  vertical: screenHeight * 0.008,
+                                  horizontal: screenWidth * 0.01,
+                                ),
+                                child: Container(
+                                  width: screenWidth * 0.08,
+                                  height: screenWidth * 0.08,
+                                  child: CupertinoButton(
+                                    padding: EdgeInsets.zero,
+                                    onPressed: _openSettings,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [Color(0xFF6C63FF), Color(0xFF4ECDC4)],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFF6C63FF).withOpacity(0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        CupertinoIcons.settings,
+                                        color: Colors.white,
+                                        size: screenWidth * 0.035,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              
                               // Categories header
                               Container(
                                 padding: EdgeInsets.symmetric(
@@ -1695,42 +1733,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: _buildSpeechControls(),
             ),
           ),
-          
-        // Menu button positioned in center-right for landscape mode
-        Positioned(
-          top: MediaQuery.of(context).size.height * 0.4, // Center vertically
-          right: MediaQuery.of(context).size.width * 0.02, // Small margin from right edge
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.08,
-            height: MediaQuery.of(context).size.width * 0.08,
-            child: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _openSettings,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6C63FF), Color(0xFF4ECDC4)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6C63FF).withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  CupertinoIcons.settings,
-                  color: Colors.white,
-                  size: MediaQuery.of(context).size.width * 0.035,
-                ),
-              ),
-            ),
-          ),
-        ),
       ],
     )
         : SafeArea(
