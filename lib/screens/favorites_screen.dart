@@ -149,15 +149,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                         Icon(
                           CupertinoIcons.heart_fill, 
                           size: 18,
-                          color: _selectedTab == 0 ? Colors.white : Colors.black87,
+                          color: _selectedTab == 0 ? Colors.white : _primaryColor,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'Favorites',
+                        DefaultTextStyle(
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: _selectedTab == 0 ? Colors.white : Colors.black87,
+                            fontSize: 16,
+                            color: _selectedTab == 0 ? Colors.white : _primaryColor,
                           ),
+                          child: const Text('Favorites'),
                         ),
                       ],
                     ),
@@ -170,15 +171,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                         Icon(
                           CupertinoIcons.clock_fill, 
                           size: 18,
-                          color: _selectedTab == 1 ? Colors.white : Colors.black87,
+                          color: _selectedTab == 1 ? Colors.white : _primaryColor,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'History',
+                        DefaultTextStyle(
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: _selectedTab == 1 ? Colors.white : Colors.black87,
+                            fontSize: 16,
+                            color: _selectedTab == 1 ? Colors.white : _primaryColor,
                           ),
+                          child: const Text('History'),
                         ),
                       ],
                     ),
