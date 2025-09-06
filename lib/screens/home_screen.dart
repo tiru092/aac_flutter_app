@@ -477,6 +477,31 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // Add new symbol method
+  void _addNewSymbol() async {
+    try {
+      // Navigate to Add Symbol screen with full functionality
+      final Symbol? newSymbol = await Navigator.push(
+        context,
+        CupertinoPageRoute(
+          builder: (context) => const AddSymbolScreen(),
+        ),
+      );
+      
+      // If user created a new symbol, add it to our symbols list
+      if (newSymbol != null && mounted) {
+        setState(() {
+          _allSymbols.add(newSymbol);
+          
+          // Also refresh custom categories in case a new category was created
+          _refreshCustomCategories();
+        });
+      }
+    } catch (e) {
+      _showErrorDialog('Error opening Add Symbol screen: $e');
+    }
+  }
+
   // CRITICAL: Symbol tap functionality - Add to sentence ONLY (no async operations)
   void _onSymbolTap(Symbol symbol) {
     try {
@@ -1060,22 +1085,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC), // Soft pastel background instead of plain white
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Main content
-            GestureDetector(
-              onTap: () {
-                // Close overlays when tapping outside
-                if (_showQuickPhrases || _showSpeechControls) {
-                  setState(() {
-                    _showQuickPhrases = false;
-                    _showSpeechControls = false;
-                  });
-                }
-              },
-              child: Column(
-                children: [
+      body: MediaQuery.of(context).orientation == Orientation.landscape 
+        ? Stack(
+            children: [
+              // Main content without SafeArea for landscape (full screen usage)
+              GestureDetector(
+                onTap: () {
+                  // Close overlays when tapping outside
+                  if (_showQuickPhrases || _showSpeechControls) {
+                    setState(() {
+                      _showQuickPhrases = false;
+                      _showSpeechControls = false;
+                    });
+                  }
+                },
+                child: Column(
+                  children: [
                   // Top row: only show in portrait mode
                   if (MediaQuery.of(context).orientation != Orientation.landscape)
                     Padding(
@@ -1223,79 +1248,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     
-                  // Menu button for landscape mode - positioned absolutely in top right
-                  if (MediaQuery.of(context).orientation == Orientation.landscape)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: _buildTopControlButton(
-                        icon: CupertinoIcons.ellipsis_circle_fill,
-                        isActive: false,
-                        onPressed: _showMenuOptions,
-                        screenWidth: MediaQuery.of(context).size.width,
-                        isLandscape: true,
-                      ),
-                    ),            // Error message display
-            if (_errorMessage != null)
-              Container(
-                padding: EdgeInsets.all(MediaQuery.of(context).size.width * 0.03), // 3% of screen width
-                margin: EdgeInsets.symmetric(
-                  horizontal: MediaQuery.of(context).size.width * 0.04, // 4% of screen width
-                  vertical: MediaQuery.of(context).size.height * 0.01, // 1% of screen height
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFECEB),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE53E3E)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      CupertinoIcons.exclamationmark_triangle,
-                      color: Color(0xFFE53E3E),
-                      size: MediaQuery.of(context).size.width * 0.05, // 5% of screen width
-                    ),
-                    SizedBox(width: MediaQuery.of(context).size.width * 0.02), // 2% of screen width
+                    // Main content area for landscape
                     Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: TextStyle(
-                          color: Color(0xFFE53E3E),
-                          fontSize: MediaQuery.of(context).size.width * 0.035, // 3.5% of screen width
-                        ),
-                      ),
-                    ),
-                    CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      minSize: MediaQuery.of(context).size.width * 0.06, // 6% of screen width
-                      onPressed: () {
-                        setState(() {
-                          _errorMessage = null;
-                        });
-                      },
-                      child: Icon(
-                        CupertinoIcons.clear,
-                        color: Color(0xFFE53E3E),
-                        size: MediaQuery.of(context).size.width * 0.04, // 4% of screen width
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // ARASAAC Asterisk Grid - Core Vocabulary (TEMPORARILY DISABLED FOR PERFORMANCE TESTING)
-            // ArasaacAsteriskGrid(
-            //   onSymbolTap: _onSymbolTap,
-            // ),
-            
-            
-            // Main content area - different layout for landscape vs portrait
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final screenWidth = constraints.maxWidth;
-                  final screenHeight = constraints.maxHeight;
-                  final isLandscape = screenWidth > screenHeight;
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final screenWidth = constraints.maxWidth;
+                          final screenHeight = constraints.maxHeight;
+                          final isLandscape = screenWidth > screenHeight;
                   
                   if (isLandscape) {
                     // Horizontal layout: categories on right side like reference image
@@ -1736,9 +1695,255 @@ class _HomeScreenState extends State<HomeScreen> {
               child: _buildSpeechControls(),
             ),
           ),
+          
+        // Menu button positioned in center-right for landscape mode
+        Positioned(
+          top: MediaQuery.of(context).size.height * 0.4, // Center vertically
+          right: MediaQuery.of(context).size.width * 0.02, // Small margin from right edge
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.08,
+            height: MediaQuery.of(context).size.width * 0.08,
+            child: CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: _openSettings,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6C63FF), Color(0xFF4ECDC4)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF6C63FF).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  CupertinoIcons.settings,
+                  color: Colors.white,
+                  size: MediaQuery.of(context).size.width * 0.035,
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
-    ),
-  ),
+    )
+        : SafeArea(
+            child: GestureDetector(
+              onTap: () {
+                // Close overlays when tapping outside
+                if (_showQuickPhrases || _showSpeechControls) {
+                  setState(() {
+                    _showQuickPhrases = false;
+                    _showSpeechControls = false;
+                  });
+                }
+              },
+              child: Column(
+                children: [
+                  // Top row with controls in portrait mode
+                  Padding(
+                    padding: _getResponsivePadding(context),
+                    child: LayoutBuilder(
+                      builder: (context, topConstraints) {
+                        final screenWidth = topConstraints.maxWidth;
+                        final screenHeight = MediaQuery.of(context).size.height;
+                        final isLandscape = screenWidth > screenHeight;
+                        
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // + Symbol button (top left corner)
+                            Container(
+                              width: screenWidth * 0.08,
+                              height: screenWidth * 0.08,
+                              margin: EdgeInsets.only(right: screenWidth * 0.015),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF6C63FF), Color(0xFF4ECDC4)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF6C63FF).withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: CupertinoButton(
+                                  padding: EdgeInsets.zero,
+                                  onPressed: _addNewSymbol,
+                                  child: Icon(
+                                    CupertinoIcons.add,
+                                    color: Colors.white,
+                                    size: screenWidth * 0.045,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            
+                            // Control buttons row
+                            Row(
+                              children: [
+                                // Quick Phrases toggle
+                                _buildTopControlButton(
+                                  icon: CupertinoIcons.quote_bubble,
+                                  isActive: _showQuickPhrases,
+                                  onPressed: _toggleQuickPhrases,
+                                  screenWidth: screenWidth,
+                                  isLandscape: isLandscape,
+                                ),
+                                SizedBox(width: screenWidth * 0.008),
+                                
+                                // Speech Controls toggle
+                                _buildTopControlButton(
+                                  icon: CupertinoIcons.waveform,
+                                  isActive: _showSpeechControls,
+                                  onPressed: _toggleSpeechControls,
+                                  screenWidth: screenWidth,
+                                  isLandscape: isLandscape,
+                                ),
+                                SizedBox(width: screenWidth * 0.008),
+                                
+                                // Search bar
+                                Flexible(
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: screenWidth * 0.30,
+                                      minWidth: screenWidth * 0.15,
+                                    ),
+                                    child: _buildSearchBar(),
+                                  ),
+                                ),
+                                SizedBox(width: screenWidth * 0.008),
+                                
+                                // Favorites & History button
+                                _buildTopControlButton(
+                                  icon: CupertinoIcons.heart_fill,
+                                  isActive: false,
+                                  onPressed: _openGoalsScreen,
+                                  screenWidth: screenWidth,
+                                  isLandscape: isLandscape,
+                                ),
+                                SizedBox(width: screenWidth * 0.008),
+                                
+                                // Professional Communication Coach button
+                                _buildTopControlButton(
+                                  icon: CupertinoIcons.person_2_fill,
+                                  isActive: false,
+                                  onPressed: _openInteractiveFun,
+                                  screenWidth: screenWidth,
+                                  isLandscape: isLandscape,
+                                ),
+                                SizedBox(width: screenWidth * 0.008),
+                                
+                                // Settings button
+                                _buildTopControlButton(
+                                  icon: CupertinoIcons.settings,
+                                  isActive: false,
+                                  onPressed: _openSettings,
+                                  screenWidth: screenWidth,
+                                  isLandscape: isLandscape,
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                  
+                  // Main content area
+                  Expanded(
+                    child: Row(
+                      children: [
+                        // Main communication grid area
+                        Expanded(
+                          child: CommunicationGrid(
+                            symbols: _getFilteredSymbols(),
+                            categories: _categories,
+                            onSymbolTap: _onSymbolTap,
+                            onCategoryTap: (category) {},
+                            viewType: ViewType.symbols,
+                            selectedSymbols: _selectedSymbols,
+                            onSpeakSentence: _speakSentence,
+                            onClearSentence: _clearSentence,
+                            onRemoveSymbolAt: _removeSymbolAt,
+                          ),
+                        ),
+                        
+                        // Right sidebar with categories
+                        Container(
+                          width: MediaQuery.of(context).size.width * 0.22,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.95),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 12,
+                                offset: const Offset(-2, 0),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              // Categories header
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  vertical: MediaQuery.of(context).size.height * 0.015,
+                                  horizontal: MediaQuery.of(context).size.width * 0.01,
+                                ),
+                                child: AutoSizeText(
+                                  'Categories',
+                                  style: GoogleFonts.nunito(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                  maxLines: 1,
+                                ),
+                              ),
+                              
+                              // Categories list
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width * 0.008),
+                                    child: Column(
+                                      children: [
+                                        _buildCategoryTab('All'),
+                                        ..._categories.where((category) => 
+                                          !_customCategories.any((customCat) => customCat.name == category.name)
+                                        ).map((cat) => _buildCategoryTab(cat.name))
+                                            .toList(),
+                                        ..._customCategories
+                                            .map((cat) => _buildCategoryTab(cat.name, isCustom: true))
+                                            .toList(),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
     );
   }
 
