@@ -136,9 +136,9 @@ class _CommunicationGridState extends State<CommunicationGrid>
           crossAxisCount = 2;
         }
 
-        // Adjust spacing and padding based on screen size
-        final basePadding = isLandscape ? screenWidth * 0.03 : screenWidth * 0.05;
-        final spacing = isLandscape ? screenWidth * 0.02 : screenWidth * 0.04;
+        // Adjust spacing and padding based on screen size with optimized landscape settings
+        final basePadding = isLandscape ? screenWidth * 0.025 : screenWidth * 0.05;  // Reduced from 0.03 to 0.025 for landscape
+        final spacing = isLandscape ? screenWidth * 0.015 : screenWidth * 0.04;      // Reduced from 0.02 to 0.015 for landscape
 
         return GridView.builder(
           padding: EdgeInsets.all(basePadding),
@@ -147,8 +147,8 @@ class _CommunicationGridState extends State<CommunicationGrid>
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: spacing,
             mainAxisSpacing: spacing,
-            // Adjust aspect ratio for consistent sizing
-            childAspectRatio: isLandscape ? 1.2 : 1.1,
+            // Increase aspect ratio for landscape to make categories larger
+            childAspectRatio: isLandscape ? 1.4 : 1.1,  // Increased from 1.2 to 1.4 for landscape
           ),
           itemCount: widget.categories.length,
           itemBuilder: (context, index) {
@@ -301,17 +301,24 @@ class _CommunicationGridState extends State<CommunicationGrid>
         
         final crossAxisCount = isLandscape ? 3 : 2;
 
-        final padding = MediaQuery.of(context).size.width * 0.04;
+        // Separate spacing for landscape vs portrait
+        final padding = isLandscape 
+            ? MediaQuery.of(context).size.width * 0.025  // Reduced from 0.04 to 0.025 for landscape (37.5% reduction)
+            : MediaQuery.of(context).size.width * 0.04;  // Keep original for portrait
+        
+        final spacing = isLandscape 
+            ? MediaQuery.of(context).size.width * 0.015  // Reduced from 0.04 to 0.015 for landscape (62.5% reduction)
+            : MediaQuery.of(context).size.width * 0.04;  // Keep original for portrait
 
         return GridView.builder(
           padding: EdgeInsets.all(padding),
           physics: const BouncingScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
-            crossAxisSpacing: padding, // 4% of screen width
-            mainAxisSpacing: padding, // 4% of screen width
-            // Make cells more consistent in sizing
-            childAspectRatio: isLandscape ? 1.15 : 1.05,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            // Increase image size for landscape, keep original for portrait
+            childAspectRatio: isLandscape ? 1.35 : 1.05,  // Increased from 1.15 to 1.35 for landscape (17% larger)
           ),
           itemCount: widget.symbols.length, // Remove +1 for add tile
           itemBuilder: (context, index) {
