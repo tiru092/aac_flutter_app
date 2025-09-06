@@ -1077,7 +1077,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 children: [
                   // Top row: only show in portrait mode
-                  if (!MediaQuery.of(context).orientation.isLandscape)
+                  if (MediaQuery.of(context).orientation != Orientation.landscape)
                     Padding(
                       padding: _getResponsivePadding(context),
                       child: LayoutBuilder(
@@ -1224,7 +1224,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     
                   // Menu button for landscape mode - positioned absolutely in top right
-                  if (MediaQuery.of(context).orientation.isLandscape)
+                  if (MediaQuery.of(context).orientation == Orientation.landscape)
                     Positioned(
                       top: 8,
                       right: 8,
