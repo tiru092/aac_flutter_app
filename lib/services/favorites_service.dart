@@ -41,13 +41,30 @@ class FavoritesService extends ChangeNotifier {
     
     try {
       _prefs = await SharedPreferences.getInstance();
-      await _loadFavorites();
-      await _loadHistory();
+      
+      // Try to load data with aggressive error handling
+      try {
+        await _loadFavorites();
+      } catch (e) {
+        debugPrint('FavoritesService: Error loading favorites, clearing data: $e');
+        await _clearAllData();
+      }
+      
+      try {
+        await _loadHistory();
+      } catch (e) {
+        debugPrint('FavoritesService: Error loading history, clearing data: $e');
+        await _clearHistoryData();
+      }
+      
       _isInitialized = true;
       debugPrint('FavoritesService: Initialized successfully');
     } catch (e) {
       debugPrint('FavoritesService: Initialization error: $e');
-      rethrow;
+      // Initialize with empty data if everything fails
+      _favoriteSymbols = [];
+      _usageHistory = [];
+      _isInitialized = true;
     }
   }
   
@@ -73,24 +90,30 @@ class FavoritesService extends ChangeNotifier {
     try {
       final historyJson = _prefs?.getString(_historyKey);
       if (historyJson != null) {
+        // Check if the data is too large before parsing
+        if (historyJson.length > 1000000) { // 1MB limit
+          debugPrint('History data too large, clearing it');
+          await _clearHistoryData();
+          return;
+        }
+        
         final List<dynamic> historyData = jsonDecode(historyJson);
-        _usageHistory = historyData
+        
+        // Limit to maximum 50 items for better performance
+        final limitedData = historyData.take(50).toList();
+        
+        _usageHistory = limitedData
             .map((data) => HistoryItem.fromJson(data))
             .toList();
         
         // Sort by timestamp (most recent first)
         _usageHistory.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-        
-        // Keep only last 100 items for performance
-        if (_usageHistory.length > 100) {
-          _usageHistory = _usageHistory.take(100).toList();
-          await _saveHistory(); // Save the trimmed list
-        }
       }
       _historyController.add(_usageHistory);
     } catch (e) {
       debugPrint('Error loading history: $e');
       _usageHistory = [];
+      await _clearHistoryData();
     }
   }
   
@@ -194,9 +217,9 @@ class FavoritesService extends ChangeNotifier {
       // Add to beginning of list (most recent first)
       _usageHistory.insert(0, historyItem);
       
-      // Keep only last 100 items
-      if (_usageHistory.length > 100) {
-        _usageHistory = _usageHistory.take(100).toList();
+      // Keep only last 50 items to prevent data bloat
+      if (_usageHistory.length > 50) {
+        _usageHistory = _usageHistory.take(50).toList();
       }
       
       await _saveHistory();
@@ -207,28 +230,6 @@ class FavoritesService extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error recording usage: $e');
     }
-  }
-  
-  /// Get most frequently used symbols
-  List<Symbol> getMostUsedSymbols({int limit = 10}) {
-    final symbolCounts = <String, int>{};
-    final symbolMap = <String, Symbol>{};
-    
-    for (final item in _usageHistory) {
-      final symbolId = item.symbol.id;
-      if (symbolId != null) {
-        symbolCounts[symbolId] = (symbolCounts[symbolId] ?? 0) + 1;
-        symbolMap[symbolId] = item.symbol;
-      }
-    }
-    
-    final sortedEntries = symbolCounts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    
-    return sortedEntries
-        .take(limit)
-        .map((entry) => symbolMap[entry.key]!)
-        .toList();
   }
   
   /// Get recent history items
@@ -292,6 +293,31 @@ class FavoritesService extends ChangeNotifier {
     }
   }
   
+  /// Clear all data (internal helper)
+  Future<void> _clearAllData() async {
+    try {
+      await _prefs?.remove(_favoritesKey);
+      await _prefs?.remove(_historyKey);
+      _favoriteSymbols = [];
+      _usageHistory = [];
+      _favoritesController.add(_favoriteSymbols);
+      _historyController.add(_usageHistory);
+    } catch (e) {
+      debugPrint('Error clearing all data: $e');
+    }
+  }
+  
+  /// Clear history data (internal helper)
+  Future<void> _clearHistoryData() async {
+    try {
+      await _prefs?.remove(_historyKey);
+      _usageHistory = [];
+      _historyController.add(_usageHistory);
+    } catch (e) {
+      debugPrint('Error clearing history data: $e');
+    }
+  }
+
   @override
   void dispose() {
     _favoritesController.close();

@@ -22,7 +22,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   int _selectedTab = 0; // Track selected tab for CupertinoSegmentedControl
   List<Symbol> _favorites = [];
   List<HistoryItem> _history = [];
-  List<Symbol> _mostUsed = [];
   
   // Selection mode state
   bool _isSelectionMode = false;
@@ -58,7 +57,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         setState(() {
           _favorites = initialFavorites;
           _history = initialHistory;
-          _mostUsed = _favoritesService.getMostUsedSymbols(limit: 10);
         });
       }
       
@@ -67,7 +65,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         if (mounted) {
           setState(() {
             _favorites = favorites;
-            _mostUsed = _favoritesService.getMostUsedSymbols(limit: 10);
           });
         }
       });
@@ -76,7 +73,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         if (mounted) {
           setState(() {
             _history = history;
-            _mostUsed = _favoritesService.getMostUsedSymbols(limit: 10);
           });
         }
       });
@@ -99,6 +95,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       backgroundColor: _backgroundColor,
       navigationBar: CupertinoNavigationBar(
         backgroundColor: _primaryColor,
+        border: null,
         middle: const Text(
           'Favorites & History',
           style: TextStyle(
@@ -107,79 +104,100 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             fontSize: 18,
           ),
         ),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.pop(context),
-          child: const Icon(CupertinoIcons.back, color: Colors.white),
+        leading: Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: CupertinoButton(
+            padding: const EdgeInsets.all(8),
+            onPressed: () => Navigator.pop(context),
+            child: const Icon(
+              CupertinoIcons.chevron_back,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
         ),
         trailing: _isSelectionMode ? _buildSelectionModeButtons() : _buildClearButton(),
       ),
       child: SafeArea(
         child: Column(
           children: [
-              // Tab bar - Using CupertinoSegmentedControl instead of TabBar
-              Container(
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _cardColor,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: CupertinoSegmentedControl<int>(
-                  children: {
-                    0: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(CupertinoIcons.heart_fill, size: 18),
-                          SizedBox(width: 6),
-                          Text('Favorites'),
-                        ],
-                      ),
-                    ),
-                    1: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(CupertinoIcons.clock_fill, size: 18),
-                          SizedBox(width: 6),
-                          Text('History'),
-                        ],
-                      ),
-                    ),
-                    2: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(CupertinoIcons.chart_bar_fill, size: 18),
-                          SizedBox(width: 6),
-                          Text('Most Used'),
-                        ],
-                      ),
-                    ),
-                  },
-                  groupValue: _selectedTab,
-                  onValueChanged: (int? value) {
-                    if (value != null) {
-                      setState(() {
-                        _selectedTab = value;
-                      });
-                    }
-                  },
-                  borderColor: _primaryColor,
-                  selectedColor: _primaryColor,
-                  unselectedColor: _backgroundColor,
-                  pressedColor: _primaryColor.withOpacity(0.2),
-                ),
+            // Tab bar - Using CupertinoSegmentedControl with better alignment
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: _cardColor,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
+              child: CupertinoSegmentedControl<int>(
+                children: {
+                  0: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          CupertinoIcons.heart_fill, 
+                          size: 18,
+                          color: _selectedTab == 0 ? Colors.white : Colors.black87,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Favorites',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: _selectedTab == 0 ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  1: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          CupertinoIcons.clock_fill, 
+                          size: 18,
+                          color: _selectedTab == 1 ? Colors.white : Colors.black87,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'History',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: _selectedTab == 1 ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                },
+                groupValue: _selectedTab,
+                onValueChanged: (int? value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedTab = value;
+                    });
+                  }
+                },
+                borderColor: _primaryColor.withOpacity(0.3),
+                selectedColor: _primaryColor,
+                unselectedColor: Colors.transparent,
+                pressedColor: _primaryColor.withOpacity(0.2),
+              ),
+            ),
               
               // Tab content
               Expanded(
@@ -192,13 +210,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   Widget _buildClearButton() {
-    return CupertinoButton(
-      padding: EdgeInsets.zero,
-      onPressed: () => _showClearDialog(),
-      child: const Icon(
-        CupertinoIcons.clear_circled,
-        color: Colors.white,
-        size: 24,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: CupertinoButton(
+        padding: const EdgeInsets.all(8),
+        onPressed: () => _showClearDialog(),
+        child: const Icon(
+          CupertinoIcons.clear_circled,
+          color: Colors.white,
+          size: 24,
+        ),
       ),
     );
   }
@@ -208,24 +232,36 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Delete selected button
-        CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: _selectedSymbols.isNotEmpty ? () => _showRemoveSelectedDialog() : null,
-          child: Icon(
-            CupertinoIcons.delete,
-            color: _selectedSymbols.isNotEmpty ? Colors.white : Colors.white54,
-            size: 24,
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: CupertinoButton(
+            padding: const EdgeInsets.all(8),
+            onPressed: _selectedSymbols.isNotEmpty ? () => _showRemoveSelectedDialog() : null,
+            child: Icon(
+              CupertinoIcons.delete,
+              color: _selectedSymbols.isNotEmpty ? Colors.white : Colors.white54,
+              size: 24,
+            ),
           ),
         ),
         const SizedBox(width: 8),
         // Cancel selection mode button
-        CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: _exitSelectionMode,
-          child: const Icon(
-            CupertinoIcons.xmark,
-            color: Colors.white,
-            size: 24,
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: CupertinoButton(
+            padding: const EdgeInsets.all(8),
+            onPressed: _exitSelectionMode,
+            child: const Icon(
+              CupertinoIcons.xmark,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
         ),
       ],
@@ -239,8 +275,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         return _buildFavoritesTab();
       case 1:
         return _buildHistoryTab();
-      case 2:
-        return _buildMostUsedTab();
       default:
         return _buildFavoritesTab();
     }
@@ -258,8 +292,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: GridView.builder(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: _getCrossAxisCount(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
           childAspectRatio: 1.0,
@@ -295,35 +329,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     );
   }
 
-  Widget _buildMostUsedTab() {
-    if (_mostUsed.isEmpty) {
-      return _buildEmptyState(
-        icon: CupertinoIcons.chart_bar,
-        title: 'No Usage Data Yet',
-        message: 'Use symbols regularly and your most used ones will appear here.',
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: GridView.builder(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: _getCrossAxisCount(),
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.0,
-        ),
-        itemCount: _mostUsed.length,
-        itemBuilder: (context, index) {
-          final symbol = _mostUsed[index];
-          final usageCount = _getUsageCount(symbol);
-          return _buildSymbolCard(symbol, usageCount: usageCount);
-        },
-      ),
-    );
-  }
-
-  Widget _buildSymbolCard(Symbol symbol, {int? usageCount}) {
+  Widget _buildSymbolCard(Symbol symbol) {
     final categoryColor = AACHelper.getCategoryColor(symbol.category);
     final symbolId = symbol.id ?? symbol.label; // Use label as fallback ID
     final isSelected = _selectedSymbols.contains(symbolId);
@@ -415,28 +421,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     isSelected ? CupertinoIcons.check_mark : CupertinoIcons.circle,
                     color: Colors.white,
                     size: 16,
-                  ),
-                ),
-              ),
-            
-            // Usage count badge
-            if (usageCount != null)
-              Positioned(
-                top: 4,
-                right: 4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: _successColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '$usageCount',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
                   ),
                 ),
               ),
@@ -573,7 +557,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               // Play button
               CupertinoButton(
                 padding: const EdgeInsets.all(8),
-                onPressed: () => _playSymbol(symbol),
+                onPressed: () => _playSymbolFromHistory(symbol),
                 child: const Icon(
                   CupertinoIcons.play_circle_fill,
                   size: 24,
@@ -818,10 +802,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       // Speak the combined sentence
       await AACHelper.speak(sentence);
       
-      // Record this as a group play action
-      for (final item in group.items) {
-        await _favoritesService.recordUsage(item.symbol, action: 'group_played');
-      }
+      // Don't record usage again when playing from history
+      // This prevents duplicating history entries
       
       // Close loading dialog
       if (mounted) {
@@ -931,17 +913,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       default:
         return CupertinoIcons.circle_fill;
     }
-  }
-
-  int _getCrossAxisCount() {
-    final screenWidth = MediaQuery.of(context).size.width;
-    if (screenWidth > 800) return 4;
-    if (screenWidth > 600) return 3;
-    return 2;
-  }
-
-  int _getUsageCount(Symbol symbol) {
-    return _history.where((item) => item.symbol.id == symbol.id).length;
   }
 
   String _getTimeAgo(DateTime timestamp) {
@@ -1078,6 +1049,17 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       
     } catch (e) {
       debugPrint('Error playing symbol: $e');
+    }
+  }
+
+  // Play symbol from history without recording usage again
+  void _playSymbolFromHistory(Symbol symbol) async {
+    try {
+      // Only play the symbol, don't record usage again
+      await AACHelper.speak(symbol.label);
+      
+    } catch (e) {
+      debugPrint('Error playing symbol from history: $e');
     }
   }
 
