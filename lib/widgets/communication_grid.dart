@@ -907,7 +907,9 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
     return Container(
       margin: EdgeInsets.all(MediaQuery.of(context).size.width * 0.06), // 6% of screen width for margin
       constraints: BoxConstraints(
-        maxWidth: MediaQuery.of(context).size.width * 0.9, // Max 90% of screen width
+        maxWidth: isLandscape 
+          ? MediaQuery.of(context).size.width * 0.72  // Reduced by 20% for horizontal view (0.9 * 0.8 = 0.72)
+          : MediaQuery.of(context).size.width * 0.9,  // Keep original 90% for vertical view
         maxHeight: MediaQuery.of(context).size.height * 0.8, // Max 80% of screen height
       ),
       decoration: BoxDecoration(

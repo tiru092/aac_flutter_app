@@ -143,20 +143,24 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 children: {
                   0: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: _selectedTab == 0 ? Colors.black.withOpacity(0.1) : Colors.black.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           CupertinoIcons.heart_fill, 
                           size: 18,
-                          color: _selectedTab == 0 ? Colors.white : _primaryColor,
+                          color: _selectedTab == 0 ? Colors.white : Colors.white,
                         ),
                         const SizedBox(width: 8),
                         DefaultTextStyle(
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
                             fontSize: 16,
-                            color: _selectedTab == 0 ? Colors.white : _primaryColor,
+                            color: Colors.white,
                           ),
                           child: const Text('Favorites'),
                         ),
@@ -165,20 +169,24 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   ),
                   1: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: _selectedTab == 1 ? Colors.black.withOpacity(0.1) : Colors.black.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           CupertinoIcons.clock_fill, 
                           size: 18,
-                          color: _selectedTab == 1 ? Colors.white : _primaryColor,
+                          color: _selectedTab == 1 ? Colors.white : Colors.white,
                         ),
                         const SizedBox(width: 8),
                         DefaultTextStyle(
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
                             fontSize: 16,
-                            color: _selectedTab == 1 ? Colors.white : _primaryColor,
+                            color: Colors.white,
                           ),
                           child: const Text('History'),
                         ),
@@ -1297,7 +1305,9 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
     return Container(
       margin: EdgeInsets.all(MediaQuery.of(context).size.width * 0.06),
       constraints: BoxConstraints(
-        maxWidth: MediaQuery.of(context).size.width * 0.9,
+        maxWidth: isLandscape 
+          ? MediaQuery.of(context).size.width * 0.72  // Reduced by 20% for horizontal view (0.9 * 0.8 = 0.72)
+          : MediaQuery.of(context).size.width * 0.9,  // Keep original 90% for vertical view
         maxHeight: MediaQuery.of(context).size.height * 0.8,
       ),
       decoration: BoxDecoration(
