@@ -297,13 +297,15 @@ class UserProfileService {
       }
       
       // Use SharedResourceService to add custom symbol with image upload
-      final success = await SharedResourceService.addUserCustomSymbol(user.uid, symbol, imagePath: imagePath);
+      final createdSymbol = await SharedResourceService.addUserCustomSymbol(user.uid, symbol, imagePath: imagePath);
       
-      if (success) {
-        AACLogger.info('Successfully added custom symbol: ${symbol.label}', tag: 'UserProfileService');
+      if (createdSymbol != null) {
+        AACLogger.info('Successfully added custom symbol: ${createdSymbol.label} with ID: ${createdSymbol.id}', tag: 'UserProfileService');
+        return true;
+      } else {
+        AACLogger.warning('Failed to add custom symbol: ${symbol.label}', tag: 'UserProfileService');
+        return false;
       }
-      
-      return success;
       
     } catch (e) {
       AACLogger.error('Error in addCustomSymbol: $e', tag: 'UserProfileService');
@@ -322,13 +324,15 @@ class UserProfileService {
       }
       
       // Use SharedResourceService to add custom category with icon upload
-      final success = await SharedResourceService.addUserCustomCategory(user.uid, category, iconPath: iconPath);
+      final createdCategory = await SharedResourceService.addUserCustomCategory(user.uid, category, iconPath: iconPath);
       
-      if (success) {
-        AACLogger.info('Successfully added custom category: ${category.name}', tag: 'UserProfileService');
+      if (createdCategory != null) {
+        AACLogger.info('Successfully added custom category: ${createdCategory.name} with ID: ${createdCategory.id}', tag: 'UserProfileService');
+        return true;
+      } else {
+        AACLogger.warning('Failed to add custom category: ${category.name}', tag: 'UserProfileService');
+        return false;
       }
-      
-      return success;
       
     } catch (e) {
       AACLogger.error('Error in addCustomCategory: $e', tag: 'UserProfileService');
@@ -427,13 +431,19 @@ class UserProfileService {
       // Migrate custom symbols (non-default ones)
       final customSymbols = activeProfile.userSymbols.where((symbol) => !symbol.isDefault).toList();
       for (final symbol in customSymbols) {
-        await SharedResourceService.addUserCustomSymbol(user.uid, symbol);
+        final createdSymbol = await SharedResourceService.addUserCustomSymbol(user.uid, symbol);
+        if (createdSymbol != null) {
+          AACLogger.debug('Migrated symbol: ${symbol.label} with ID: ${createdSymbol.id}', tag: 'UserProfileService');
+        }
       }
       
       // Migrate custom categories (non-default ones)
       final customCategories = activeProfile.userCategories.where((category) => !category.isDefault).toList();
       for (final category in customCategories) {
-        await SharedResourceService.addUserCustomCategory(user.uid, category);
+        final createdCategory = await SharedResourceService.addUserCustomCategory(user.uid, category);
+        if (createdCategory != null) {
+          AACLogger.debug('Migrated category: ${category.name} with ID: ${createdCategory.id}', tag: 'UserProfileService');
+        }
       }
       
       // Clean up old profile data

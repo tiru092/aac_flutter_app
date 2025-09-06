@@ -213,8 +213,12 @@ class MigrationService {
       for (final symbol in customSymbols) {
         try {
           // Add to new custom symbols collection
-          await SharedResourceService.addUserCustomSymbol(userUid, symbol);
-          AACLogger.debug('Migrated custom symbol: ${symbol.label}', tag: 'MigrationService');
+          final createdSymbol = await SharedResourceService.addUserCustomSymbol(userUid, symbol);
+          if (createdSymbol != null) {
+            AACLogger.debug('Migrated custom symbol: ${symbol.label} with ID: ${createdSymbol.id}', tag: 'MigrationService');
+          } else {
+            AACLogger.warning('Failed to migrate symbol: ${symbol.label}', tag: 'MigrationService');
+          }
         } catch (e) {
           AACLogger.error('Failed to migrate symbol ${symbol.label}: $e', tag: 'MigrationService');
           // Continue with other symbols
@@ -245,8 +249,12 @@ class MigrationService {
       for (final category in customCategories) {
         try {
           // Add to new custom categories collection
-          await SharedResourceService.addUserCustomCategory(userUid, category);
-          AACLogger.debug('Migrated custom category: ${category.name}', tag: 'MigrationService');
+          final createdCategory = await SharedResourceService.addUserCustomCategory(userUid, category);
+          if (createdCategory != null) {
+            AACLogger.debug('Migrated custom category: ${category.name} with ID: ${createdCategory.id}', tag: 'MigrationService');
+          } else {
+            AACLogger.warning('Failed to migrate category: ${category.name}', tag: 'MigrationService');
+          }
         } catch (e) {
           AACLogger.error('Failed to migrate category ${category.name}: $e', tag: 'MigrationService');
           // Continue with other categories

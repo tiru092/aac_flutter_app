@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../widgets/communication_grid.dart';
@@ -13,6 +14,7 @@ import '../utils/aac_helper.dart';
 import '../utils/aac_logger.dart';
 import '../utils/sample_data.dart';
 import '../services/user_profile_service.dart';
+import '../services/shared_resource_service.dart';
 import '../screens/enhanced_goals_screen.dart';
 import '../screens/aac_learning_goals_screen.dart';
 import '../screens/professional_therapeutic_goals_screen.dart';
@@ -372,29 +374,53 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     
     try {
-      // Load default sample data only - skip user data to avoid encryption issues
-      final defaultCategories = SampleData.getSampleCategories();
-      final defaultSymbols = SampleData.getSampleSymbols();
+      // Check if user is authenticated for enterprise data
+      final user = FirebaseAuth.instance.currentUser;
       
-      // Use only sample data to avoid encryption errors
-      setState(() {
-        _categories = defaultCategories;
-        // Don't override _customCategories here - let it be loaded from user data
-        _allSymbols = defaultSymbols;
-        _isLoading = false;
-      });
+      if (user != null) {
+        AACLogger.info('Loading enterprise data for user: ${user.email}', tag: 'HomeScreen');
+        
+        // Load using enterprise SharedResourceService
+        final allSymbols = await SharedResourceService.getAllSymbolsForUser(user.uid);
+        final allCategories = await SharedResourceService.getAllCategoriesForUser(user.uid);
+        
+        AACLogger.info('Loaded ${allSymbols.length} symbols and ${allCategories.length} categories from enterprise service', tag: 'HomeScreen');
+        
+        setState(() {
+          _allSymbols = allSymbols;
+          _categories = allCategories;
+          _isLoading = false;
+        });
+        
+      } else {
+        AACLogger.warning('No authenticated user - using sample data', tag: 'HomeScreen');
+        
+        // Fallback to sample data for unauthenticated users
+        final defaultCategories = SampleData.getSampleCategories();
+        final defaultSymbols = SampleData.getSampleSymbols();
+        
+        setState(() {
+          _categories = defaultCategories;
+          _allSymbols = defaultSymbols;
+          _isLoading = false;
+        });
+      }
       
       // Load speech settings with fallback defaults
       _loadSpeechSettings();
+      
     } catch (e) {
       AACLogger.error('Error in _loadData: $e', tag: 'HomeScreen');
+      
+      // Fallback to sample data on error
+      final defaultCategories = SampleData.getSampleCategories();
+      final defaultSymbols = SampleData.getSampleSymbols();
+      
       setState(() {
-        _errorMessage = 'Error loading data: Using sample data only';
+        _categories = defaultCategories;
+        _allSymbols = defaultSymbols;
         _isLoading = false;
-        // Fallback to just sample data
-        _categories = SampleData.getSampleCategories();
-        _allSymbols = SampleData.getSampleSymbols();
-        // Don't override _customCategories here - let it be loaded from user data
+        _errorMessage = 'Failed to load data: $e';
       });
     }
   }

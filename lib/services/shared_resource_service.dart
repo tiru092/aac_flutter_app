@@ -201,7 +201,8 @@ class SharedResourceService {
   }
   
   /// Add custom symbol for user (image uploaded to user-specific storage)
-  static Future<bool> addUserCustomSymbol(String userUid, Symbol symbol, {String? imagePath}) async {
+  /// Returns the created symbol with its Firebase ID, or null if creation failed
+  static Future<Symbol?> addUserCustomSymbol(String userUid, Symbol symbol, {String? imagePath}) async {
     try {
       AACLogger.info('Adding custom symbol for user $userUid: ${symbol.label}', tag: 'SharedResourceService');
       
@@ -213,33 +214,42 @@ class SharedResourceService {
       }
       
       // Create symbol with uploaded image path
-      final symbolData = symbol.copyWith(
+      final updatedSymbol = symbol.copyWith(
         imagePath: finalImagePath,
         isDefault: false, // User custom symbols are never defaults
         dateCreated: DateTime.now(),
-      ).toJson();
+      );
+      
+      final symbolData = updatedSymbol.toJson();
       
       // Add metadata
       symbolData['userUid'] = userUid;
       symbolData['createdAt'] = FieldValue.serverTimestamp();
       symbolData['updatedAt'] = FieldValue.serverTimestamp();
       
-      // Store in user's custom collection
-      await _firestore
+      // Store in user's custom collection and get the generated ID
+      final docRef = await _firestore
           .collection('$_userCustomSymbolsPath/$userUid/custom_symbols')
           .add(symbolData);
       
-      AACLogger.info('Successfully added custom symbol: ${symbol.label}', tag: 'SharedResourceService');
-      return true;
+      // Create final symbol with Firebase ID
+      final finalSymbol = updatedSymbol.copyWith(id: docRef.id);
+      
+      // Update the symbol's ID field in the database
+      await docRef.update({'id': docRef.id});
+      
+      AACLogger.info('Successfully added custom symbol with ID ${docRef.id}: ${symbol.label}', tag: 'SharedResourceService');
+      return finalSymbol;
       
     } catch (e) {
       AACLogger.error('Error adding custom symbol: $e', tag: 'SharedResourceService');
-      return false;
+      return null;
     }
   }
   
   /// Add custom category for user (icon uploaded to user-specific storage)
-  static Future<bool> addUserCustomCategory(String userUid, Category category, {String? iconPath}) async {
+  /// Returns the created category with its Firebase ID, or null if creation failed
+  static Future<Category?> addUserCustomCategory(String userUid, Category category, {String? iconPath}) async {
     try {
       AACLogger.info('Adding custom category for user $userUid: ${category.name}', tag: 'SharedResourceService');
       
@@ -251,28 +261,36 @@ class SharedResourceService {
       }
       
       // Create category with uploaded icon path
-      final categoryData = category.copyWith(
+      final updatedCategory = category.copyWith(
         iconPath: finalIconPath,
         isDefault: false, // User custom categories are never defaults
         dateCreated: DateTime.now(),
-      ).toJson();
+      );
+      
+      final categoryData = updatedCategory.toJson();
       
       // Add metadata
       categoryData['userUid'] = userUid;
       categoryData['createdAt'] = FieldValue.serverTimestamp();
       categoryData['updatedAt'] = FieldValue.serverTimestamp();
       
-      // Store in user's custom collection
-      await _firestore
+      // Store in user's custom collection and get the generated ID
+      final docRef = await _firestore
           .collection('$_userCustomSymbolsPath/$userUid/custom_categories')
           .add(categoryData);
       
-      AACLogger.info('Successfully added custom category: ${category.name}', tag: 'SharedResourceService');
-      return true;
+      // Create final category with Firebase ID
+      final finalCategory = updatedCategory.copyWith(id: docRef.id);
+      
+      // Update the category's ID field in the database
+      await docRef.update({'id': docRef.id});
+      
+      AACLogger.info('Successfully added custom category with ID ${docRef.id}: ${category.name}', tag: 'SharedResourceService');
+      return finalCategory;
       
     } catch (e) {
       AACLogger.error('Error adding custom category: $e', tag: 'SharedResourceService');
-      return false;
+      return null;
     }
   }
   

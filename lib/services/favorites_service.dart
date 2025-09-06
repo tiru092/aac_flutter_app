@@ -119,24 +119,35 @@ class FavoritesService extends ChangeNotifier {
   
   /// Add symbol to favorites
   Future<void> addToFavorites(Symbol symbol) async {
-    if (!_isInitialized) return;
+    if (!_isInitialized) {
+      debugPrint('FavoritesService not initialized, cannot add to favorites');
+      return;
+    }
     
     try {
+      debugPrint('AddToFavorites: Attempting to add symbol ${symbol.label} (ID: ${symbol.id})');
+      
       // Check if already in favorites (handle null ids)
       bool isAlreadyFavorite = false;
       if (symbol.id != null) {
         isAlreadyFavorite = _favoriteSymbols.any((fav) => fav.id == symbol.id);
+        debugPrint('AddToFavorites: Checking by ID - Already favorite: $isAlreadyFavorite');
       } else {
         // Fallback for symbols without IDs: match by label and category
         isAlreadyFavorite = _favoriteSymbols.any((fav) => 
           fav.label == symbol.label && fav.category == symbol.category);
+        debugPrint('AddToFavorites: Checking by label+category (NO ID) - Already favorite: $isAlreadyFavorite');
+        debugPrint('WARNING: Adding symbol without ID to favorites: ${symbol.label}');
       }
       
       if (isAlreadyFavorite) {
+        debugPrint('AddToFavorites: Symbol ${symbol.label} is already in favorites, skipping');
         return; // Already in favorites
       }
       
       _favoriteSymbols.add(symbol);
+      debugPrint('AddToFavorites: Successfully added ${symbol.label} to favorites list');
+      
       await _saveFavorites();
       _favoritesController.add(_favoriteSymbols);
       notifyListeners();
@@ -194,12 +205,27 @@ class FavoritesService extends ChangeNotifier {
   
   /// Check if symbol is in favorites
   bool isFavorite(Symbol symbol) {
+    if (!_isInitialized) {
+      debugPrint('FavoritesService not initialized, returning false for isFavorite check');
+      return false;
+    }
+    
     if (symbol.id != null) {
-      return _favoriteSymbols.any((fav) => fav.id == symbol.id);
+      final result = _favoriteSymbols.any((fav) => fav.id == symbol.id);
+      debugPrint('isFavorite: Checking symbol ${symbol.label} (ID: ${symbol.id}) - Result: $result');
+      return result;
     } else {
       // Fallback for symbols without IDs: match by label and category
-      return _favoriteSymbols.any((fav) => 
+      final result = _favoriteSymbols.any((fav) => 
         fav.label == symbol.label && fav.category == symbol.category);
+      debugPrint('isFavorite: Checking symbol ${symbol.label} (NO ID, using label+category) - Result: $result');
+      
+      // Log warning for symbols without IDs
+      if (result) {
+        debugPrint('WARNING: Symbol ${symbol.label} matched as favorite using fallback method (no ID). This could cause false positives.');
+      }
+      
+      return result;
     }
   }
   

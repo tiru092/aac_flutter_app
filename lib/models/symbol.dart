@@ -115,7 +115,11 @@ class Category extends HiveObject {
   @HiveField(4)
   bool isDefault;
 
+  @HiveField(5)
+  String? id;
+
   Category({
+    this.id,
     required this.name,
     required this.iconPath,
     required this.colorCode,
@@ -124,6 +128,7 @@ class Category extends HiveObject {
   }) : dateCreated = dateCreated ?? DateTime.now();
 
   Category copyWith({
+    String? id,
     String? name,
     String? iconPath,
     int? colorCode,
@@ -131,6 +136,7 @@ class Category extends HiveObject {
     bool? isDefault,
   }) {
     return Category(
+      id: id ?? this.id,
       name: name ?? this.name,
       iconPath: iconPath ?? this.iconPath,
       colorCode: colorCode ?? this.colorCode,
@@ -141,10 +147,11 @@ class Category extends HiveObject {
 
   @override
   String toString() {
-    return 'Category(name: $name, iconPath: $iconPath)';
+    return 'Category(id: $id, name: $name, iconPath: $iconPath)';
   }
 
   Map<String, dynamic> toJson() => {
+    'id': id,
     'name': name,
     'iconPath': iconPath,
     'colorCode': colorCode,
@@ -153,6 +160,7 @@ class Category extends HiveObject {
   };
 
   factory Category.fromJson(Map<String, dynamic> json) => Category(
+    id: json['id'],
     name: json['name'],
     iconPath: json['iconPath'],
     colorCode: json['colorCode'],
