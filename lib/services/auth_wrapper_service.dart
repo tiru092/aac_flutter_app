@@ -343,6 +343,9 @@ class AuthWrapperService {
       await _authService.signOut();
       _currentFirebaseUser = null;
       
+      // Clear verification status to prevent offline access after sign out
+      await _storeVerificationStatus(false);
+      
       // Keep local profile active for offline use
       // _currentProfile remains available
       
@@ -350,7 +353,7 @@ class AuthWrapperService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_lastSignedInUserKey);
       
-      debugPrint('AuthWrapperService: Sign out successful');
+      debugPrint('AuthWrapperService: Sign out successful - verification status cleared');
       
     } catch (e) {
       debugPrint('AuthWrapperService: Error during sign out: $e');
@@ -370,12 +373,13 @@ class AuthWrapperService {
       _currentFirebaseUser = null;
       _currentProfile = null;
       
-      // Clear all sign-in state
+      // Clear all sign-in state including verification status
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_lastSignedInUserKey);
       await prefs.remove(_offlineModeKey);
+      await prefs.remove(_hasVerifiedEmailKey);
       
-      debugPrint('AuthWrapperService: Complete logout successful');
+      debugPrint('AuthWrapperService: Complete logout successful - all data cleared');
       
     } catch (e) {
       debugPrint('AuthWrapperService: Error during complete logout: $e');
@@ -387,12 +391,30 @@ class AuthWrapperService {
     try {
       debugPrint('AuthWrapperService: Enabling offline mode');
       
-      // Check if user has ever verified their email before allowing offline access
-      final hasVerified = await hasEverVerifiedEmail();
-      if (!hasVerified) {
-        debugPrint('AuthWrapperService: Cannot enable offline mode - user has never verified email');
+      // Check if user is currently signed in AND verified
+      if (_currentFirebaseUser == null) {
+        debugPrint('AuthWrapperService: Cannot enable offline mode - user not signed in');
+        throw Exception('You must sign in first before using offline mode');
+      }
+      
+      // Reload user to get latest verification status
+      await _currentFirebaseUser!.reload();
+      final updatedUser = FirebaseAuth.instance.currentUser;
+      
+      if (updatedUser == null) {
+        debugPrint('AuthWrapperService: Cannot enable offline mode - user session expired');
+        throw Exception('Your session has expired. Please sign in again');
+      }
+      
+      // Check current email verification status
+      if (!updatedUser.emailVerified) {
+        debugPrint('AuthWrapperService: Cannot enable offline mode - email not verified');
         throw Exception('Email verification required before offline access');
       }
+      
+      // Update our reference and store verification status for this session
+      _currentFirebaseUser = updatedUser;
+      await _storeVerificationStatus(true);
       
       _isOfflineMode = true;
       
@@ -404,7 +426,7 @@ class AuthWrapperService {
         await _handleLocalProfiles(false);
       }
       
-      debugPrint('AuthWrapperService: Offline mode enabled');
+      debugPrint('AuthWrapperService: Offline mode enabled for verified user');
       
     } catch (e) {
       debugPrint('AuthWrapperService: Error enabling offline mode: $e');

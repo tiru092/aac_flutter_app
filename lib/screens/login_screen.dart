@@ -191,13 +191,41 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        // Check if error is due to email verification requirement
+        // Check specific error types for better user messaging
         if (e.toString().contains('Email verification required')) {
           showCupertinoDialog(
             context: context,
             builder: (context) => CupertinoAlertDialog(
               title: const Text('📧 Email Verification Required'),
               content: const Text('You must verify your email address before using offline mode. Please sign in and verify your email first.'),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('OK'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          );
+        } else if (e.toString().contains('sign in first')) {
+          showCupertinoDialog(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: const Text('🔐 Sign In Required'),
+              content: const Text('You must sign in with a verified account before using offline mode.'),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('OK'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          );
+        } else if (e.toString().contains('session has expired')) {
+          showCupertinoDialog(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: const Text('⏰ Session Expired'),
+              content: const Text('Your session has expired. Please sign in again to use offline mode.'),
               actions: [
                 CupertinoDialogAction(
                   child: const Text('OK'),
