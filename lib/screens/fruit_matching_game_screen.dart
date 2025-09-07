@@ -4,34 +4,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/aac_helper.dart';
 
-/// Data class for game shapes
-class GameShape {
+/// Data class for game fruits
+class GameFruit {
   final String name;
   final Color color;
   final String emoji;
-  final Widget shape;
+  final Widget fruit;
 
-  const GameShape(this.name, this.color, this.emoji, this.shape);
+  const GameFruit(this.name, this.color, this.emoji, this.fruit);
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is GameShape && other.name == name;
+    return other is GameFruit && other.name == name;
   }
 
   @override
   int get hashCode => name.hashCode;
 }
 
-/// Shape Matching Game Screen with drag and drop functionality
-class ShapeMatchingGameScreen extends StatefulWidget {
-  const ShapeMatchingGameScreen({super.key});
+/// Fruit Matching Game Screen with drag and drop functionality
+class FruitMatchingGameScreen extends StatefulWidget {
+  const FruitMatchingGameScreen({super.key});
 
   @override
-  State<ShapeMatchingGameScreen> createState() => _ShapeMatchingGameScreenState();
+  State<FruitMatchingGameScreen> createState() => _FruitMatchingGameScreenState();
 }
 
-class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
+class _FruitMatchingGameScreenState extends State<FruitMatchingGameScreen>
     with TickerProviderStateMixin {
   
   // Game configuration
@@ -40,8 +40,8 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
   int score = 0;
   
   // Current game state
-  late GameShape currentShape;
-  late List<GameShape> targetShapes;
+  late GameFruit currentFruit;
+  late List<GameFruit> targetFruits;
   int correctTargetIndex = 0;
   
   // Animation controllers
@@ -61,127 +61,283 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
   bool wasCorrect = false;
   bool showCelebration = false;
   
-  // Game shapes with names for accessibility - 10 unique shapes with proper visual representations
-  final List<GameShape> gameShapes = [
-    GameShape('Circle', const Color(0xFFFF6B6B), '⭕', _buildCircleShape(const Color(0xFFFF6B6B))),
-    GameShape('Square', const Color(0xFF4ECDC4), '🟦', _buildSquareShape(const Color(0xFF4ECDC4))),
-    GameShape('Triangle', const Color(0xFF45B7D1), '🔺', _buildTriangleShape(const Color(0xFF45B7D1))),
-    GameShape('Rectangle', const Color(0xFF96CEB4), '🟫', _buildRectangleShape(const Color(0xFF96CEB4))),
-    GameShape('Star', const Color(0xFFFFE66D), '⭐', _buildStarShape(const Color(0xFFFFE66D))),
-    GameShape('Heart', const Color(0xFFF38BA8), '❤️', _buildHeartShape(const Color(0xFFF38BA8))),
-    GameShape('Diamond', const Color(0xFFB983FF), '💎', _buildDiamondShape(const Color(0xFFB983FF))),
-    GameShape('Oval', const Color(0xFFFF8A95), '🥚', _buildOvalShape(const Color(0xFFFF8A95))),
-    GameShape('Pentagon', const Color(0xFF20C997), '🛑', _buildPentagonShape(const Color(0xFF20C997))),
-    GameShape('Hexagon', const Color(0xFF6610F2), '⬡', _buildHexagonShape(const Color(0xFF6610F2))),
+  // Game fruits with names for accessibility - 10 unique fruits with proper visual representations
+  final List<GameFruit> gameFruits = [
+    GameFruit('Apple', const Color(0xFFFF6B6B), '🍎', _buildAppleFruit()),
+    GameFruit('Banana', const Color(0xFFFFE66D), '🍌', _buildBananaFruit()),
+    GameFruit('Orange', const Color(0xFFFF8A95), '🍊', _buildOrangeFruit()),
+    GameFruit('Grapes', const Color(0xFFB983FF), '🍇', _buildGrapesFruit()),
+    GameFruit('Strawberry', const Color(0xFFF38BA8), '🍓', _buildStrawberryFruit()),
+    GameFruit('Pineapple', const Color(0xFFFFE66D), '🍍', _buildPineappleFruit()),
+    GameFruit('Watermelon', const Color(0xFF20C997), '🍉', _buildWatermelonFruit()),
+    GameFruit('Mango', const Color(0xFFFF8A95), '🥭', _buildMangoFruit()),
+    GameFruit('Cherry', const Color(0xFFFF6B6B), '🍒', _buildCherryFruit()),
+    GameFruit('Lemon', const Color(0xFFFFE66D), '🍋', _buildLemonFruit()),
   ];
 
-  static Widget _buildCircleShape(Color color) {
+  static Widget _buildAppleFruit() {
     return Container(
-      decoration: BoxDecoration(
-        color: color,
+      decoration: const BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 3),
+        gradient: RadialGradient(
+          colors: [Color(0xFFFF6B6B), Color(0xFFE53E3E)],
+          center: Alignment.topLeft,
+        ),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.3),
+            color: Color(0x40FF6B6B),
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 4),
           ),
         ],
+      ),
+      child: const Center(
+        child: Text(
+          '🍎',
+          style: TextStyle(fontSize: 50),
+        ),
       ),
     );
   }
 
-  static Widget _buildSquareShape(Color color) {
+  static Widget _buildBananaFruit() {
     return Container(
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
+        borderRadius: BorderRadius.circular(30),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFE66D), Color(0xFFECC94B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: const [
           BoxShadow(
-            color: color.withOpacity(0.3),
+            color: Color(0x40FFE66D),
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 4),
           ),
         ],
+      ),
+      child: const Center(
+        child: Text(
+          '🍌',
+          style: TextStyle(fontSize: 50),
+        ),
       ),
     );
   }
 
-  static Widget _buildTriangleShape(Color color) {
-    return CustomPaint(
-      painter: TrianglePainter(color),
-      size: const Size.square(100),
+  static Widget _buildOrangeFruit() {
+    return Container(
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [Color(0xFFFF8A95), Color(0xFFED8936)],
+          center: Alignment.topLeft,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x40FF8A95),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: const Center(
+        child: Text(
+          '🍊',
+          style: TextStyle(fontSize: 50),
+        ),
+      ),
     );
   }
 
-  static Widget _buildRectangleShape(Color color) {
+  static Widget _buildGrapesFruit() {
     return Container(
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFB983FF), Color(0xFF805AD5)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        boxShadow: const [
           BoxShadow(
-            color: color.withOpacity(0.3),
+            color: Color(0x40B983FF),
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 4),
           ),
         ],
+      ),
+      child: const Center(
+        child: Text(
+          '🍇',
+          style: TextStyle(fontSize: 50),
+        ),
       ),
     );
   }
 
-  static Widget _buildStarShape(Color color) {
-    return CustomPaint(
-      painter: StarPainter(color),
-      size: const Size.square(100),
-    );
-  }
-
-  static Widget _buildHeartShape(Color color) {
-    return CustomPaint(
-      painter: HeartPainter(color),
-      size: const Size.square(100),
-    );
-  }
-
-  static Widget _buildDiamondShape(Color color) {
-    return CustomPaint(
-      painter: DiamondPainter(color),
-      size: const Size.square(100),
-    );
-  }
-
-  static Widget _buildOvalShape(Color color) {
+  static Widget _buildStrawberryFruit() {
     return Container(
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(50),
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF38BA8), Color(0xFFE53E3E)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        boxShadow: const [
           BoxShadow(
-            color: color.withOpacity(0.3),
+            color: Color(0x40F38BA8),
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 4),
           ),
         ],
+      ),
+      child: const Center(
+        child: Text(
+          '🍓',
+          style: TextStyle(fontSize: 50),
+        ),
       ),
     );
   }
 
-  static Widget _buildPentagonShape(Color color) {
-    return CustomPaint(
-      painter: PentagonPainter(color),
-      size: const Size.square(100),
+  static Widget _buildPineappleFruit() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(10),
+          topRight: Radius.circular(10),
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFE66D), Color(0xFFD69E2E)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x40FFE66D),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: const Center(
+        child: Text(
+          '🍍',
+          style: TextStyle(fontSize: 50),
+        ),
+      ),
     );
   }
 
-  static Widget _buildHexagonShape(Color color) {
-    return CustomPaint(
-      painter: HexagonPainter(color),
-      size: const Size.square(100),
+  static Widget _buildWatermelonFruit() {
+    return Container(
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [Color(0xFF20C997), Color(0xFF38A169)],
+          center: Alignment.topLeft,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x4020C997),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: const Center(
+        child: Text(
+          '🍉',
+          style: TextStyle(fontSize: 50),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildMangoFruit() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(25),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF8A95), Color(0xFFED8936)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x40FF8A95),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: const Center(
+        child: Text(
+          '🥭',
+          style: TextStyle(fontSize: 50),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildCherryFruit() {
+    return Container(
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [Color(0xFFFF6B6B), Color(0xFFDC143C)],
+          center: Alignment.topLeft,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x40FF6B6B),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: const Center(
+        child: Text(
+          '🍒',
+          style: TextStyle(fontSize: 50),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildLemonFruit() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(35),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFE66D), Color(0xFFECC94B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x40FFE66D),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: const Center(
+        child: Text(
+          '🍋',
+          style: TextStyle(fontSize: 50),
+        ),
+      ),
     );
   }
 
@@ -261,26 +417,26 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
 
   void _startNewRound() {
     setState(() {
-      // Select random shape for this round
-      currentShape = gameShapes[math.Random().nextInt(gameShapes.length)];
+      // Select random fruit for this round
+      currentFruit = gameFruits[math.Random().nextInt(gameFruits.length)];
       
-      // Create target shapes list (one correct, two wrong)
-      targetShapes = [];
+      // Create target fruits list (one correct, two wrong)
+      targetFruits = [];
       correctTargetIndex = math.Random().nextInt(3);
       
-      // Add the correct shape at the correct index
+      // Add the correct fruit at the correct index
       for (int i = 0; i < 3; i++) {
         if (i == correctTargetIndex) {
-          targetShapes.add(currentShape);
+          targetFruits.add(currentFruit);
         } else {
-          // Add different shapes
-          GameShape differentShape;
+          // Add different fruits
+          GameFruit differentFruit;
           do {
-            differentShape = gameShapes[math.Random().nextInt(gameShapes.length)];
-          } while (differentShape.name == currentShape.name || 
-                   targetShapes.any((shape) => shape.name == differentShape.name));
+            differentFruit = gameFruits[math.Random().nextInt(gameFruits.length)];
+          } while (differentFruit.name == currentFruit.name || 
+                   targetFruits.any((fruit) => fruit.name == differentFruit.name));
           
-          targetShapes.add(differentShape);
+          targetFruits.add(differentFruit);
         }
       }
       
@@ -303,14 +459,14 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         AACHelper.speakWithEmotion(
-          'Find the ${currentShape.name} shape and drag it to the matching box!',
+          'Find the ${currentFruit.name} fruit and drag it to the matching box!',
           tone: EmotionalTone.friendly,
         );
       }
     });
   }
 
-  void _handleShapeDrop(int targetIndex) {
+  void _handleFruitDrop(int targetIndex) {
     if (isShowingFeedback) return;
     
     final isCorrect = targetIndex == correctTargetIndex;
@@ -336,7 +492,7 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
         
         // Voice feedback for correct match
         AACHelper.speakWithEmotion(
-          'Excellent! You matched ${currentShape.name} perfectly! Well done!',
+          'Excellent! You matched ${currentFruit.name} perfectly! Well done!',
           tone: EmotionalTone.excited,
         );
         
@@ -375,7 +531,7 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
         
         // Voice feedback for incorrect match
         AACHelper.speakWithEmotion(
-          'Oops! Try to find the ${currentShape.name} shape',
+          'Oops! Try to find the ${currentFruit.name} fruit',
           tone: EmotionalTone.encouraging,
         );
       }
@@ -455,19 +611,19 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
           child: SingleChildScrollView(
             child: Column(
               children: [
-                // Instructions (removed progress indicator to save space)
+                // Instructions
                 _buildInstructions(screenWidth, screenHeight, isLandscape),
                 
                 SizedBox(height: isLandscape ? screenHeight * 0.01 : screenHeight * 0.04),
                 
-                // Draggable shape
-                _buildDraggableShape(screenWidth, screenHeight, isLandscape),
+                // Draggable fruit
+                _buildDraggableFruit(screenWidth, screenHeight, isLandscape),
                 
-                // Increased spacing between draggable and target shapes - additional 20% more space
+                // Spacing between draggable and target fruits
                 SizedBox(height: isLandscape ? screenHeight * 0.042 : screenHeight * 0.048),
                 
-                // Target shape boxes
-                _buildTargetShapes(screenWidth, screenHeight, isLandscape),
+                // Target fruit boxes
+                _buildTargetFruits(screenWidth, screenHeight, isLandscape),
                 
                 // Feedback area
                 if (isShowingFeedback) ...[
@@ -490,14 +646,14 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
     return Container(
       padding: EdgeInsets.all(isLandscape ? screenWidth * 0.008 : screenWidth * 0.04),
       decoration: BoxDecoration(
-        color: const Color(0xFF45B7D1).withOpacity(0.1),
+        color: const Color(0xFF96CEB4).withOpacity(0.1),
         borderRadius: BorderRadius.circular(isLandscape ? 8 : 12),
         border: Border.all(
-          color: const Color(0xFF45B7D1).withOpacity(0.3),
+          color: const Color(0xFF96CEB4).withOpacity(0.3),
         ),
       ),
       child: Text(
-        'Drag the ${currentShape.name.toLowerCase()} shape ${currentShape.emoji} to the matching box below!',
+        'Drag the ${currentFruit.name.toLowerCase()} fruit ${currentFruit.emoji} to the matching box below!',
         style: TextStyle(
           fontSize: isLandscape ? screenWidth * 0.018 : screenWidth * 0.04,
           color: const Color(0xFF2D3748),
@@ -508,70 +664,63 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
     );
   }
 
-  Widget _buildDraggableShape(double screenWidth, double screenHeight, bool isLandscape) {
-    // Make the shape much bigger for practice in horizontal view - increased by 60% from 0.15 to 0.24
-    final shapeSize = isLandscape ? screenHeight * 0.24 : screenWidth * 0.25;
+  Widget _buildDraggableFruit(double screenWidth, double screenHeight, bool isLandscape) {
+    final fruitSize = isLandscape ? screenHeight * 0.24 : screenWidth * 0.25;
     
     return AnimatedBuilder(
       animation: _successAnimation,
       builder: (context, child) {
         return Transform.scale(
           scale: 1.0 + (_successAnimation.value * 0.2),
-          child: Draggable<GameShape>(
-            data: currentShape,
-            feedback: _buildShapeChip(currentShape, shapeSize, true),
+          child: Draggable<GameFruit>(
+            data: currentFruit,
+            feedback: _buildFruitChip(currentFruit, fruitSize, true),
             childWhenDragging: Opacity(
               opacity: 0.5,
-              child: _buildShapeChip(currentShape, shapeSize, false),
+              child: _buildFruitChip(currentFruit, fruitSize, false),
             ),
-            child: _buildShapeChip(currentShape, shapeSize, false),
+            child: _buildFruitChip(currentFruit, fruitSize, false),
           ),
         );
       },
     );
   }
 
-  Widget _buildShapeChip(GameShape shape, double size, bool isDragging) {
+  Widget _buildFruitChip(GameFruit fruit, double size, bool isDragging) {
     return Container(
       width: size,
       height: size,
       child: Stack(
         children: [
-          // Shape background
+          // Fruit background
           Positioned.fill(
-            child: shape.name == 'Rectangle' 
-                ? Container(
-                    width: size * 1.4,
-                    height: size * 0.8,
-                    child: shape.shape,
-                  )
-                : shape.shape,
+            child: fruit.fruit,
           ),
-          // Shape name text overlay
+          // Fruit name text overlay
           Positioned.fill(
             child: Center(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Text(
-                    shape.emoji,
-                    style: TextStyle(fontSize: size * 0.2),
-                  ),
-                  SizedBox(height: size * 0.05),
-                  Text(
-                    shape.name,
-                    style: TextStyle(
-                      fontSize: size * 0.1,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black.withOpacity(0.8),
-                          blurRadius: 3,
-                        ),
-                      ],
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: size * 0.1,
+                      vertical: size * 0.03,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(size * 0.05),
+                    ),
+                    child: Text(
+                      fruit.name,
+                      style: TextStyle(
+                        fontSize: size * 0.1,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
+                  SizedBox(height: size * 0.05),
                 ],
               ),
             ),
@@ -581,35 +730,34 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
     );
   }
 
-  Widget _buildTargetShapes(double screenWidth, double screenHeight, bool isLandscape) {
-    // Target shape size
-    final shapeSize = isLandscape ? screenHeight * 0.18 : screenWidth * 0.19;
+  Widget _buildTargetFruits(double screenWidth, double screenHeight, bool isLandscape) {
+    final fruitSize = isLandscape ? screenHeight * 0.18 : screenWidth * 0.19;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: targetShapes.asMap().entries.map((entry) {
+      children: targetFruits.asMap().entries.map((entry) {
         final index = entry.key;
-        final shape = entry.value;
-
+        final fruit = entry.value;
+        
         return AnimatedBuilder(
           animation: _shakeAnimation,
           builder: (context, child) {
             final offset = index == correctTargetIndex && !wasCorrect && isShowingFeedback
                 ? math.sin(_shakeAnimation.value * math.pi * 4) * 5
                 : 0.0;
-
+            
             return Transform.translate(
               offset: Offset(offset, 0),
-              child: DragTarget<GameShape>(
+              child: DragTarget<GameFruit>(
                 onWillAccept: (data) => !isShowingFeedback,
-                onAccept: (data) => _handleShapeDrop(index),
+                onAccept: (data) => _handleFruitDrop(index),
                 builder: (context, candidateData, rejectedData) {
                   final isHighlighted = candidateData.isNotEmpty;
                   return Container(
-                    width: shapeSize,
-                    height: shapeSize,
+                    width: fruitSize,
+                    height: fruitSize,
                     alignment: Alignment.center,
-                    // No colored box, only the shape itself with a subtle border/shadow for feedback
+                    // No colored box, only the fruit itself with a subtle border/shadow for feedback
                     decoration: BoxDecoration(
                       color: Colors.transparent,
                       borderRadius: BorderRadius.circular(24),
@@ -628,9 +776,9 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
                           : [],
                     ),
                     child: Container(
-                      width: shapeSize * 0.95,
-                      height: shapeSize * 0.95,
-                      child: shape.shape,
+                      width: fruitSize * 0.95,
+                      height: fruitSize * 0.95,
+                      child: fruit.fruit,
                     ),
                   );
                 },
@@ -767,250 +915,4 @@ class _ShapeMatchingGameScreenState extends State<ShapeMatchingGameScreen>
       },
     );
   }
-}
-
-// Custom painters for different shapes
-class TrianglePainter extends CustomPainter {
-  final Color color;
-  
-  TrianglePainter(this.color);
-  
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    
-    final path = Path();
-    path.moveTo(size.width / 2, 0);
-    path.lineTo(0, size.height);
-    path.lineTo(size.width, size.height);
-    path.close();
-    
-    canvas.drawPath(path, paint);
-    
-    // White border
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawPath(path, borderPaint);
-    
-    // Shadow
-    canvas.drawShadow(path, color.withOpacity(0.3), 4, false);
-  }
-  
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class StarPainter extends CustomPainter {
-  final Color color;
-  
-  StarPainter(this.color);
-  
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    
-    final path = Path();
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-    final outerRadius = size.width / 2;
-    final innerRadius = outerRadius * 0.4;
-    
-    for (int i = 0; i < 10; i++) {
-      final angle = (i * math.pi / 5) - (math.pi / 2);
-      final radius = i.isEven ? outerRadius : innerRadius;
-      final x = centerX + radius * math.cos(angle);
-      final y = centerY + radius * math.sin(angle);
-      
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    path.close();
-    
-    canvas.drawPath(path, paint);
-    
-    // White border
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawPath(path, borderPaint);
-    
-    // Shadow
-    canvas.drawShadow(path, color.withOpacity(0.3), 4, false);
-  }
-  
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class HeartPainter extends CustomPainter {
-  final Color color;
-  
-  HeartPainter(this.color);
-  
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    
-    final path = Path();
-    final width = size.width;
-    final height = size.height;
-    
-    path.moveTo(width / 2, height * 0.8);
-    path.cubicTo(width * 0.2, height * 0.5, width * 0.2, height * 0.2, width / 2, height * 0.3);
-    path.cubicTo(width * 0.8, height * 0.2, width * 0.8, height * 0.5, width / 2, height * 0.8);
-    
-    canvas.drawPath(path, paint);
-    
-    // White border
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawPath(path, borderPaint);
-    
-    // Shadow
-    canvas.drawShadow(path, color.withOpacity(0.3), 4, false);
-  }
-  
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class DiamondPainter extends CustomPainter {
-  final Color color;
-  
-  DiamondPainter(this.color);
-  
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    
-    final path = Path();
-    path.moveTo(size.width / 2, 0);
-    path.lineTo(size.width, size.height / 2);
-    path.lineTo(size.width / 2, size.height);
-    path.lineTo(0, size.height / 2);
-    path.close();
-    
-    canvas.drawPath(path, paint);
-    
-    // White border
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawPath(path, borderPaint);
-    
-    // Shadow
-    canvas.drawShadow(path, color.withOpacity(0.3), 4, false);
-  }
-  
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class PentagonPainter extends CustomPainter {
-  final Color color;
-  
-  PentagonPainter(this.color);
-  
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    
-    final path = Path();
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-    final radius = size.width / 2;
-    
-    for (int i = 0; i < 5; i++) {
-      final angle = (i * 2 * math.pi / 5) - (math.pi / 2);
-      final x = centerX + radius * math.cos(angle);
-      final y = centerY + radius * math.sin(angle);
-      
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    path.close();
-    
-    canvas.drawPath(path, paint);
-    
-    // White border
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawPath(path, borderPaint);
-    
-    // Shadow
-    canvas.drawShadow(path, color.withOpacity(0.3), 4, false);
-  }
-  
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class HexagonPainter extends CustomPainter {
-  final Color color;
-  
-  HexagonPainter(this.color);
-  
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    
-    final path = Path();
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-    final radius = size.width / 2;
-    
-    for (int i = 0; i < 6; i++) {
-      final angle = i * math.pi / 3;
-      final x = centerX + radius * math.cos(angle);
-      final y = centerY + radius * math.sin(angle);
-      
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    path.close();
-    
-    canvas.drawPath(path, paint);
-    
-    // White border
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawPath(path, borderPaint);
-    
-    // Shadow
-    canvas.drawShadow(path, color.withOpacity(0.3), 4, false);
-  }
-  
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
