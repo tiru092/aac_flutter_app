@@ -475,22 +475,84 @@ class _CarMatchingGameScreenState extends State<CarMatchingGameScreen>
 
   Widget _buildInstructions(double screenWidth, double screenHeight, bool isLandscape) {
     return Container(
-      padding: EdgeInsets.all(isLandscape ? screenWidth * 0.008 : screenWidth * 0.04),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFF6B6B).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(isLandscape ? 8 : 12),
-        border: Border.all(
-          color: const Color(0xFFFF6B6B).withOpacity(0.3),
-        ),
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: screenWidth * 0.04,
+        vertical: screenHeight * 0.02,
       ),
-      child: Text(
-        'Drag the ${currentCar.name.toLowerCase()} ${currentCar.emoji} to the matching box below!',
-        style: TextStyle(
-          fontSize: isLandscape ? screenWidth * 0.018 : screenWidth * 0.04,
-          color: const Color(0xFF2D3748),
-          fontWeight: FontWeight.w500,
-        ),
-        textAlign: TextAlign.center,
+      margin: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 60, // Space for back button
+        bottom: screenHeight * 0.02,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Round $currentRound/$totalRounds',
+                style: TextStyle(
+                  fontSize: screenWidth * 0.045,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF2D3748),
+                ),
+              ),
+              Text(
+                'Score: $score',
+                style: TextStyle(
+                  fontSize: screenWidth * 0.045,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFFFF6B6B),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: screenHeight * 0.015),
+          AnimatedBuilder(
+            animation: _progressAnimation,
+            builder: (context, child) {
+              return LinearProgressIndicator(
+                value: _progressAnimation.value,
+                backgroundColor: const Color(0xFFE2E8F0),
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  Color(0xFFFF6B6B),
+                ),
+                minHeight: 8,
+              );
+            },
+          ),
+          SizedBox(height: screenHeight * 0.02),
+          Container(
+            padding: EdgeInsets.all(isLandscape ? screenWidth * 0.008 : screenWidth * 0.04),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF6B6B).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(isLandscape ? 8 : 12),
+              border: Border.all(
+                color: const Color(0xFFFF6B6B).withOpacity(0.3),
+              ),
+            ),
+            child: Text(
+              'Drag the ${currentCar.name.toLowerCase()} ${currentCar.emoji} to the matching box below!',
+              style: TextStyle(
+                fontSize: isLandscape ? screenWidth * 0.018 : screenWidth * 0.04,
+                color: const Color(0xFF2D3748),
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -512,6 +574,93 @@ class _CarMatchingGameScreenState extends State<CarMatchingGameScreen>
               child: _buildCarChip(currentCar, carSize, false),
             ),
             child: _buildCarChip(currentCar, carSize, false),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCelebration(double screenWidth, double screenHeight, bool isLandscape) {
+    return AnimatedBuilder(
+      animation: _celebrationAnimation,
+      builder: (context, child) {
+        return Container(
+          height: screenHeight * 0.6,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Transform.scale(
+                  scale: 1.0 + (_explosionAnimation.value * 0.5),
+                  child: Container(
+                    padding: EdgeInsets.all(screenWidth * 0.08),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF6B6B).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFFFF6B6B),
+                        width: 3,
+                      ),
+                    ),
+                    child: Text(
+                      '🎉',
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.15,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: screenHeight * 0.04),
+                Text(
+                  'Congratulations!',
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.07,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFFF6B6B),
+                  ),
+                ),
+                SizedBox(height: screenHeight * 0.02),
+                Text(
+                  'You completed all $totalRounds rounds!',
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.05,
+                    color: const Color(0xFF4A5568),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: screenHeight * 0.02),
+                Text(
+                  'Final Score: $score/${totalRounds * 10}',
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.06,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF2D3748),
+                  ),
+                ),
+                SizedBox(height: screenHeight * 0.04),
+                ElevatedButton(
+                  onPressed: _resetGame,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6B6B),
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: screenWidth * 0.1,
+                      vertical: screenHeight * 0.02,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                  ),
+                  child: Text(
+                    'Play Again',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.045,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -555,101 +704,59 @@ class _CarMatchingGameScreenState extends State<CarMatchingGameScreen>
     );
   }
 
-  Widget _buildCelebrationExplosion(double screenWidth, double screenHeight) {
-    return AnimatedBuilder(
-      animation: _celebrationAnimation,
-      builder: (context, child) {
-        final explosionProgress = _explosionAnimation.value;
-        final fadeProgress = _celebrationAnimation.value;
+  void _onCarMatched(bool isCorrect) {
+    setState(() {
+      isShowingFeedback = true;
+      wasCorrect = isCorrect;
+      
+      if (isCorrect) {
+        feedbackMessage = 'Perfect! Great job matching the ${currentCar.name}!';
+        score += 10;
+        HapticFeedback.lightImpact();
+        _successAnimationController.forward().then((_) => _successAnimationController.reverse());
+        _progressAnimationController.animateTo(currentRound / totalRounds);
         
-        return Positioned.fill(
-          child: Container(
-            child: Stack(
-              children: [
-                // Multiple explosion effects across the screen
-                for (int i = 0; i < 12; i++)
-                  Positioned(
-                    left: (screenWidth * 0.1) + (i % 4) * (screenWidth * 0.25) + 
-                          (math.sin(explosionProgress * math.pi * 2 + i) * 30),
-                    top: (screenHeight * 0.2) + (i ~/ 4) * (screenHeight * 0.25) + 
-                         (math.cos(explosionProgress * math.pi * 2 + i) * 20),
-                    child: Transform.scale(
-                      scale: explosionProgress * (1.0 + (i % 3) * 0.3),
-                      child: Opacity(
-                        opacity: (1.0 - fadeProgress).clamp(0.0, 1.0),
-                        child: Text(
-                          ['🎉', '⭐', '🎊', '✨', '🎈'][i % 5],
-                          style: TextStyle(
-                            fontSize: 24 + (explosionProgress * 16),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                
-                // Central celebration burst
-                Center(
-                  child: Transform.scale(
-                    scale: explosionProgress * 2,
-                    child: Opacity(
-                      opacity: (1.0 - fadeProgress * 1.5).clamp(0.0, 1.0),
-                      child: Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              Colors.yellow.withOpacity(0.8),
-                              Colors.orange.withOpacity(0.6),
-                              Colors.red.withOpacity(0.4),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            '🎆',
-                            style: TextStyle(fontSize: 48),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                
-                // Sparkle effects
-                for (int i = 0; i < 8; i++)
-                  Positioned(
-                    left: screenWidth * 0.5 + math.cos(i * math.pi / 4) * explosionProgress * 120,
-                    top: screenHeight * 0.5 + math.sin(i * math.pi / 4) * explosionProgress * 120,
-                    child: Transform.rotate(
-                      angle: explosionProgress * math.pi * 4,
-                      child: Opacity(
-                        opacity: (1.0 - fadeProgress).clamp(0.0, 1.0),
-                        child: Text(
-                          '✨',
-                          style: TextStyle(
-                            fontSize: 20 + (explosionProgress * 10),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+        // Play voice feedback
+        AACHelper.speakWithEmotion(
+          feedbackMessage,
+          tone: EmotionalTone.excited,
         );
-      },
-    );
-  }
+      } else {
+        feedbackMessage = 'Try again! Look for the ${currentCar.name}.';
+        HapticFeedback.mediumImpact();
+        
+        // Play voice feedback
+        AACHelper.speakWithEmotion(
+          feedbackMessage,
+          tone: EmotionalTone.encouraging,
+        );
+      }
+    });
 
-  String _getScoreMessage() {
-    final percentage = (score / totalRounds * 100).round();
-    if (percentage >= 90) return 'Outstanding! 🌟';
-    if (percentage >= 80) return 'Great job! 🎯';
-    if (percentage >= 70) return 'Well done! 👏';
-    if (percentage >= 60) return 'Good effort! 👍';
-    return 'Keep practicing! 💪';
+    // Auto-advance after correct match
+    if (isCorrect) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            isShowingFeedback = false;
+          });
+          
+          if (currentRound < totalRounds) {
+            _startNewRound();
+          } else {
+            _showGameComplete();
+          }
+        }
+      });
+    } else {
+      // Hide feedback after incorrect match
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            isShowingFeedback = false;
+          });
+        }
+      });
+    }
   }
 }

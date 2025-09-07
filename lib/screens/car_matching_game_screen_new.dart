@@ -475,22 +475,84 @@ class _CarMatchingGameScreenState extends State<CarMatchingGameScreen>
 
   Widget _buildInstructions(double screenWidth, double screenHeight, bool isLandscape) {
     return Container(
-      padding: EdgeInsets.all(isLandscape ? screenWidth * 0.008 : screenWidth * 0.04),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFF6B6B).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(isLandscape ? 8 : 12),
-        border: Border.all(
-          color: const Color(0xFFFF6B6B).withOpacity(0.3),
-        ),
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: screenWidth * 0.04,
+        vertical: screenHeight * 0.02,
       ),
-      child: Text(
-        'Drag the ${currentCar.name.toLowerCase()} ${currentCar.emoji} to the matching box below!',
-        style: TextStyle(
-          fontSize: isLandscape ? screenWidth * 0.018 : screenWidth * 0.04,
-          color: const Color(0xFF2D3748),
-          fontWeight: FontWeight.w500,
-        ),
-        textAlign: TextAlign.center,
+      margin: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 60, // Space for back button
+        bottom: screenHeight * 0.02,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Round $currentRound/$totalRounds',
+                style: TextStyle(
+                  fontSize: screenWidth * 0.045,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF2D3748),
+                ),
+              ),
+              Text(
+                'Score: $score',
+                style: TextStyle(
+                  fontSize: screenWidth * 0.045,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFFFF6B6B),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: screenHeight * 0.015),
+          AnimatedBuilder(
+            animation: _progressAnimation,
+            builder: (context, child) {
+              return LinearProgressIndicator(
+                value: _progressAnimation.value,
+                backgroundColor: const Color(0xFFE2E8F0),
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  Color(0xFFFF6B6B),
+                ),
+                minHeight: 8,
+              );
+            },
+          ),
+          SizedBox(height: screenHeight * 0.02),
+          Container(
+            padding: EdgeInsets.all(isLandscape ? screenWidth * 0.008 : screenWidth * 0.04),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF6B6B).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(isLandscape ? 8 : 12),
+              border: Border.all(
+                color: const Color(0xFFFF6B6B).withOpacity(0.3),
+              ),
+            ),
+            child: Text(
+              'Drag the ${currentCar.name.toLowerCase()} ${currentCar.emoji} to the matching box below!',
+              style: TextStyle(
+                fontSize: isLandscape ? screenWidth * 0.018 : screenWidth * 0.04,
+                color: const Color(0xFF2D3748),
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       ),
     );
   }
