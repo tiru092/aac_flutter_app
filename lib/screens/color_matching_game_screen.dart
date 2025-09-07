@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../utils/aac_helper.dart';
 
 /// Data class for game colors
 class GameColor {
@@ -46,14 +47,17 @@ class _ColorMatchingGameScreenState extends State<ColorMatchingGameScreen>
   late AnimationController _successAnimationController;
   late AnimationController _shakeAnimationController;
   late AnimationController _progressAnimationController;
+  late AnimationController _butterflyAnimationController;
   late Animation<double> _successAnimation;
   late Animation<double> _shakeAnimation;
   late Animation<double> _progressAnimation;
+  late Animation<Offset> _butterflyAnimation;
   
   // Game feedback state
   bool isShowingFeedback = false;
   String feedbackMessage = '';
   bool wasCorrect = false;
+  bool showButterfly = false;
   
   // Game colors with names for accessibility - 10 unique colors with fixed emojis
   final List<GameColor> gameColors = [
@@ -112,6 +116,19 @@ class _ColorMatchingGameScreenState extends State<ColorMatchingGameScreen>
       parent: _progressAnimationController,
       curve: Curves.easeInOut,
     ));
+
+    // Butterfly animation controller for flying across screen
+    _butterflyAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+    _butterflyAnimation = Tween<Offset>(
+      begin: const Offset(-1.5, 0.3), // Start from left side
+      end: const Offset(1.5, -0.3),   // End at right side, slightly up
+    ).animate(CurvedAnimation(
+      parent: _butterflyAnimationController,
+      curve: Curves.easeInOut,
+    ));
   }
 
   @override
@@ -119,6 +136,7 @@ class _ColorMatchingGameScreenState extends State<ColorMatchingGameScreen>
     _successAnimationController.dispose();
     _shakeAnimationController.dispose();
     _progressAnimationController.dispose();
+    _butterflyAnimationController.dispose();
     super.dispose();
   }
 
@@ -149,6 +167,7 @@ class _ColorMatchingGameScreenState extends State<ColorMatchingGameScreen>
       
       isShowingFeedback = false;
       feedbackMessage = '';
+      showButterfly = false;
     });
     
     // Update progress animation
@@ -160,6 +179,16 @@ class _ColorMatchingGameScreenState extends State<ColorMatchingGameScreen>
       curve: Curves.easeInOut,
     ));
     _progressAnimationController.forward();
+    
+    // Voice instruction for the new round
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        AACHelper.speakWithEmotion(
+          'Find the ${currentColor.name} color and drag it to the matching box!',
+          tone: EmotionalTone.friendly,
+        );
+      }
+    });
   }
 
   void _handleColorDrop(int targetIndex) {
@@ -175,15 +204,30 @@ class _ColorMatchingGameScreenState extends State<ColorMatchingGameScreen>
         score++;
         final remaining = totalRounds - currentRound;
         feedbackMessage = remaining > 0 ? 'Great! $remaining more to go! ⭐' : 'Perfect! Last one! 🎉';
+        
+        // Show butterfly animation
+        showButterfly = true;
+        _butterflyAnimationController.forward();
+        
         _successAnimationController.forward();
         
         // Play success haptic feedback
         HapticFeedback.lightImpact();
         
+        // Voice feedback for correct match
+        AACHelper.speakWithEmotion(
+          'Great job! You matched ${currentColor.name} correctly!',
+          tone: EmotionalTone.excited,
+        );
+        
         // Move to next round after animation
-        Future.delayed(const Duration(milliseconds: 1500), () {
+        Future.delayed(const Duration(milliseconds: 2500), () {
           if (mounted) {
             _successAnimationController.reset();
+            _butterflyAnimationController.reset();
+            setState(() {
+              showButterfly = false;
+            });
             if (currentRound < totalRounds) {
               setState(() {
                 currentRound++;
@@ -207,6 +251,12 @@ class _ColorMatchingGameScreenState extends State<ColorMatchingGameScreen>
         
         // Play error haptic feedback
         HapticFeedback.heavyImpact();
+        
+        // Voice feedback for incorrect match
+        AACHelper.speakWithEmotion(
+          'Oops! Try to find the ${currentColor.name} color',
+          tone: EmotionalTone.encouraging,
+        );
       }
     });
   }
@@ -276,33 +326,42 @@ class _ColorMatchingGameScreenState extends State<ColorMatchingGameScreen>
     final screenHeight = MediaQuery.of(context).size.height;
     final isLandscape = screenWidth > screenHeight;
 
-    return Container(
-      padding: EdgeInsets.all(isLandscape ? screenWidth * 0.008 : screenWidth * 0.04),
-      child: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Instructions (removed progress indicator to save space)
-            _buildInstructions(screenWidth, screenHeight, isLandscape),
-            
-            SizedBox(height: isLandscape ? screenHeight * 0.01 : screenHeight * 0.04),
-            
-            // Draggable color
-            _buildDraggableColor(screenWidth, screenHeight, isLandscape),
-            
-            // Increased spacing between draggable and target colors - additional 20% more space
-            SizedBox(height: isLandscape ? screenHeight * 0.042 : screenHeight * 0.048),
-            
-            // Target color boxes
-            _buildTargetColors(screenWidth, screenHeight, isLandscape),
-            
-            // Feedback area
-            if (isShowingFeedback) ...[
-              SizedBox(height: isLandscape ? screenHeight * 0.005 : screenHeight * 0.03),
-              _buildFeedback(screenWidth, screenHeight, isLandscape),
-            ],
-          ],
+    return Stack(
+      children: [
+        // Main game content
+        Container(
+          padding: EdgeInsets.all(isLandscape ? screenWidth * 0.008 : screenWidth * 0.04),
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                // Instructions (removed progress indicator to save space)
+                _buildInstructions(screenWidth, screenHeight, isLandscape),
+                
+                SizedBox(height: isLandscape ? screenHeight * 0.01 : screenHeight * 0.04),
+                
+                // Draggable color
+                _buildDraggableColor(screenWidth, screenHeight, isLandscape),
+                
+                // Increased spacing between draggable and target colors - additional 20% more space
+                SizedBox(height: isLandscape ? screenHeight * 0.042 : screenHeight * 0.048),
+                
+                // Target color boxes
+                _buildTargetColors(screenWidth, screenHeight, isLandscape),
+                
+                // Feedback area
+                if (isShowingFeedback) ...[
+                  SizedBox(height: isLandscape ? screenHeight * 0.005 : screenHeight * 0.03),
+                  _buildFeedback(screenWidth, screenHeight, isLandscape),
+                ],
+              ],
+            ),
+          ),
         ),
-      ),
+        
+        // Butterfly animation overlay
+        if (showButterfly)
+          _buildButterflyAnimation(screenWidth, screenHeight),
+      ],
     );
   }
 
@@ -492,6 +551,25 @@ class _ColorMatchingGameScreenState extends State<ColorMatchingGameScreen>
                   : const Color(0xFFFF6B6B),
             ),
             textAlign: TextAlign.center,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildButterflyAnimation(double screenWidth, double screenHeight) {
+    return AnimatedBuilder(
+      animation: _butterflyAnimation,
+      builder: (context, child) {
+        return Positioned(
+          left: _butterflyAnimation.value.dx * screenWidth,
+          top: screenHeight * 0.3 + (_butterflyAnimation.value.dy * screenHeight * 0.2),
+          child: Transform.rotate(
+            angle: math.sin(_butterflyAnimationController.value * math.pi * 8) * 0.1,
+            child: const Text(
+              '🦋',
+              style: TextStyle(fontSize: 40),
+            ),
           ),
         );
       },
