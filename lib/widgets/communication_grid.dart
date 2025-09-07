@@ -138,8 +138,8 @@ class _CommunicationGridState extends State<CommunicationGrid>
         }
 
         // Adjust spacing and padding based on screen size with optimized landscape settings
-        final basePadding = isLandscape ? screenWidth * 0.025 : screenWidth * 0.05;  // Reduced from 0.03 to 0.025 for landscape
-        final spacing = isLandscape ? screenWidth * 0.015 : screenWidth * 0.04;      // Reduced from 0.02 to 0.015 for landscape
+        final basePadding = isLandscape ? screenWidth * 0.015 : screenWidth * 0.05;  // Further reduced from 0.025 to 0.015 for landscape
+        final spacing = isLandscape ? screenWidth * 0.008 : screenWidth * 0.04;      // Further reduced from 0.015 to 0.008 for landscape
 
         return GridView.builder(
           padding: EdgeInsets.all(basePadding),

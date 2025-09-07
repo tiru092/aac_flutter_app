@@ -234,7 +234,7 @@ class PracticeGoalsData {
 
   static List<PracticeActivity> _getColorActivities() {
     final colors = ['Red', 'Blue', 'Green', 'Yellow', 'Orange', 'Purple', 'Pink', 'Brown', 'Black', 'White'];
-    final colorEmojis = ['🔴', '🔵', '🟢', '🟡', '🟠', '🟣', '🩷', '🟤', '⚫', '⚪'];
+    final colorEmojis = ['🔴', '🔵', '🟢', '🟡', '🟠', '🟣', '🌸', '🟤', '⚫', '⚪'];
     
     return List.generate(10, (index) => PracticeActivity(
       id: 'color_$index',

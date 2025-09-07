@@ -95,8 +95,8 @@ class _PracticeAreaScreenState extends State<PracticeAreaScreen>
             // Custom Tab Bar
             Container(
               margin: EdgeInsets.symmetric(
-                horizontal: screenWidth * 0.04,
-                vertical: screenHeight * 0.01,
+                horizontal: isLandscape ? screenWidth * 0.02 : screenWidth * 0.04, // Smaller margin in landscape
+                vertical: isLandscape ? screenHeight * 0.005 : screenHeight * 0.01, // Smaller vertical margin
               ),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -147,10 +147,12 @@ class _PracticeAreaScreenState extends State<PracticeAreaScreen>
 
   Widget _buildTabButton(PracticeTab tab, int index, bool isSelected, 
                         double screenWidth, double screenHeight) {
+    final isLandscape = screenWidth > screenHeight;
+    
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
+      margin: EdgeInsets.symmetric(horizontal: isLandscape ? 2 : 4), // Smaller margin in landscape
       decoration: BoxDecoration(
         color: isSelected ? tab.color : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
@@ -166,8 +168,8 @@ class _PracticeAreaScreenState extends State<PracticeAreaScreen>
       ),
       child: CupertinoButton(
         padding: EdgeInsets.symmetric(
-          horizontal: screenWidth * 0.02,
-          vertical: screenHeight * 0.015,
+          horizontal: isLandscape ? screenWidth * 0.01 : screenWidth * 0.02, // Smaller padding in landscape
+          vertical: isLandscape ? screenHeight * 0.008 : screenHeight * 0.015, // Smaller vertical padding
         ),
         onPressed: () {
           _tabController.animateTo(index);
@@ -178,13 +180,13 @@ class _PracticeAreaScreenState extends State<PracticeAreaScreen>
             Icon(
               tab.icon,
               color: isSelected ? Colors.white : tab.color,
-              size: screenHeight * 0.035,
+              size: isLandscape ? screenHeight * 0.025 : screenHeight * 0.035, // Smaller icon in landscape
             ),
-            SizedBox(height: screenHeight * 0.008),
+            SizedBox(height: isLandscape ? screenHeight * 0.004 : screenHeight * 0.008), // Smaller spacing
             Text(
               tab.title,
               style: TextStyle(
-                fontSize: screenHeight * 0.02,
+                fontSize: isLandscape ? screenHeight * 0.014 : screenHeight * 0.02, // Smaller text in landscape
                 fontWeight: FontWeight.w600,
                 color: isSelected ? Colors.white : const Color(0xFF2D3748),
               ),

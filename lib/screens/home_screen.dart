@@ -1403,9 +1403,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         
-                        // Right sidebar with categories (like reference image) - reduced by 20%
+                        // Right sidebar with categories (like reference image) - further reduced for better practice space
                         Container(
-                          width: screenWidth * 0.176, // Reduced from 0.22 to 0.176 (20% reduction)
+                          width: screenWidth * 0.14, // Further reduced from 0.176 to 0.14 (40% reduction from original)
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.95),
                             boxShadow: [
@@ -1919,12 +1919,12 @@ class _HomeScreenState extends State<HomeScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: EdgeInsets.symmetric(
-          horizontal: isLandscape ? screenWidth * 0.015 : screenWidth * 0.025, // More compact in landscape
-          vertical: isLandscape ? screenHeight * 0.006 : screenHeight * 0.01, // More compact vertical padding
+          horizontal: isLandscape ? screenWidth * 0.01 : screenWidth * 0.025, // More compact in landscape (smaller)
+          vertical: isLandscape ? screenHeight * 0.004 : screenHeight * 0.01, // More compact vertical padding
         ),
         constraints: BoxConstraints(
-          minHeight: isLandscape ? 32 : 42, // Smaller minimum height in landscape
-          maxHeight: isLandscape ? 40 : 52, // Smaller maximum height in landscape
+          minHeight: isLandscape ? 28 : 42, // Even smaller minimum height in landscape
+          maxHeight: isLandscape ? 36 : 52, // Even smaller maximum height in landscape
         ),
         decoration: BoxDecoration(
           color: isSelected ? categoryColor : Colors.white,
@@ -1958,10 +1958,10 @@ class _HomeScreenState extends State<HomeScreen> {
             if (isLandscape) ...[
               Icon(
                 categoryIcon,
-                size: 14, // Smaller icon size for landscape
+                size: 12, // Even smaller icon size for landscape
                 color: isSelected ? Colors.white : categoryColor,
               ),
-              SizedBox(width: 3), // Reduced spacing
+              SizedBox(width: 2), // Reduced spacing
             ],
             Flexible(
               child: AutoSizeText(
@@ -1969,12 +1969,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: GoogleFonts.nunito(
                   color: isSelected ? Colors.white : Colors.grey.shade700,
                   fontWeight: FontWeight.w600, // Slightly reduced for compactness
-                  fontSize: isLandscape ? 13 : 18, // Smaller font in landscape for more categories
-                  letterSpacing: 0.2, // Reduced letter spacing for compactness
+                  fontSize: isLandscape ? 11 : 18, // Even smaller font in landscape for more categories
+                  letterSpacing: 0.1, // Reduced letter spacing for compactness
                 ),
                 maxLines: 1,
-                minFontSize: isLandscape ? 10 : 12, // Smaller minimum in landscape
-                maxFontSize: isLandscape ? 14 : 20, // Smaller maximum in landscape
+                minFontSize: isLandscape ? 8 : 12, // Smaller minimum in landscape
+                maxFontSize: isLandscape ? 12 : 20, // Smaller maximum in landscape
                 overflow: TextOverflow.ellipsis,
               ),
             ),
