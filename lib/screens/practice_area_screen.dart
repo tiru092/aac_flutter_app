@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'color_matching_game_screen.dart';
+import 'shape_matching_game_screen.dart';
 
 /// Practice Area Screen with multiple educational game tabs
 class PracticeAreaScreen extends StatefulWidget {
@@ -27,7 +28,7 @@ class _PracticeAreaScreenState extends State<PracticeAreaScreen>
       title: 'Shapes',
       icon: CupertinoIcons.circle_grid_3x3_fill,
       color: const Color(0xFF45B7D1),
-      screen: const PlaceholderGameScreen(title: 'Shapes Matching', subtitle: 'Coming Soon!'),
+      screen: const ShapeMatchingGameScreen(),
     ),
     PracticeTab(
       title: 'Fruits',
