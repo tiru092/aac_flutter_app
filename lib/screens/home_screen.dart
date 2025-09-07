@@ -18,7 +18,7 @@ import '../services/shared_resource_service.dart';
 import '../screens/enhanced_goals_screen.dart';
 import '../screens/aac_learning_goals_screen.dart';
 import '../screens/professional_therapeutic_goals_screen.dart';
-import '../screens/professional_communication_coach_screen.dart';
+import '../screens/practice_area_screen.dart';
 import '../screens/favorites_screen.dart';
 import '../services/favorites_service.dart';
 import '../services/secure_encryption_service.dart';
@@ -799,13 +799,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    CupertinoIcons.person_2_alt,
-                    color: Color(0xFF6C63FF),
+                    CupertinoIcons.gamecontroller_fill,
+                    color: Color(0xFF4ECDC4),
                     size: 24,
                   ),
                   SizedBox(width: 12),
                   Text(
-                    'Communication Coach',
+                    'Practice Area',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -1045,7 +1045,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       CupertinoPageRoute(
-        builder: (context) => const ProfessionalCommunicationCoachScreen(),
+        builder: (context) => const PracticeAreaScreen(),
       ),
     );
   }
@@ -1287,9 +1287,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                     SizedBox(width: screenWidth * 0.008),
                                     
-                                    // Professional Communication Coach button
+                                    // Practice Area button
                                     _buildTopControlButton(
-                                      icon: CupertinoIcons.person_2_alt,
+                                      icon: CupertinoIcons.gamecontroller_fill,
                                       isActive: false,
                                       onPressed: _openInteractiveFun,
                                       screenWidth: screenWidth,
