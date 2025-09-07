@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'color_matching_game_screen.dart';
 import 'shape_matching_game_screen.dart';
 import 'fruit_matching_game_screen.dart';
+import 'car_matching_game_screen.dart';
 
 /// Practice Area Screen with multiple educational game tabs
 class PracticeAreaScreen extends StatefulWidget {
@@ -41,7 +42,7 @@ class _PracticeAreaScreenState extends State<PracticeAreaScreen>
       title: 'Cars',
       icon: CupertinoIcons.car_fill,
       color: const Color(0xFFFF6B6B),
-      screen: const PlaceholderGameScreen(title: 'Cars Matching', subtitle: 'Coming Soon!'),
+      screen: const CarMatchingGameScreen(),
     ),
   ];
 

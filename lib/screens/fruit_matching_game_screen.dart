@@ -61,285 +61,19 @@ class _FruitMatchingGameScreenState extends State<FruitMatchingGameScreen>
   bool wasCorrect = false;
   bool showCelebration = false;
   
-  // Game fruits with names for accessibility - 10 unique fruits with proper visual representations
+  // Game fruits with names for accessibility - 10 unique fruits as pure emojis
   final List<GameFruit> gameFruits = [
-    GameFruit('Apple', const Color(0xFFFF6B6B), '🍎', _buildAppleFruit()),
-    GameFruit('Banana', const Color(0xFFFFE66D), '🍌', _buildBananaFruit()),
-    GameFruit('Orange', const Color(0xFFFF8A95), '🍊', _buildOrangeFruit()),
-    GameFruit('Grapes', const Color(0xFFB983FF), '🍇', _buildGrapesFruit()),
-    GameFruit('Strawberry', const Color(0xFFF38BA8), '🍓', _buildStrawberryFruit()),
-    GameFruit('Pineapple', const Color(0xFFFFE66D), '🍍', _buildPineappleFruit()),
-    GameFruit('Watermelon', const Color(0xFF20C997), '🍉', _buildWatermelonFruit()),
-    GameFruit('Mango', const Color(0xFFFF8A95), '🥭', _buildMangoFruit()),
-    GameFruit('Cherry', const Color(0xFFFF6B6B), '🍒', _buildCherryFruit()),
-    GameFruit('Lemon', const Color(0xFFFFE66D), '🍋', _buildLemonFruit()),
+    GameFruit('Apple', const Color(0xFFFF6B6B), '🍎', Container()),
+    GameFruit('Banana', const Color(0xFFFFE66D), '🍌', Container()),
+    GameFruit('Orange', const Color(0xFFFF8A95), '🍊', Container()),
+    GameFruit('Grapes', const Color(0xFFB983FF), '🍇', Container()),
+    GameFruit('Strawberry', const Color(0xFFF38BA8), '🍓', Container()),
+    GameFruit('Pineapple', const Color(0xFFFFE66D), '🍍', Container()),
+    GameFruit('Watermelon', const Color(0xFF20C997), '🍉', Container()),
+    GameFruit('Mango', const Color(0xFFFF8A95), '🥭', Container()),
+    GameFruit('Cherry', const Color(0xFFFF6B6B), '🍒', Container()),
+    GameFruit('Lemon', const Color(0xFFFFE66D), '🍋', Container()),
   ];
-
-  static Widget _buildAppleFruit() {
-    return Container(
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [Color(0xFFFF6B6B), Color(0xFFE53E3E)],
-          center: Alignment.topLeft,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x40FF6B6B),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Text(
-          '🍎',
-          style: TextStyle(fontSize: 50),
-        ),
-      ),
-    );
-  }
-
-  static Widget _buildBananaFruit() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFE66D), Color(0xFFECC94B)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x40FFE66D),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Text(
-          '🍌',
-          style: TextStyle(fontSize: 50),
-        ),
-      ),
-    );
-  }
-
-  static Widget _buildOrangeFruit() {
-    return Container(
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [Color(0xFFFF8A95), Color(0xFFED8936)],
-          center: Alignment.topLeft,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x40FF8A95),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Text(
-          '🍊',
-          style: TextStyle(fontSize: 50),
-        ),
-      ),
-    );
-  }
-
-  static Widget _buildGrapesFruit() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFB983FF), Color(0xFF805AD5)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x40B983FF),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Text(
-          '🍇',
-          style: TextStyle(fontSize: 50),
-        ),
-      ),
-    );
-  }
-
-  static Widget _buildStrawberryFruit() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF38BA8), Color(0xFFE53E3E)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x40F38BA8),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Text(
-          '🍓',
-          style: TextStyle(fontSize: 50),
-        ),
-      ),
-    );
-  }
-
-  static Widget _buildPineappleFruit() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(10),
-          topRight: Radius.circular(10),
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFE66D), Color(0xFFD69E2E)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x40FFE66D),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Text(
-          '🍍',
-          style: TextStyle(fontSize: 50),
-        ),
-      ),
-    );
-  }
-
-  static Widget _buildWatermelonFruit() {
-    return Container(
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [Color(0xFF20C997), Color(0xFF38A169)],
-          center: Alignment.topLeft,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x4020C997),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Text(
-          '🍉',
-          style: TextStyle(fontSize: 50),
-        ),
-      ),
-    );
-  }
-
-  static Widget _buildMangoFruit() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(25),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFF8A95), Color(0xFFED8936)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x40FF8A95),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Text(
-          '🥭',
-          style: TextStyle(fontSize: 50),
-        ),
-      ),
-    );
-  }
-
-  static Widget _buildCherryFruit() {
-    return Container(
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [Color(0xFFFF6B6B), Color(0xFFDC143C)],
-          center: Alignment.topLeft,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x40FF6B6B),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Text(
-          '🍒',
-          style: TextStyle(fontSize: 50),
-        ),
-      ),
-    );
-  }
-
-  static Widget _buildLemonFruit() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(35),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFE66D), Color(0xFFECC94B)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x40FFE66D),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Text(
-          '🍋',
-          style: TextStyle(fontSize: 50),
-        ),
-      ),
-    );
-  }
 
   @override
   void initState() {
@@ -665,6 +399,7 @@ class _FruitMatchingGameScreenState extends State<FruitMatchingGameScreen>
   }
 
   Widget _buildDraggableFruit(double screenWidth, double screenHeight, bool isLandscape) {
+    // Use the same size as color matching game
     final fruitSize = isLandscape ? screenHeight * 0.24 : screenWidth * 0.25;
     
     return AnimatedBuilder(
@@ -690,48 +425,32 @@ class _FruitMatchingGameScreenState extends State<FruitMatchingGameScreen>
     return Container(
       width: size,
       height: size,
-      child: Stack(
-        children: [
-          // Fruit background
-          Positioned.fill(
-            child: fruit.fruit,
-          ),
-          // Fruit name text overlay
-          Positioned.fill(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: size * 0.1,
-                      vertical: size * 0.03,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(size * 0.05),
-                    ),
-                    child: Text(
-                      fruit.name,
-                      style: TextStyle(
-                        fontSize: size * 0.1,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: size * 0.05),
-                ],
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              fruit.emoji,
+              style: TextStyle(fontSize: size * 0.6),
+            ),
+            SizedBox(height: size * 0.05),
+            Text(
+              fruit.name,
+              style: TextStyle(
+                fontSize: size * 0.12,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildTargetFruits(double screenWidth, double screenHeight, bool isLandscape) {
-    final fruitSize = isLandscape ? screenHeight * 0.18 : screenWidth * 0.19;
+    // Use the same size as color matching game
+    final fruitSize = isLandscape ? screenHeight * 0.22 : screenWidth * 0.22;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -757,10 +476,10 @@ class _FruitMatchingGameScreenState extends State<FruitMatchingGameScreen>
                     width: fruitSize,
                     height: fruitSize,
                     alignment: Alignment.center,
-                    // No colored box, only the fruit itself with a subtle border/shadow for feedback
+                    // Pure emoji without any background container
                     decoration: BoxDecoration(
                       color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(fruitSize / 2),
                       border: Border.all(
                         color: isHighlighted ? Colors.amber : Colors.transparent,
                         width: isHighlighted ? 4 : 0,
@@ -775,10 +494,11 @@ class _FruitMatchingGameScreenState extends State<FruitMatchingGameScreen>
                             ]
                           : [],
                     ),
-                    child: Container(
-                      width: fruitSize * 0.95,
-                      height: fruitSize * 0.95,
-                      child: fruit.fruit,
+                    child: Center(
+                      child: Text(
+                        fruit.emoji,
+                        style: TextStyle(fontSize: fruitSize * 0.6),
+                      ),
                     ),
                   );
                 },
