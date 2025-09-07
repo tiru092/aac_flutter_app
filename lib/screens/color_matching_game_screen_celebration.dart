@@ -221,7 +221,7 @@ class _ColorMatchingGameScreenState extends State<ColorMatchingGameScreen>
         
         // Play celebration sound effect and haptic feedback
         HapticFeedback.lightImpact();
-        AACHelper.playSound(SoundEffect.celebration);
+        AACHelper.playSoundEffect(SoundEffect.celebration);
         
         // Voice feedback for correct match
         AACHelper.speakWithEmotion(
@@ -260,7 +260,7 @@ class _ColorMatchingGameScreenState extends State<ColorMatchingGameScreen>
         
         // Play error sound and haptic feedback
         HapticFeedback.heavyImpact();
-        AACHelper.playSound(SoundEffect.error);
+        AACHelper.playSoundEffect(SoundEffect.error);
         
         // Voice feedback for incorrect match
         AACHelper.speakWithEmotion(
