@@ -258,10 +258,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
                         ),
                         SizedBox(height: _getResponsiveSpacing(context) * 0.5),
                         Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: _getResponsiveSpacing(context) * 2,
-                            vertical: _getResponsiveSpacing(context) * 0.5,
-                          ),
+                          padding: _getCategoryCountPadding(context),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
@@ -273,6 +270,8 @@ class _CommunicationGridState extends State<CommunicationGrid>
                               color: Colors.white.withOpacity(0.9),
                               fontWeight: FontWeight.w500,
                             ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                         ),
                       ],
@@ -511,7 +510,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
     final isLandscape = screenWidth > screenHeight;
     
     if (isLandscape) {
-      return EdgeInsets.all(screenWidth * 0.02); // Tighter padding in landscape
+      return EdgeInsets.all(screenWidth * 0.015); // Even tighter padding in landscape to prevent overflow
     } else {
       return EdgeInsets.all(screenWidth * 0.03); // More generous padding in portrait
     }
@@ -523,8 +522,8 @@ class _CommunicationGridState extends State<CommunicationGrid>
     final isLandscape = screenWidth > screenHeight;
     
     if (isLandscape) {
-      // Base size on height in landscape to fit vertically
-      return (screenHeight * 0.12).clamp(60.0, 100.0);
+      // Smaller icon size in landscape to prevent overflow and give more room for text
+      return (screenHeight * 0.10).clamp(50.0, 80.0); // Reduced from 0.12 and 60-100
     } else {
       // Base size on width in portrait
       return (screenWidth * 0.15).clamp(70.0, 120.0);
@@ -547,7 +546,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
     final isLandscape = screenWidth > screenHeight;
     
     if (isLandscape) {
-      return (screenWidth * 0.025).clamp(12.0, 20.0); // Smaller text in landscape
+      return (screenWidth * 0.02).clamp(10.0, 16.0); // Further reduced for landscape to prevent overflow
     } else {
       return (screenWidth * 0.04).clamp(14.0, 24.0); // Normal text in portrait
     }
@@ -556,6 +555,26 @@ class _CommunicationGridState extends State<CommunicationGrid>
   double _getCategoryCountTextSize(BuildContext context) {
     final textSize = _getCategoryTextSize(context);
     return textSize * 0.75; // Count text should be smaller than category name
+  }
+
+  EdgeInsets _getCategoryCountPadding(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isLandscape = screenWidth > screenHeight;
+    
+    if (isLandscape) {
+      // Much tighter padding in landscape to prevent overflow
+      return EdgeInsets.symmetric(
+        horizontal: _getResponsiveSpacing(context) * 1.0, // Reduced from 2.0
+        vertical: _getResponsiveSpacing(context) * 0.3,   // Reduced from 0.5
+      );
+    } else {
+      // Normal padding in portrait
+      return EdgeInsets.symmetric(
+        horizontal: _getResponsiveSpacing(context) * 2.0,
+        vertical: _getResponsiveSpacing(context) * 0.5,
+      );
+    }
   }
 
   Widget _buildErrorIcon() {

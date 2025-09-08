@@ -75,32 +75,28 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     // Initialize filtered symbols
     _filteredSymbols = _allSymbols;
-    // FAST STARTUP: Load only essential data immediately
+    // Load data synchronously for immediate responsiveness
     _initializeImmediately();
-    // DEFER: Load async data much later
-    Timer(Duration(milliseconds: 500), () {
-      _loadDataAsync();
-    });
+    // Load user data asynchronously
+    _loadDataAsync();
   }
 
   void _initializeImmediately() {
     // Load sample data immediately - no async operations
     _allSymbols = SampleData.getSampleSymbols();
     _categories = SampleData.getSampleCategories();
-    _filteredSymbols = _allSymbols; // Initialize filtered symbols
+    // Don't initialize _customCategories here - let it be loaded from user data
     _isLoading = false;
     _servicesInitialized = true; // Enable all UI interactions immediately
     
-    // Load speech settings synchronously with defaults
+    // Load speech settings synchronously
     _speechRate = 0.5;
     _speechPitch = 1.2;
     _speechVolume = 1.0;
     
-    // EXTREME DEFER: Initialize services much later (2 seconds after app loads)
-    Timer(Duration(seconds: 2), () {
-      if (mounted) {
-        _initializeServicesAsync();
-      }
+    // Initialize services much later, completely in background
+    Timer(Duration(milliseconds: 100), () {
+      _initializeServicesAsync();
     });
     
     // Initialize services even later
@@ -203,63 +199,56 @@ class _HomeScreenState extends State<HomeScreen> {
       try {
         debugPrint('HomeScreen: Starting async service initialization...');
         
-        // Initialize Firebase (optional) - with short timeout
+        // Initialize Firebase (optional)
         try {
           await Future.any([
             Firebase.initializeApp(),
-            Future.delayed(const Duration(milliseconds: 500))
+            Future.delayed(const Duration(seconds: 2))
           ]);
           debugPrint('HomeScreen: Firebase initialized successfully');
         } catch (e) {
           debugPrint('HomeScreen: Firebase initialization failed: $e');
         }
         
-        // Initialize SharedPreferences with timeout
+        // Initialize SharedPreferences
         try {
-          await Future.any([
-            SharedPreferences.getInstance(),
-            Future.delayed(const Duration(milliseconds: 300))
-          ]);
+          await SharedPreferences.getInstance();
           debugPrint('HomeScreen: SharedPreferences initialized');
         } catch (e) {
           debugPrint('HomeScreen: SharedPreferences initialization failed: $e');
         }
         
-        // Initialize SecureEncryptionService with timeout
+        // Initialize SecureEncryptionService
         try {
-          await Future.any([
-            SecureEncryptionService().initialize(),
-            Future.delayed(const Duration(milliseconds: 500))
-          ]);
+          await SecureEncryptionService().initialize();
           debugPrint('HomeScreen: SecureEncryptionService initialized');
         } catch (e) {
           debugPrint('HomeScreen: SecureEncryptionService initialization failed: $e');
         }
         
-        // Initialize database with timeout
+        // Initialize database
         try {
-          await Future.any([
-            AACHelper.initializeDatabase(),
-            Future.delayed(const Duration(milliseconds: 500))
-          ]);
+          await AACHelper.initializeDatabase();
           debugPrint('HomeScreen: Database initialized');
         } catch (e) {
           debugPrint('HomeScreen: Database initialization failed: $e');
         }
         
-        // Initialize TTS with timeout
+        // Initialize TTS
         try {
-          await Future.any([
-            AACHelper.initializeTTS(),
-            Future.delayed(const Duration(milliseconds: 300))
-          ]);
+          await AACHelper.initializeTTS();
           debugPrint('HomeScreen: TTS initialized');
         } catch (e) {
           debugPrint('HomeScreen: TTS initialization failed: $e');
         }
         
-        // Mark services as initialized (they're already marked as true for immediate UI)
-        debugPrint('HomeScreen: All services initialized successfully');
+        // Mark services as initialized
+        if (mounted) {
+          setState(() {
+            _servicesInitialized = true;
+          });
+          // Don't load data here - let user interaction trigger it
+        }
         
         debugPrint('HomeScreen: All services initialized successfully');
       } catch (e) {
@@ -1593,12 +1582,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                         duration: const Duration(milliseconds: 200),
                                         width: double.infinity,
                                         padding: EdgeInsets.symmetric(
-                                          horizontal: MediaQuery.of(context).orientation == Orientation.landscape 
-                                            ? screenWidth * 0.01 
-                                            : screenWidth * 0.02,
-                                          vertical: MediaQuery.of(context).orientation == Orientation.landscape 
-                                            ? screenHeight * 0.004 
-                                            : screenHeight * 0.008,
+                                          horizontal: screenWidth * 0.02, // Match category tab horizontal padding
+                                          vertical: screenHeight * 0.008, // Match category tab vertical padding
                                         ),
                                         margin: EdgeInsets.only(bottom: 6), // Match category spacing
                                         constraints: BoxConstraints(
@@ -1627,24 +1612,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                           children: [
                                             Icon(
                                               CupertinoIcons.add,
-                                              size: MediaQuery.of(context).orientation == Orientation.landscape ? 12 : 16,
+                                              size: 16, // Match category icon size
                                               color: Colors.white,
                                             ),
-                                            SizedBox(width: MediaQuery.of(context).orientation == Orientation.landscape ? 2 : 4),
-                                            Flexible(
-                                              child: AutoSizeText(
-                                                'Add Symbol',
-                                                style: GoogleFonts.nunito(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: MediaQuery.of(context).orientation == Orientation.landscape ? 12 : 16,
-                                                  letterSpacing: 0.2,
-                                                ),
-                                                maxLines: 1,
-                                                minFontSize: MediaQuery.of(context).orientation == Orientation.landscape ? 8 : 12,
-                                                maxFontSize: MediaQuery.of(context).orientation == Orientation.landscape ? 14 : 20,
-                                                overflow: TextOverflow.ellipsis,
+                                            SizedBox(width: 4), // Match category icon spacing
+                                            AutoSizeText(
+                                              'Add Symbol',
+                                              style: GoogleFonts.nunito(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700, // Match category text weight
+                                                fontSize: 16, // Match category text size
+                                                letterSpacing: 0.3, // Match category letter spacing
                                               ),
+                                              maxLines: 1,
+                                              minFontSize: 12, // Match category min font size
+                                              maxFontSize: 20, // Match category max font size
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ],
                                         ),
@@ -1656,12 +1639,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                       duration: const Duration(milliseconds: 200),
                                       width: double.infinity,
                                       padding: EdgeInsets.symmetric(
-                                        horizontal: MediaQuery.of(context).orientation == Orientation.landscape 
-                                          ? screenWidth * 0.01 
-                                          : screenWidth * 0.02,
-                                        vertical: MediaQuery.of(context).orientation == Orientation.landscape 
-                                          ? screenHeight * 0.004 
-                                          : screenHeight * 0.008,
+                                        horizontal: screenWidth * 0.02, // Match category tab horizontal padding
+                                        vertical: screenHeight * 0.008, // Match category tab vertical padding
                                       ),
                                       margin: EdgeInsets.only(bottom: 6), // Match category spacing
                                       constraints: BoxConstraints(
@@ -1687,26 +1666,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                         children: [
                                           Icon(
                                             CupertinoIcons.search,
-                                            size: MediaQuery.of(context).orientation == Orientation.landscape ? 12 : 16,
+                                            size: 16, // Match category icon size
                                             color: Colors.grey.shade600,
                                           ),
-                                          SizedBox(width: MediaQuery.of(context).orientation == Orientation.landscape ? 2 : 4),
+                                          SizedBox(width: 4), // Match category icon spacing
                                           Expanded(
                                             child: CupertinoTextField(
                                               controller: _searchController,
                                               onChanged: _filterSymbols,
                                               style: GoogleFonts.nunito(
-                                                fontSize: MediaQuery.of(context).orientation == Orientation.landscape ? 12 : 16,
-                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16, // Match category text size
+                                                fontWeight: FontWeight.w700, // Match category text weight
                                                 color: Colors.grey.shade700,
-                                                letterSpacing: 0.2,
+                                                letterSpacing: 0.3, // Match category letter spacing
                                               ),
                                               placeholder: 'Search...',
                                               placeholderStyle: GoogleFonts.nunito(
-                                                fontSize: MediaQuery.of(context).orientation == Orientation.landscape ? 12 : 16,
-                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16, // Match category text size
+                                                fontWeight: FontWeight.w700, // Match category text weight
                                                 color: Colors.grey.shade400,
-                                                letterSpacing: 0.2,
+                                                letterSpacing: 0.3, // Match category letter spacing
                                               ),
                                               decoration: BoxDecoration(
                                                 color: Colors.transparent,
@@ -1767,25 +1746,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                         Icon(
                                           CupertinoIcons.heart_fill,
                                           color: Colors.white,
-                                          size: MediaQuery.of(context).orientation == Orientation.landscape 
-                                            ? screenWidth * 0.018 
-                                            : screenWidth * 0.025,
+                                          size: screenWidth * 0.025,
                                         ),
-                                        SizedBox(width: MediaQuery.of(context).orientation == Orientation.landscape 
-                                          ? screenWidth * 0.004 
-                                          : screenWidth * 0.008),
-                                        Flexible(
-                                          child: Text(
-                                            'Favorites',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: MediaQuery.of(context).orientation == Orientation.landscape 
-                                                ? screenWidth * 0.016 
-                                                : screenWidth * 0.022,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                            maxLines: 1,
+                                        SizedBox(width: screenWidth * 0.008),
+                                        Text(
+                                          'Favorites',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: screenWidth * 0.022,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ],

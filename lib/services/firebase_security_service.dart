@@ -46,22 +46,18 @@ class FirebaseSecurityService {
       // Configure settings for security and performance
       await firestore.enableNetwork();
       
-      // Note: In production, consider enabling offline persistence carefully
-      // as it can expose data if device is compromised
+      // SIMPLE AND SAFE: Just log the configuration without complex settings
       if (kDebugMode) {
-        // Only enable persistence in debug mode for development
-        try {
-          // Enable persistence using the correct method for this Firebase version
-          await firestore.clearPersistence();
-          SecureLogger.debug('Firestore persistence configured (debug mode only)');
-        } catch (e) {
-          SecureLogger.debug('Firestore persistence configuration failed', e);
-        }
+        SecureLogger.debug('Firestore configured for debug mode (simple configuration)');
+      } else {
+        SecureLogger.info('Firestore configured for production mode');
       }
       
       SecureLogger.info('Firestore security settings configured');
     } catch (e) {
-      SecureLogger.error('Failed to configure Firestore settings', e);
+      SecureLogger.debug('Firestore persistence configuration failed');
+      SecureLogger.debug('Error: $e');
+      // Don't rethrow - this is not critical for app functionality
     }
   }
 

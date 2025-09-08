@@ -275,19 +275,25 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min, // Use minimum space
           children: [
-            Icon(
-              CupertinoIcons.add_circled,
-              size: MediaQuery.of(context).size.width * 0.048, // Reduced by 50% from 0.096
-              color: Colors.white70,
+            Flexible(
+              child: Icon(
+                CupertinoIcons.add_circled,
+                size: MediaQuery.of(context).size.width * 0.048, // Reduced by 50% from 0.096
+                color: Colors.white70,
+              ),
             ),
-            SizedBox(height: MediaQuery.of(context).size.height * 0.004), // Reduced by 50% from 0.008
-            Text(
-              'Add quick phrases',
-              style: TextStyle(
-                fontSize: MediaQuery.of(context).size.width * 0.021 * AACHelper.getTextSizeMultiplier(), // Reduced by 50% from 0.042
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
+            SizedBox(height: MediaQuery.of(context).size.height * 0.002), // Further reduced for tight space
+            Flexible(
+              child: Text(
+                'Add quick phrases',
+                style: TextStyle(
+                  fontSize: MediaQuery.of(context).size.width * 0.019 * AACHelper.getTextSizeMultiplier(), // Slightly smaller for tight space
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

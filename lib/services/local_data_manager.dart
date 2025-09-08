@@ -31,13 +31,16 @@ class LocalDataManager {
       final isInitialized = prefs.getBool(userKey) ?? false;
       
       if (!isInitialized) {
-        // Step 1: Store all default icons/symbols locally
-        await _storeDefaultIconsLocally();
+        // Step 1: Initialize Hive first
+        await _ensureHiveInitialized();
         
         // Step 2: Initialize user's personal data storage
         await _initializeUserDataStorage(userProfile);
         
-        // Step 3: Set up data sync preferences
+        // Step 3: Store all default icons/symbols locally (after Hive is ready)
+        await _storeDefaultIconsLocally();
+        
+        // Step 4: Set up data sync preferences
         await _setupDataSyncPreferences(userProfile);
         
         // Mark as initialized for this user
@@ -57,6 +60,19 @@ class LocalDataManager {
       print('LocalDataManager: Error during initialization: $e');
       // Continue with basic functionality even if full initialization fails
       _isInitialized = true;
+    }
+  }
+
+  /// Ensure Hive is initialized
+  Future<void> _ensureHiveInitialized() async {
+    try {
+      if (!Hive.isBoxOpen('symbols')) {
+        // If symbols box isn't open, Hive probably isn't initialized yet
+        await Hive.initFlutter();
+        print('LocalDataManager: Hive initialized');
+      }
+    } catch (e) {
+      print('LocalDataManager: Hive already initialized or error: $e');
     }
   }
 
@@ -145,17 +161,7 @@ class LocalDataManager {
   /// Ensure all necessary Hive boxes exist for the user
   Future<void> _ensureUserBoxes(String userId) async {
     try {
-      // Ensure Hive is initialized first
-      if (!Hive.isBoxOpen('symbols')) {
-        // If symbols box isn't open, Hive probably isn't initialized yet
-        // Initialize it first
-        try {
-          await Hive.initFlutter();
-          print('LocalDataManager: Hive initialized');
-        } catch (e) {
-          print('LocalDataManager: Hive already initialized or error: $e');
-        }
-      }
+      // Hive should already be initialized by _ensureHiveInitialized()
       
       // Create user-specific box names
       final userSymbolsBox = 'user_symbols_$userId';

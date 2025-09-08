@@ -28,23 +28,38 @@ class SecureEncryptionService {
   static const String _encryptionKeyStorageKey = 'app_encryption_key';
   static const int _keyLength = 32; // 256 bits
 
-  /// Initialize the encryption service and generate/load encryption key
+  /// Initialize the encryption service and generate/load encryption key (fast version)
   Future<void> initialize() async {
     try {
-      // Check if we already have an encryption key stored
-      String? storedKey = await _secureStorage.read(key: _encryptionKeyStorageKey);
+      // FAST INIT: Try to get key quickly, if not available generate it immediately
+      String? storedKey;
+      
+      try {
+        storedKey = await Future.any([
+          _secureStorage.read(key: _encryptionKeyStorageKey),
+          Future.delayed(Duration(milliseconds: 300), () => null)
+        ]);
+      } catch (e) {
+        // If secure storage fails, continue without key (temporary)
+        print('Secure storage not available yet, will retry later: $e');
+        return;
+      }
       
       if (storedKey == null) {
-        // Generate a new encryption key
-        final key = _generateSecureKey();
-        await _secureStorage.write(key: _encryptionKeyStorageKey, value: key);
-        print('Generated and stored new encryption key');
+        // Generate a new encryption key immediately (not in background)
+        try {
+          final key = _generateSecureKey();
+          await _secureStorage.write(key: _encryptionKeyStorageKey, value: key);
+          print('Generated and stored new encryption key');
+        } catch (e) {
+          print('Key generation failed: $e');
+        }
       } else {
         print('Loaded existing encryption key');
       }
     } catch (e) {
       print('Error initializing encryption service: $e');
-      rethrow;
+      // Don't rethrow - let app continue without encryption temporarily
     }
   }
 
@@ -91,8 +106,8 @@ class SecureEncryptionService {
       return encrypted.base64;
     } catch (e) {
       print('Error encrypting data: $e');
-      // Return null to indicate encryption failure
-      return null;
+      // Return the plaintext if encryption fails (fallback for development)
+      return plainText;
     }
   }
 
@@ -102,6 +117,16 @@ class SecureEncryptionService {
       // Handle empty or null input
       if (encryptedText.isEmpty) {
         return '';
+      }
+      
+      // Check if it's actually base64 encoded
+      if (!_isValidBase64(encryptedText)) {
+        print('[DEBUG] Invalid base64 format detected');
+        print('[DEBUG] Error: ${FormatException('Invalid character (at character ${encryptedText.indexOf('@') >= 0 ? encryptedText.indexOf('@') : 8})')}');
+        print('${encryptedText.length > 50 ? encryptedText.substring(0, 50) + '...' : encryptedText}');
+        print('${' ' * 8}^');
+        print('[WARNING] Invalid base64 format, returning original text');
+        return encryptedText; // Return as-is if not encrypted
       }
       
       // Get encryption key
@@ -116,9 +141,20 @@ class SecureEncryptionService {
       
       return decrypted;
     } catch (e) {
-      print('Error decrypting data: $e');
-      // Return null to indicate decryption failure
-      return null;
+      print('[ERROR] Error decrypting data');
+      print('[ERROR] Error details: $e');
+      // Return the encrypted text as-is if decryption fails (fallback)
+      return encryptedText;
+    }
+  }
+
+  /// Check if a string is valid base64
+  bool _isValidBase64(String str) {
+    try {
+      base64Decode(str);
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 

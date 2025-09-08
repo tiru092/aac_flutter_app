@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.aacpp.app"
-    compileSdk = 35  // Updated to API 35 to match plugin requirements
+    compileSdk = 35  // Required for modern packages
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -35,8 +35,8 @@ android {
     applicationId = "com.svarah.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 24  // Keep at 24 for now to maintain compatibility with older devices
-        targetSdk = 34  // Updated to API 34 for Play Store compliance
+        minSdk = 24  // Required for flutter_sound and other packages
+        targetSdk = 28  // Lower target for better device compatibility (important for installation)
     versionCode = 2
     versionName = "1.1.0"
     }
