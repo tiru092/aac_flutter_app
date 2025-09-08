@@ -394,23 +394,17 @@ class VoiceService {
   /// Configure TTS settings based on voice type
   Future<void> _configureTtsForVoiceType(dynamic flutterTts) async {
     try {
-      switch (_currentVoice.voiceType) {
-        case VoiceType.female:
-          await flutterTts.setPitch(1.1); // Slightly higher pitch
-          await flutterTts.setSpeechRate(0.5); // Normal speed
-          break;
-        case VoiceType.male:
-          await flutterTts.setPitch(0.8); // Lower pitch
-          await flutterTts.setSpeechRate(0.5); // Normal speed
-          break;
-        case VoiceType.child:
-          await flutterTts.setPitch(1.3); // Higher pitch for child voice
-          await flutterTts.setSpeechRate(0.4); // Slightly slower for clarity
-          break;
-      }
+      // Use user's custom settings if available, otherwise use voice type defaults
+      double userSpeechRate = AACHelper.speechRate;
+      double userSpeechPitch = AACHelper.speechPitch;
+      double userSpeechVolume = AACHelper.speechVolume;
       
-      // Set volume
-      await flutterTts.setVolume(1.0);
+      // Apply user's custom settings
+      await flutterTts.setSpeechRate(userSpeechRate);
+      await flutterTts.setPitch(userSpeechPitch);
+      await flutterTts.setVolume(userSpeechVolume);
+      
+      debugPrint('Applied user speech settings - Rate: $userSpeechRate, Pitch: $userSpeechPitch, Volume: $userSpeechVolume');
     } catch (e) {
       debugPrint('Error configuring TTS for voice type: $e');
     }

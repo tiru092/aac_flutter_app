@@ -67,8 +67,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final FavoritesService _favoritesService = FavoritesService();
   
   // Speech control values
-  double _speechRate = 0.5;
-  double _speechPitch = 1.2;
+  double _speechRate = 0.3; // Slower default speed for Indian users
+  double _speechPitch = 1.0; // More natural pitch
   double _speechVolume = 1.0;
 
   @override
@@ -93,8 +93,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _servicesInitialized = true; // Enable all UI interactions immediately
     
     // Load speech settings synchronously with defaults
-    _speechRate = 0.5;
-    _speechPitch = 1.2;
+    _speechRate = 0.3; // Slower default speed for Indian users
+    _speechPitch = 1.0; // More natural pitch
     _speechVolume = 1.0;
     
     // EXTREME DEFER: Initialize services much later (2 seconds after app loads)
@@ -480,8 +480,8 @@ class _HomeScreenState extends State<HomeScreen> {
       // Use default values if loading fails
       if (mounted) {
         setState(() {
-          _speechRate = 0.5;
-          _speechPitch = 1.2;
+          _speechRate = 0.3; // Slower default speed for Indian users
+          _speechPitch = 1.0; // More natural pitch
           _speechVolume = 1.0;
         });
       }
@@ -1112,19 +1112,44 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Launch legal documents in browser
   Future<void> _launchLegalDocument(String url) async {
+    print('Attempting to launch URL: $url'); // Debug log
+    
     try {
       final Uri uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-      } else {
+      print('URI parsed successfully: $uri'); // Debug log
+      
+      // Try to launch directly first (more reliable)
+      bool launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      
+      print('Launch result: $launched'); // Debug log
+      
+      if (!launched) {
+        // If direct launch fails, show error
+        print('Direct launch failed, showing error'); // Debug log
         _showErrorDialog('Could not open legal document. Please check your internet connection.');
+      } else {
+        print('Legal document opened successfully'); // Debug log
       }
     } catch (e) {
+      print('Error launching legal document: $e'); // Debug log
       AACLogger.error('Error launching legal document: $e', tag: 'HomeScreen');
-      _showErrorDialog('Failed to open legal document.');
+      
+      // Try alternative launch mode as fallback
+      try {
+        print('Trying fallback launch mode'); // Debug log
+        final Uri uri = Uri.parse(url);
+        await launchUrl(
+          uri,
+          mode: LaunchMode.platformDefault,
+        );
+        print('Fallback launch successful'); // Debug log
+      } catch (e2) {
+        print('Fallback launch also failed: $e2'); // Debug log
+        _showErrorDialog('Failed to open legal document. Please ensure you have an internet connection and a web browser installed.');
+      }
     }
   }
 

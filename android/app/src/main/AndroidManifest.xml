@@ -1,4 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Intent queries for Android 11+ to handle external URLs -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+        </intent>
+    </queries>
+    
     <!-- Permissions for AAC app functionality -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
@@ -11,6 +25,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Google Play Billing permission -->
     <uses-permission android:name="com.android.vending.BILLING" />
+    <!-- URL launcher permission for newer Android versions -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     
     <!-- Camera features -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />

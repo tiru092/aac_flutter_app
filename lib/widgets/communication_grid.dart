@@ -9,6 +9,7 @@ import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
 import '../utils/aac_logger.dart';
 import '../services/favorites_service.dart';
+import '../services/voice_service.dart';
 import 'edit_tile_dialog.dart';
 
 enum ViewType { categories, symbols }
@@ -1344,6 +1345,9 @@ class _FavoriteButtonState extends State<_FavoriteButton>
 
   Future<void> _onTap() async {
     try {
+      // Determine if we're adding or removing from favorites
+      final willBecomeFavorite = !widget.isFavorite;
+      
       // Call immediate UI update
       widget.onToggle?.call();
       
@@ -1356,6 +1360,27 @@ class _FavoriteButtonState extends State<_FavoriteButton>
       // Heart enlarging animation
       await _heartController.forward();
       _heartController.reverse();
+      
+      // Add speech feedback for what was added/removed
+      if (mounted) {
+        final voiceService = VoiceService();
+        try {
+          if (willBecomeFavorite) {
+            // Announce that the symbol was added to favorites
+            final message = 'Added ${widget.symbol.label} to favorites';
+            await voiceService.speakWithCurrentVoice(message);
+            debugPrint('Favorites TTS: $message');
+          } else {
+            // Announce that the symbol was removed from favorites
+            final message = 'Removed ${widget.symbol.label} from favorites';
+            await voiceService.speakWithCurrentVoice(message);
+            debugPrint('Favorites TTS: $message');
+          }
+        } catch (ttsError) {
+          debugPrint('Error speaking favorite action: $ttsError');
+          // Don't break functionality if TTS fails
+        }
+      }
       
     } catch (e) {
       debugPrint('Error toggling favorite: $e');

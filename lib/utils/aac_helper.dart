@@ -206,8 +206,8 @@ class AACHelper {
       _flutterTts = FlutterTts();
       
       // Only set essential settings to avoid blocking
-      await _flutterTts!.setLanguage('en-US');
-      await _flutterTts!.setSpeechRate(0.5);
+      await _flutterTts!.setLanguage('en-IN'); // Indian English for better pronunciation
+      await _flutterTts!.setSpeechRate(0.3); // Slower default speed for Indian users
       await _flutterTts!.setVolume(1.0);
       
       debugPrint('TTS initialized (lightweight mode)');
@@ -745,10 +745,10 @@ class AACHelper {
   // Speech rate control (0.1 to 1.0)
   static double get speechRate { 
     try {
-      return getSetting<double>(_speechRateKey, defaultValue: 0.5)!;
+      return getSetting<double>(_speechRateKey, defaultValue: 0.3)!; // Slower default for Indian users
     } catch (e) {
       AACLogger.error('Error getting speech rate: $e', tag: 'Settings');
-      return 0.5; // Default value
+      return 0.3; // Slower default value
     }
   }
       
@@ -767,10 +767,10 @@ class AACHelper {
   // Speech pitch control (0.5 to 2.0)
   static double get speechPitch { 
     try {
-      return getSetting<double>(_speechPitchKey, defaultValue: 1.2)!;
+      return getSetting<double>(_speechPitchKey, defaultValue: 1.0)!; // More natural pitch
     } catch (e) {
       AACLogger.error('Error getting speech pitch: $e', tag: 'Settings');
-      return 1.2; // Default value
+      return 1.0; // More natural default value
     }
   }
       
