@@ -10,6 +10,7 @@ import 'services/connectivity_service.dart';  // NEW: Add connectivity service
 import 'services/data_cache_service.dart';  // NEW: Add data cache service
 import 'services/offline_features_service.dart';  // NEW: Add offline features service
 import 'services/secure_logger.dart';  // Secure logging
+import 'services/firebase_security_service.dart';  // Firebase security hardening
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +33,15 @@ void main() async {
     
     firebaseAvailable = true;
     SecureLogger.info('Firebase initialized successfully');
+    
+    // Initialize Firebase security hardening
+    try {
+      await FirebaseSecurityService().initialize();
+      SecureLogger.info('Firebase security hardening enabled');
+    } catch (securityError) {
+      SecureLogger.warning('Firebase security hardening failed (app will continue)', securityError);
+      // Don't fail app startup if security hardening fails
+    }
     
     // NEW: Perform data health check and recovery if needed
     try {
