@@ -23,10 +23,10 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = System.getenv("KEY_ALIAS") ?: "svarah"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
-            storeFile = file("keystore/svarah.keystore")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+            keyAlias = System.getenv("KEY_ALIAS") ?: "aackey"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "aac123456"
+            storeFile = file("keystore/aac_release.keystore")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "aac123456"
         }
     }
 
@@ -36,7 +36,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24  // Required for flutter_sound and other packages
-        targetSdk = 28  // Lower target for better device compatibility (important for installation)
+        targetSdk = 34  // Required for Google Play Store deployment (API level 33+ required)
     versionCode = 2
     versionName = "1.1.0"
     }

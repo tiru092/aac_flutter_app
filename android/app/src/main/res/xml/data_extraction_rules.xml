@@ -2,10 +2,11 @@
 <data-extraction-rules>
     <!-- Disable cloud backup of sensitive data -->
     <cloud-backup>
-        <!-- Include only non-sensitive app data -->
+        <!-- Include all app data first -->
+        <include domain="file" path="." />
         <include domain="sharedpref" path="." />
         
-        <!-- Exclude sensitive data from backup -->
+        <!-- Then exclude sensitive data from backup -->
         <exclude domain="database" />
         <exclude domain="sharedpref" path="flutter_secure_storage*" />
         <exclude domain="sharedpref" path="*encryption*" />
@@ -17,10 +18,11 @@
     
     <!-- Disable device transfer of sensitive data -->
     <device-transfer>
-        <!-- Include only non-sensitive app data -->
+        <!-- Include all app data first -->
+        <include domain="file" path="." />
         <include domain="sharedpref" path="." />
         
-        <!-- Exclude sensitive data from device transfer -->
+        <!-- Then exclude sensitive data from device transfer -->
         <exclude domain="database" />
         <exclude domain="sharedpref" path="flutter_secure_storage*" />
         <exclude domain="sharedpref" path="*encryption*" />

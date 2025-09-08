@@ -13,20 +13,18 @@ if not exist "android\app\keystore\release.keystore" (
 
 REM Check environment variables
 if "%KEYSTORE_PASSWORD%"=="" (
-    echo ERROR: KEYSTORE_PASSWORD environment variable not set!
-    echo Please set the following environment variables:
-    echo   set KEYSTORE_PASSWORD=your_keystore_password
-    echo   set KEY_PASSWORD=your_key_password
-    echo   set KEY_ALIAS=aaccommunicationhelper
-    echo.
-    pause
-    exit /b 1
+    echo Setting default keystore password...
+    set KEYSTORE_PASSWORD=aac123456
 )
 
 if "%KEY_PASSWORD%"=="" (
-    echo ERROR: KEY_PASSWORD environment variable not set!
-    pause
-    exit /b 1
+    echo Setting default key password...
+    set KEY_PASSWORD=aac123456
+)
+
+if "%KEY_ALIAS%"=="" (
+    echo Setting default key alias...
+    set KEY_ALIAS=aackey
 )
 
 echo Environment variables configured correctly.
