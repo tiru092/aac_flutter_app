@@ -38,6 +38,7 @@ dependencies:
   cached_network_image: ^3.3.1
   equatable: ^2.0.5
   in_app_purchase: ^3.1.13  # Google Play Billing for subscriptions
+  url_launcher: ^6.2.5  # For opening legal documents in browser
 
 dev_dependencies:
   flutter_test:

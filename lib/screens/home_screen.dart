@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';  // For opening legal documents
 import '../widgets/communication_grid.dart';
 import '../widgets/quick_phrases_bar.dart';
 import '../models/symbol.dart';
@@ -998,6 +999,54 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(context);
+                _launchLegalDocument('https://tiru092.github.io/aac_flutter_app/privacy-policy.html');
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    CupertinoIcons.lock_shield,
+                    color: Color(0xFF34C759),
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Privacy Policy',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.pop(context);
+                _launchLegalDocument('https://tiru092.github.io/aac_flutter_app/terms-of-service.html');
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    CupertinoIcons.doc_text,
+                    color: Color(0xFF007AFF),
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Terms of Service',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
           cancelButton: CupertinoActionSheetAction(
             onPressed: () => Navigator.pop(context),
@@ -1059,6 +1108,24 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context) => const PracticeAreaScreen(),
       ),
     );
+  }
+
+  // Launch legal documents in browser
+  Future<void> _launchLegalDocument(String url) async {
+    try {
+      final Uri uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        _showErrorDialog('Could not open legal document. Please check your internet connection.');
+      }
+    } catch (e) {
+      AACLogger.error('Error launching legal document: $e', tag: 'HomeScreen');
+      _showErrorDialog('Failed to open legal document.');
+    }
   }
 
   // Helper methods for responsive design
