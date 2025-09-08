@@ -115,14 +115,37 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   
   Future<void> _purchaseSubscription(String productId) async {
     try {
+      debugPrint('=== SUBSCRIPTION SCREEN PURCHASE DEBUG ===');
       debugPrint('Attempting to purchase subscription: $productId');
       debugPrint('Available products: ${_products.length}');
       for (var product in _products) {
         debugPrint('Product ID: ${product.id}, Title: ${product.title}');
       }
       
+      if (_products.isEmpty) {
+        debugPrint('❌ No products available - this usually means:');
+        debugPrint('   1. Running in debug mode (billing not available)');
+        debugPrint('   2. Products not configured in Google Play Console');
+        debugPrint('   3. App not uploaded to Play Console');
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('⚠️ Products Not Available'),
+            content: const Text('Subscription products are not available. This is expected in debug mode. Please test with a signed release build uploaded to Google Play Console.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      
       final success = await GooglePlayBillingService.purchaseSubscription(productId);
       debugPrint('Purchase result: $success');
+      debugPrint('=== END SUBSCRIPTION SCREEN PURCHASE DEBUG ===');
       
       if (success && mounted) {
         // Refresh subscription status

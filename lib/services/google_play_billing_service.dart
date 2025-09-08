@@ -156,10 +156,28 @@ class GooglePlayBillingService {
   /// Purchase a subscription
   static Future<bool> purchaseSubscription(String productId) async {
     try {
+      debugPrint('=== GOOGLE PLAY BILLING PURCHASE DEBUG ===');
+      debugPrint('GooglePlayBillingService: Starting purchase for product: $productId');
+      debugPrint('GooglePlayBillingService: Platform.isAndroid: ${Platform.isAndroid}');
+      debugPrint('GooglePlayBillingService: _isInitialized: $_isInitialized');
+      debugPrint('GooglePlayBillingService: _billingAvailable: $_billingAvailable');
+      
       if (!_isInitialized) {
-        await initialize();
+        debugPrint('GooglePlayBillingService: Not initialized, initializing...');
+        final initialized = await initialize();
+        debugPrint('GooglePlayBillingService: Initialization result: $initialized');
+        if (!initialized) {
+          debugPrint('GooglePlayBillingService: ❌ Failed to initialize billing');
+          return false;
+        }
       }
-      debugPrint('GooglePlayBillingService: Starting purchase for $productId');
+      
+      if (!_billingAvailable) {
+        debugPrint('GooglePlayBillingService: ❌ Billing not available - this is expected in debug mode');
+        debugPrint('GooglePlayBillingService: 💡 To test purchases, use signed release build with Play Console setup');
+        return false;
+      }
+      
       debugPrint('GooglePlayBillingService: Current products count: ${_products.length}');
       for (var product in _products) {
         debugPrint('GooglePlayBillingService: Available product - ID: ${product.id}, Title: ${product.title}');
@@ -174,14 +192,18 @@ class GooglePlayBillingService {
       }
       final product = _products.where((p) => p.id == productId).toList();
       if (product.isEmpty) {
-        debugPrint('GooglePlayBillingService: Product not found: $productId');
+        debugPrint('GooglePlayBillingService: ❌ Product not found: $productId');
+        debugPrint('GooglePlayBillingService: Available product IDs: ${_products.map((p) => p.id).toList()}');
+        debugPrint('GooglePlayBillingService: 💡 This usually means products are not configured in Google Play Console');
         return false;
       }
-      debugPrint('GooglePlayBillingService: Found product: ${product.first.title}');
+      debugPrint('GooglePlayBillingService: ✅ Found product: ${product.first.title} (${product.first.price})');
       final purchaseParam = PurchaseParam(productDetails: product.first);
       // For subscriptions, we use buyNonConsumable as subscriptions are non-consumable products
+      debugPrint('GooglePlayBillingService: 🚀 Initiating purchase with Google Play Store...');
       final result = await _iap.buyNonConsumable(purchaseParam: purchaseParam);
       debugPrint('GooglePlayBillingService: Purchase initiated for $productId, result: $result');
+      debugPrint('=== END PURCHASE DEBUG ===');
       return result;
     } catch (e) {
       debugPrint('GooglePlayBillingService: Purchase failed: $e');
