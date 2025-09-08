@@ -66,7 +66,7 @@ class BackupService {
       
       // Encrypt if requested
       final backupContent = encryptBackup
-          ? EncryptionService().encrypt(backupJson)
+          ? await EncryptionService().encrypt(backupJson)
           : backupJson;
       
       // Create backup file
@@ -129,7 +129,7 @@ class BackupService {
       
       // Decrypt if requested
       final backupJson = decryptBackup
-          ? EncryptionService().decrypt(backupContent)
+          ? await EncryptionService().decrypt(backupContent)
           : backupContent;
       
       // Parse backup data
@@ -454,7 +454,7 @@ class BackupService {
       };
       
       final jsonContent = jsonEncode(exportData);
-      final encryptedContent = EncryptionService().encrypt(jsonContent);
+      final encryptedContent = await EncryptionService().encrypt(jsonContent);
       
       final dir = await getApplicationDocumentsDirectory();
       final exportFile = File('${dir.path}/profiles_export.json');
@@ -476,7 +476,7 @@ class BackupService {
       }
       
       final content = await importFile.readAsString();
-      final decryptedContent = EncryptionService().decrypt(content);
+      final decryptedContent = await EncryptionService().decrypt(content);
       final importData = jsonDecode(decryptedContent) as Map<String, dynamic>;
       
       // Validate version

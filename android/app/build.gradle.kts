@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.aacpp.app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35  // Updated to API 35 to match plugin requirements
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -35,8 +35,8 @@ android {
     applicationId = "com.svarah.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 24
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 24  // Keep at 24 for now to maintain compatibility with older devices
+        targetSdk = 34  // Updated to API 34 for Play Store compliance
     versionCode = 2
     versionName = "1.1.0"
     }
@@ -44,8 +44,9 @@ android {
     buildTypes {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false  // Disable for now due to R8 issues
-            isShrinkResources = false
+            isMinifyEnabled = true   // Enable code obfuscation for security
+            isShrinkResources = true // Remove unused resources
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         getByName("debug") {
             // Configure the existing 'debug' buildType. We removed the applicationIdSuffix

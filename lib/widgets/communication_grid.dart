@@ -880,6 +880,7 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
     with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  Timer? _autoMinimizeTimer;
 
   @override
   void initState() {
@@ -902,6 +903,13 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
     
     // Speak the symbol immediately when maximized
     AACHelper.speak(widget.symbol.label);
+    
+    // Auto-minimize after 4 seconds
+    _autoMinimizeTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    });
   }
 
   @override
@@ -999,10 +1007,12 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
                     GestureDetector(
                       onTap: () async {
                         try {
+                          _autoMinimizeTimer?.cancel();
                           await AACHelper.accessibleHapticFeedback();
                           Navigator.pop(context);
                         } catch (e) {
                           AACLogger.error('Error closing popup: $e', tag: 'Communication');
+                          _autoMinimizeTimer?.cancel();
                           Navigator.pop(context); // Fallback close
                         }
                       },
@@ -1141,6 +1151,7 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
 
   @override
   void dispose() {
+    _autoMinimizeTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }

@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'secure_logger.dart';
 
 /// Custom exception for authentication-related errors
 class AuthException implements Exception {
@@ -93,9 +94,10 @@ class AuthService {
       // Send verification email immediately after signup
       try {
         await userCredential.user?.sendEmailVerification();
-        print('Verification email sent during signup to: $email');
+        SecureLogger.authEvent('Verification email sent during signup', 
+          userId: userCredential.user?.uid);
       } catch (emailError) {
-        print('Warning: Failed to send verification email during signup: $emailError');
+        SecureLogger.warning('Failed to send verification email during signup', emailError);
         // Don't throw error here - user can request resend later
       }
 
@@ -107,6 +109,9 @@ class AuthService {
         'emailVerified': false,
         'signupCompleted': false, // Track if signup process is complete
       });
+      
+      SecureLogger.firebaseEvent('User document created', 
+        collection: 'users', success: true);
 
       return userCredential;
     } on FirebaseAuthException catch (e) {

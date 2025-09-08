@@ -9,6 +9,7 @@ import 'services/data_recovery_service.dart';  // NEW: Add data recovery service
 import 'services/connectivity_service.dart';  // NEW: Add connectivity service
 import 'services/data_cache_service.dart';  // NEW: Add data cache service
 import 'services/offline_features_service.dart';  // NEW: Add offline features service
+import 'services/secure_logger.dart';  // Secure logging
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,38 +25,38 @@ void main() async {
       final firestore = FirebaseFirestore.instance;
       await firestore.terminate();  // Disconnect from Firestore
       await firestore.clearPersistence();  // Clear local cache
-      debugPrint('Firebase cache cleared to fix corruption');
+      SecureLogger.info('Firebase cache cleared to fix corruption');
     } catch (clearError) {
-      debugPrint('Could not clear Firebase cache (normal on fresh install): $clearError');
+      SecureLogger.info('Could not clear Firebase cache (normal on fresh install)');
     }
     
     firebaseAvailable = true;
-    debugPrint('Firebase initialized successfully');
+    SecureLogger.info('Firebase initialized successfully');
     
     // NEW: Perform data health check and recovery if needed
     try {
-      debugPrint('Performing data health check...');
+      SecureLogger.info('Performing data health check...');
       await DataRecoveryService.performDataHealthCheck();
-      debugPrint('Data health check completed');
+      SecureLogger.info('Data health check completed');
     } catch (recoveryError) {
-      debugPrint('Data recovery error (app will continue): $recoveryError');
+      SecureLogger.warning('Data recovery error (app will continue)', recoveryError);
       // Don't fail app startup if data recovery fails
     }
     
     // NEW: Perform migration to shared architecture if needed
     try {
-      debugPrint('Checking for migration to shared architecture...');
+      SecureLogger.info('Checking for migration to shared architecture...');
       await MigrationService.performMigrationIfNeeded();
-      debugPrint('Migration check completed successfully');
+      SecureLogger.info('Migration check completed successfully');
     } catch (migrationError) {
-      debugPrint('Migration error (app will continue): $migrationError');
+      SecureLogger.warning('Migration error (app will continue)', migrationError);
       // Don't fail app startup if migration fails
     }
     // NOTE: Enterprise services will be initialized in background after UI loads
     // This ensures offline-first functionality with fast app startup
     
   } catch (e) {
-    debugPrint('Firebase initialization error: $e');
+    SecureLogger.error('Firebase initialization error', e);
     firebaseAvailable = false;
   }
   
@@ -78,7 +79,7 @@ void main() async {
       ),
     );
   } catch (e) {
-    debugPrint('Main: Error setting system UI: $e');
+    SecureLogger.error('Main: Error setting system UI', e);
   }
   
   // Start the app with Firebase availability status

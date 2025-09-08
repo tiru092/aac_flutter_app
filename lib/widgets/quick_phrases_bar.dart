@@ -262,6 +262,8 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
           : Wrap(
               spacing: MediaQuery.of(context).size.width * 0.008, // Reduced by 50% from 0.016
               runSpacing: MediaQuery.of(context).size.height * 0.004, // Reduced by 50% from 0.008
+              alignment: WrapAlignment.start,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: _phrases.map((phrase) => _buildPhraseButton(phrase)).toList(),
             ),
     );
@@ -277,7 +279,7 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
             Icon(
               CupertinoIcons.add_circled,
               size: MediaQuery.of(context).size.width * 0.048, // Reduced by 50% from 0.096
-              color: Colors.grey.shade400,
+              color: Colors.white70,
             ),
             SizedBox(height: MediaQuery.of(context).size.height * 0.004), // Reduced by 50% from 0.008
             Text(
@@ -285,7 +287,7 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
               style: TextStyle(
                 fontSize: MediaQuery.of(context).size.width * 0.021 * AACHelper.getTextSizeMultiplier(), // Reduced by 50% from 0.042
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade600,
+                color: Colors.white,
               ),
             ),
           ],

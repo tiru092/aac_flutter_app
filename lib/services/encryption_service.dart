@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'secure_encryption_service.dart';
+import 'secure_logger.dart';
 
 /// Custom exception for encryption-related errors
 class EncryptionException implements Exception {
@@ -19,25 +21,60 @@ class EncryptionException implements Exception {
 class EncryptionService {
   static final EncryptionService _instance = EncryptionService._internal();
   factory EncryptionService() => _instance;
+  
+  // Secure storage for encryption keys
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+  
+  // Key used for storing the encryption key in secure storage
+  static const String _encryptionKeyName = 'aac_app_encryption_key';
+  
   EncryptionService._internal();
 
-  // Simple encryption key (in a real app, this should be securely generated and stored)
-  // For demonstration purposes, we'll use a fixed key
-  static const String _encryptionKey = 'aac_app_encryption_key_2025';
-  
   // Secure encryption service for more sensitive data
   final SecureEncryptionService _secureEncryptionService = SecureEncryptionService();
 
+  /// Get or generate encryption key securely
+  Future<String> _getEncryptionKey() async {
+    try {
+      // Try to get existing key
+      String? key = await _secureStorage.read(key: _encryptionKeyName);
+      
+      // If no key exists, generate a new one
+      if (key == null || key.isEmpty) {
+        // Generate a secure random key
+        final random = Random.secure();
+        final values = List<int>.generate(32, (i) => random.nextInt(256));
+        key = base64UrlEncode(values);
+        
+        // Store the key securely
+        await _secureStorage.write(key: _encryptionKeyName, value: key);
+        SecureLogger.info('Generated new encryption key');
+      }
+      
+      return key;
+    } catch (e) {
+      // Fallback to a default key if secure storage fails
+      // This is still better than nothing in case of storage access issues
+      SecureLogger.error('Failed to access secure storage for encryption key', e);
+      return 'fallback_key_${DateTime.now().millisecondsSinceEpoch}';
+    }
+  }
+
   /// Encrypt a string using AES-like encryption with error handling
-  String encrypt(String plainText) {
+  Future<String> encrypt(String plainText) async {
     try {
       // Handle empty or null input
       if (plainText.isEmpty) {
         return '';
       }
       
+      // Get encryption key securely
+      final encryptionKey = await _getEncryptionKey();
+      
       // Generate a simple encryption using XOR with key
-      final keyBytes = utf8.encode(_encryptionKey);
+      final keyBytes = utf8.encode(encryptionKey);
       final textBytes = utf8.encode(plainText);
       
       final encryptedBytes = <int>[];
@@ -46,16 +83,18 @@ class EncryptionService {
       }
       
       // Convert to base64 for storage
-      return base64Encode(encryptedBytes);
+      final result = base64Encode(encryptedBytes);
+      SecureLogger.encryptionEvent('Encrypt data', success: true);
+      return result;
     } catch (e) {
-      print('Error encrypting data: $e');
+      SecureLogger.error('Error encrypting data', e);
       // Return original text if encryption fails
       return plainText;
     }
   }
 
   /// Decrypt a string using AES-like decryption with comprehensive error handling
-  String decrypt(String encryptedText) {
+  Future<String> decrypt(String encryptedText) async {
     try {
       // Handle empty or null input
       if (encryptedText.isEmpty) {
@@ -64,13 +103,16 @@ class EncryptionService {
       
       // Check if the input looks like base64
       if (!_isValidBase64(encryptedText)) {
-        print('Invalid base64 format, returning original text');
+        SecureLogger.warning('Invalid base64 format, returning original text');
         return encryptedText;
       }
       
+      // Get encryption key securely
+      final encryptionKey = await _getEncryptionKey();
+      
       // Decode from base64
       final encryptedBytes = base64Decode(encryptedText);
-      final keyBytes = utf8.encode(_encryptionKey);
+      final keyBytes = utf8.encode(encryptionKey);
       
       final decryptedBytes = <int>[];
       for (int i = 0; i < encryptedBytes.length; i++) {
@@ -82,13 +124,14 @@ class EncryptionService {
       
       // Validate the decrypted string is reasonable
       if (_isValidDecryptedString(decryptedString)) {
+        SecureLogger.encryptionEvent('Decrypt data', success: true);
         return decryptedString;
       } else {
-        print('Decrypted string appears corrupted, returning original');
+        SecureLogger.warning('Decrypted string appears corrupted, returning original');
         return encryptedText;
       }
     } catch (e) {
-      print('Error decrypting data: $e');
+      SecureLogger.error('Error decrypting data', e);
       // Return encrypted text if decryption fails
       return encryptedText;
     }
@@ -100,6 +143,7 @@ class EncryptionService {
       base64Decode(str);
       return true;
     } catch (e) {
+      SecureLogger.debug('Invalid base64 format detected', e);
       return false;
     }
   }
@@ -160,7 +204,7 @@ class EncryptionService {
       final hash = sha256.convert(bytes);
       return hash.toString();
     } catch (e) {
-      print('Error generating hash: $e');
+      SecureLogger.error('Error generating hash', e);
       return ''; // Return empty string as fallback
     }
   }
@@ -172,7 +216,7 @@ class EncryptionService {
       final values = List<int>.generate(length, (i) => random.nextInt(256));
       return base64UrlEncode(values);
     } catch (e) {
-      print('Error generating salt: $e');
+      SecureLogger.error('Error generating salt', e);
       // Generate a simple fallback salt
       return 'fallback_salt_${DateTime.now().millisecondsSinceEpoch}';
     }
@@ -192,7 +236,7 @@ class EncryptionService {
       final hash = sha256.convert(bytes);
       return '${hash.toString()}:$usedSalt';
     } catch (e) {
-      print('Error hashing password: $e');
+      SecureLogger.error('Error hashing password', e);
       return ''; // Return empty string as fallback
     }
   }

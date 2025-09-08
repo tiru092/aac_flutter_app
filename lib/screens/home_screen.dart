@@ -1873,9 +1873,9 @@ class _HomeScreenState extends State<HomeScreen> {
         // Quick Phrases Bar (positioned overlay)
         if (_showQuickPhrases)
           Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
+            top: MediaQuery.of(context).padding.top + 10, // Add safe area padding
+            left: 10,
+            right: 10,
             child: GestureDetector(
               onTap: () {}, // Prevent tap from bubbling through to close overlay
               child: QuickPhrasesBar(
@@ -1887,9 +1887,9 @@ class _HomeScreenState extends State<HomeScreen> {
         // Speech Controls (positioned overlay)
         if (_showSpeechControls)
           Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
+            top: MediaQuery.of(context).padding.top + 10, // Add safe area padding
+            left: 10,
+            right: 10,
             child: GestureDetector(
               onTap: () {}, // Prevent tap from bubbling through to close overlay
               child: _buildSpeechControls(),
