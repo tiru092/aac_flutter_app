@@ -66,13 +66,18 @@ class LocalDataManager {
   /// Ensure Hive is initialized
   Future<void> _ensureHiveInitialized() async {
     try {
-      if (!Hive.isBoxOpen('symbols')) {
-        // If symbols box isn't open, Hive probably isn't initialized yet
-        await Hive.initFlutter();
-        print('LocalDataManager: Hive initialized');
-      }
+      // Try to initialize Hive if not already done
+      await Hive.initFlutter();
+      print('LocalDataManager: Hive initialized successfully');
     } catch (e) {
-      print('LocalDataManager: Hive already initialized or error: $e');
+      // If Hive is already initialized, this will throw an error which we can ignore
+      if (e.toString().contains('already initialized') || 
+          e.toString().contains('HiveError: Hive is already initialized')) {
+        print('LocalDataManager: Hive already initialized');
+      } else {
+        print('LocalDataManager: Error initializing Hive: $e');
+        rethrow; // Re-throw unexpected errors
+      }
     }
   }
 
