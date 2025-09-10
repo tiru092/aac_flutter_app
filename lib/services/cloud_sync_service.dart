@@ -90,20 +90,27 @@ class CloudSyncService {
       const batchSize = 500;
       for (int i = 0; i < symbols.length; i += batchSize) {
         final batch = _firestore.batch();
-        final collection = _firestore.collection('user_profiles/$userUid/symbols');
         
         final end = (i + batchSize < symbols.length) ? i + batchSize : symbols.length;
         final batchSymbols = symbols.sublist(i, end);
         
         for (final symbol in batchSymbols) {
           final symbolData = symbol.toJson();
-          symbolData['userUid'] = userUid; // Store Firebase UID instead of profile ID
-          symbolData['createdAt'] = symbolData['dateCreated'];
+          symbolData['userId'] = userUid; // Store Firebase UID
+          symbolData['createdAt'] = symbolData['dateCreated'] ?? FieldValue.serverTimestamp();
           symbolData['updatedAt'] = FieldValue.serverTimestamp();
           symbolData.remove('dateCreated'); // Use consistent field name
           
+          // Use both subcollection and top-level collection for backward compatibility
           final docId = symbol.id ?? 'symbol_${DateTime.now().millisecondsSinceEpoch}_${i}';
-          batch.set(collection.doc(docId), symbolData);
+          
+          // Store in subcollection (preferred)
+          final subcollection = _firestore.collection('user_profiles/$userUid/symbols');
+          batch.set(subcollection.doc(docId), symbolData);
+          
+          // Also store in top-level custom_symbols collection for compatibility
+          final topLevel = _firestore.collection('custom_symbols');
+          batch.set(topLevel.doc(docId), symbolData);
         }
         
         // Commit batch
@@ -131,20 +138,27 @@ class CloudSyncService {
       const batchSize = 500;
       for (int i = 0; i < categories.length; i += batchSize) {
         final batch = _firestore.batch();
-        final collection = _firestore.collection('user_profiles/$userUid/categories');
         
         final end = (i + batchSize < categories.length) ? i + batchSize : categories.length;
         final batchCategories = categories.sublist(i, end);
         
         for (final category in batchCategories) {
           final categoryData = category.toJson();
-          categoryData['userUid'] = userUid; // Store Firebase UID instead of profile ID
-          categoryData['createdAt'] = categoryData['dateCreated'];
+          categoryData['userId'] = userUid; // Store Firebase UID
+          categoryData['createdAt'] = categoryData['dateCreated'] ?? FieldValue.serverTimestamp();
           categoryData['updatedAt'] = FieldValue.serverTimestamp();
           categoryData.remove('dateCreated'); // Use consistent field name
           
-          final docId = 'category_${DateTime.now().millisecondsSinceEpoch}_${i}';
-          batch.set(collection.doc(docId), categoryData);
+          // Use both subcollection and top-level collection for backward compatibility
+          final docId = category.id ?? 'category_${DateTime.now().millisecondsSinceEpoch}_${i}';
+          
+          // Store in subcollection (preferred)
+          final subcollection = _firestore.collection('user_profiles/$userUid/categories');
+          batch.set(subcollection.doc(docId), categoryData);
+          
+          // Also store in top-level custom_categories collection for compatibility
+          final topLevel = _firestore.collection('custom_categories');
+          batch.set(topLevel.doc(docId), categoryData);
         }
         
         // Commit batch
@@ -183,23 +197,61 @@ class CloudSyncService {
 
       final profileData = profileDoc.data()!;
       
-      // Load symbols
-      final symbolsSnapshot = await _firestore
-          .collection('user_profiles/$profileId/symbols')
-          .get();
+      // Load symbols from both potential locations (for backward compatibility)
+      List<Symbol> symbols = [];
+      try {
+        // Try subcollection first
+        final symbolsSnapshot = await _firestore
+            .collection('user_profiles/$profileId/symbols')
+            .get();
+        
+        if (symbolsSnapshot.docs.isNotEmpty) {
+          symbols = symbolsSnapshot.docs
+              .map((doc) => Symbol.fromJson(doc.data()))
+              .toList();
+        } else {
+          // Try custom_symbols collection as fallback
+          final customSymbolsSnapshot = await _firestore
+              .collection('custom_symbols')
+              .where('userId', isEqualTo: profileId)
+              .get();
+          
+          symbols = customSymbolsSnapshot.docs
+              .map((doc) => Symbol.fromJson(doc.data()))
+              .toList();
+        }
+      } catch (e) {
+        print('Warning: Could not load symbols: $e');
+        symbols = [];
+      }
       
-      final symbols = symbolsSnapshot.docs
-          .map((doc) => Symbol.fromJson(doc.data()))
-          .toList();
-      
-      // Load categories
-      final categoriesSnapshot = await _firestore
-          .collection('user_profiles/$profileId/categories')
-          .get();
-      
-      final categories = categoriesSnapshot.docs
-          .map((doc) => Category.fromJson(doc.data()))
-          .toList();
+      // Load categories from both potential locations (for backward compatibility)
+      List<Category> categories = [];
+      try {
+        // Try subcollection first
+        final categoriesSnapshot = await _firestore
+            .collection('user_profiles/$profileId/categories')
+            .get();
+        
+        if (categoriesSnapshot.docs.isNotEmpty) {
+          categories = categoriesSnapshot.docs
+              .map((doc) => Category.fromJson(doc.data()))
+              .toList();
+        } else {
+          // Try custom_categories collection as fallback
+          final customCategoriesSnapshot = await _firestore
+              .collection('custom_categories')
+              .where('userId', isEqualTo: profileId)
+              .get();
+          
+          categories = customCategoriesSnapshot.docs
+              .map((doc) => Category.fromJson(doc.data()))
+              .toList();
+        }
+      } catch (e) {
+        print('Warning: Could not load categories: $e');
+        categories = [];
+      }
 
       // Create profile with cloud data with comprehensive null safety
       final profile = UserProfile(
@@ -230,6 +282,116 @@ class CloudSyncService {
         CloudSyncException('Unexpected error during profile load: $e')
       );
       print('Error loading profile from cloud: $e');
+      return null;
+    }
+  }
+
+  /// Find user profile by email when Firebase UID doesn't match document ID
+  Future<UserProfile?> findProfileByEmail(String email) async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw CloudSyncException('User not authenticated', 'not_authenticated');
+      }
+
+      // Query for profile by email
+      final querySnapshot = await _firestore
+          .collection('user_profiles')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return null;
+      }
+
+      final profileDoc = querySnapshot.docs.first;
+      final profileData = profileDoc.data();
+      final profileId = profileDoc.id;
+      
+      // Load associated data using the found profile ID
+      List<Symbol> symbols = [];
+      List<Category> categories = [];
+      
+      try {
+        // Try subcollection first
+        final symbolsSnapshot = await _firestore
+            .collection('user_profiles/$profileId/symbols')
+            .get();
+        
+        if (symbolsSnapshot.docs.isNotEmpty) {
+          symbols = symbolsSnapshot.docs
+              .map((doc) => Symbol.fromJson(doc.data()))
+              .toList();
+        } else {
+          // Try custom_symbols collection as fallback
+          final customSymbolsSnapshot = await _firestore
+              .collection('custom_symbols')
+              .where('userId', isEqualTo: profileId)
+              .get();
+          
+          symbols = customSymbolsSnapshot.docs
+              .map((doc) => Symbol.fromJson(doc.data()))
+              .toList();
+        }
+      } catch (e) {
+        print('Warning: Could not load symbols for profile $profileId: $e');
+      }
+      
+      try {
+        // Try subcollection first
+        final categoriesSnapshot = await _firestore
+            .collection('user_profiles/$profileId/categories')
+            .get();
+        
+        if (categoriesSnapshot.docs.isNotEmpty) {
+          categories = categoriesSnapshot.docs
+              .map((doc) => Category.fromJson(doc.data()))
+              .toList();
+        } else {
+          // Try custom_categories collection as fallback
+          final customCategoriesSnapshot = await _firestore
+              .collection('custom_categories')
+              .where('userId', isEqualTo: profileId)
+              .get();
+          
+          categories = customCategoriesSnapshot.docs
+              .map((doc) => Category.fromJson(doc.data()))
+              .toList();
+        }
+      } catch (e) {
+        print('Warning: Could not load categories for profile $profileId: $e');
+      }
+
+      // Create profile with found data
+      final profile = UserProfile(
+        id: profileData['id']?.toString() ?? profileId,
+        name: profileData['name']?.toString() ?? 'Unnamed Profile',
+        role: _parseUserRole(profileData['role']),
+        avatarPath: profileData['avatarPath']?.toString(),
+        createdAt: _parseDateTime(profileData['createdAt']) ?? DateTime.now(),
+        lastActiveAt: _parseDateTime(profileData['lastActiveAt']) ?? DateTime.now(),
+        settings: _parseProfileSettings(profileData['settings']),
+        pin: profileData['pin']?.toString(),
+        email: profileData['email']?.toString(),
+        phoneNumber: profileData['phoneNumber']?.toString(),
+        subscription: _parseSubscription(profileData['subscription']),
+        userSymbols: symbols,
+        userCategories: categories,
+      );
+
+      return profile;
+    } on FirebaseException catch (e) {
+      await _crashReportingService.reportException(
+        CloudSyncException('Firebase error during profile search: ${e.message}', e.code)
+      );
+      print('Firebase error finding profile by email: $e');
+      return null;
+    } catch (e) {
+      await _crashReportingService.reportException(
+        CloudSyncException('Unexpected error during profile search: $e')
+      );
+      print('Error finding profile by email: $e');
       return null;
     }
   }

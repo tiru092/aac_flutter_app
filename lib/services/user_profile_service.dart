@@ -31,7 +31,7 @@ class UserProfileService {
         final prefs = await SharedPreferences.getInstance();
         final currentProfileId = prefs.getString(_currentProfileKey);
         
-        // Fix profile ID mismatch
+        // Fix profile ID mismatch - should always use Firebase UID for authenticated users
         if (currentProfileId != user.uid) {
           AACLogger.info('Fixing profile ID mismatch: $currentProfileId -> ${user.uid}', tag: 'UserProfileService');
           await prefs.setString(_currentProfileKey, user.uid);
@@ -39,7 +39,14 @@ class UserProfileService {
         
         // Try to load from cloud using Firebase UID
         if (_cloudSyncService.isCloudSyncAvailable) {
-          final cloudProfile = await _cloudSyncService.loadProfileFromCloud(user.uid);
+          var cloudProfile = await _cloudSyncService.loadProfileFromCloud(user.uid);
+          
+          // If not found by UID, try to find by email
+          if (cloudProfile == null && user.email != null) {
+            AACLogger.info('Profile not found by UID, trying email lookup: ${user.email}', tag: 'UserProfileService');
+            cloudProfile = await _cloudSyncService.findProfileByEmail(user.email!);
+          }
+          
           if (cloudProfile != null) {
             _activeProfile = cloudProfile;
             AACLogger.info('Loaded profile from cloud: ${cloudProfile.name}', tag: 'UserProfileService');
@@ -93,12 +100,14 @@ class UserProfileService {
     required String name,
     String? email,
     String? phoneNumber,
+    String? id, // Optional ID parameter - use Firebase UID when available
   }) async {
     try {
-      final id = 'profile_${DateTime.now().millisecondsSinceEpoch}';
+      // Use provided ID (Firebase UID) if available, otherwise generate timestamp-based ID for offline users
+      final profileId = id ?? 'profile_${DateTime.now().millisecondsSinceEpoch}';
       
       final newProfile = UserProfile(
-        id: id,
+        id: profileId,
         name: name,
         role: UserRole.child, // Default to child role
         email: email,
@@ -126,8 +135,9 @@ class UserProfileService {
     } catch (e) {
       AACLogger.error('Error in createProfile: $e', tag: 'UserProfileService');
       // Create a fallback profile that doesn't require storage
+      final fallbackId = id ?? 'fallback_${DateTime.now().millisecondsSinceEpoch}';
       return UserProfile(
-        id: 'fallback_${DateTime.now().millisecondsSinceEpoch}',
+        id: fallbackId,
         name: name,
         role: UserRole.child, // Default to child role
         createdAt: DateTime.now(),
