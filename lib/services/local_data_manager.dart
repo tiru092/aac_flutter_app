@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/symbol.dart';
 import '../models/user_profile.dart';
 import '../utils/sample_data.dart';
@@ -26,35 +27,39 @@ class LocalDataManager {
     try {
       print('LocalDataManager: Initializing for user: ${userProfile.name}');
       
+      // Ensure we use Firebase UID as the consistent identifier
+      final user = FirebaseAuth.instance.currentUser;
+      final userId = user?.uid ?? userProfile.id;
+      
       final prefs = await SharedPreferences.getInstance();
-      final userKey = '${_isLocalDataInitializedKey}_${userProfile.id}';
+      final userKey = '${_isLocalDataInitializedKey}_$userId';
       final isInitialized = prefs.getBool(userKey) ?? false;
       
       if (!isInitialized) {
         // Step 1: Initialize Hive first
         await _ensureHiveInitialized();
         
-        // Step 2: Initialize user's personal data storage
-        await _initializeUserDataStorage(userProfile);
+        // Step 2: Initialize user's personal data storage with Firebase UID
+        await _initializeUserDataStorage(userProfile, userId);
         
         // Step 3: Store all default icons/symbols locally (after Hive is ready)
         await _storeDefaultIconsLocally();
         
-        // Step 4: Set up data sync preferences
-        await _setupDataSyncPreferences(userProfile);
+        // Step 4: Set up data sync preferences with Firebase UID
+        await _setupDataSyncPreferences(userProfile, userId);
         
-        // Mark as initialized for this user
+        // Mark as initialized for this user with Firebase UID
         await prefs.setBool(userKey, true);
         await prefs.setBool(_defaultIconsCachedKey, true);
         await prefs.setInt(_userDataVersionKey, 1);
         
-        print('LocalDataManager: First-time initialization completed');
+        print('LocalDataManager: First-time initialization completed for UID: $userId');
       } else {
-        await _loadExistingUserData(userProfile);
+        await _loadExistingUserData(userProfile, userId);
       }
       
       _isInitialized = true;
-      print('LocalDataManager: Initialization completed for ${userProfile.name}');
+      print('LocalDataManager: Initialization completed for ${userProfile.name} (UID: $userId)');
       
     } catch (e) {
       print('LocalDataManager: Error during initialization: $e');
@@ -115,22 +120,22 @@ class LocalDataManager {
   }
 
   /// Initialize user's personal data storage structure
-  Future<void> _initializeUserDataStorage(UserProfile userProfile) async {
+  Future<void> _initializeUserDataStorage(UserProfile userProfile, String userId) async {
     try {
-      // Create user-specific Hive boxes if needed
-      await _ensureUserBoxes(userProfile.id);
+      // Create user-specific Hive boxes if needed using Firebase UID
+      await _ensureUserBoxes(userId);
       
       // Initialize user's custom symbols collection (empty initially)
-      await _initializeUserSymbols(userProfile);
+      await _initializeUserSymbols(userProfile, userId);
       
       // Initialize user's custom categories collection (empty initially)
-      await _initializeUserCategories(userProfile);
+      await _initializeUserCategories(userProfile, userId);
       
       // Initialize user's favorites (empty initially)
-      await _initializeUserFavorites(userProfile);
+      await _initializeUserFavorites(userProfile, userId);
       
       // Initialize communication history (empty initially)
-      await _initializeUserHistory(userProfile);
+      await _initializeUserHistory(userProfile, userId);
       
     } catch (e) {
       print('LocalDataManager: Error initializing user data storage: $e');
@@ -138,14 +143,14 @@ class LocalDataManager {
   }
 
   /// Set up data synchronization preferences
-  Future<void> _setupDataSyncPreferences(UserProfile userProfile) async {
+  Future<void> _setupDataSyncPreferences(UserProfile userProfile, String userId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // Set up sync preferences for this user
-      await prefs.setBool('auto_sync_enabled_${userProfile.id}', true);
-      await prefs.setBool('sync_on_wifi_only_${userProfile.id}', false);
-      await prefs.setInt('last_sync_timestamp_${userProfile.id}', DateTime.now().millisecondsSinceEpoch);
+      // Set up sync preferences for this user using Firebase UID
+      await prefs.setBool('auto_sync_enabled_$userId', true);
+      await prefs.setBool('sync_on_wifi_only_$userId', false);
+      await prefs.setInt('last_sync_timestamp_$userId', DateTime.now().millisecondsSinceEpoch);
       
     } catch (e) {
       print('LocalDataManager: Error setting up sync preferences: $e');
@@ -153,10 +158,10 @@ class LocalDataManager {
   }
 
   /// Load existing user data from local storage
-  Future<void> _loadExistingUserData(UserProfile userProfile) async {
+  Future<void> _loadExistingUserData(UserProfile userProfile, String userId) async {
     try {
-      // Ensure all user boxes are available
-      await _ensureUserBoxes(userProfile.id);
+      // Ensure all user boxes are available using Firebase UID
+      await _ensureUserBoxes(userId);
       
     } catch (e) {
       print('LocalDataManager: Error loading existing user data: $e');
@@ -194,9 +199,9 @@ class LocalDataManager {
   }
 
   /// Initialize user's custom symbols collection
-  Future<void> _initializeUserSymbols(UserProfile userProfile) async {
+  Future<void> _initializeUserSymbols(UserProfile userProfile, String userId) async {
     try {
-      final box = await Hive.openBox('user_symbols_${userProfile.id}');
+      final box = await Hive.openBox('user_symbols_$userId');
       
       // If user has existing symbols in profile, migrate them to the box
       if (userProfile.userSymbols.isNotEmpty) {
@@ -212,9 +217,9 @@ class LocalDataManager {
   }
 
   /// Initialize user's custom categories collection
-  Future<void> _initializeUserCategories(UserProfile userProfile) async {
+  Future<void> _initializeUserCategories(UserProfile userProfile, String userId) async {
     try {
-      final box = await Hive.openBox('user_categories_${userProfile.id}');
+      final box = await Hive.openBox('user_categories_$userId');
       
       // If user has existing categories in profile, migrate them to the box
       if (userProfile.userCategories.isNotEmpty) {
@@ -230,9 +235,9 @@ class LocalDataManager {
   }
 
   /// Initialize user's favorites collection
-  Future<void> _initializeUserFavorites(UserProfile userProfile) async {
+  Future<void> _initializeUserFavorites(UserProfile userProfile, String userId) async {
     try {
-      final box = await Hive.openBox('user_favorites_${userProfile.id}');
+      final box = await Hive.openBox('user_favorites_$userId');
       
       // Initialize empty favorites if none exist
       if (box.isEmpty) {
@@ -246,9 +251,9 @@ class LocalDataManager {
   }
 
   /// Initialize user's communication history
-  Future<void> _initializeUserHistory(UserProfile userProfile) async {
+  Future<void> _initializeUserHistory(UserProfile userProfile, String userId) async {
     try {
-      final box = await Hive.openBox('user_history_${userProfile.id}');
+      final box = await Hive.openBox('user_history_$userId');
       
       // Initialize empty history if none exists
       if (box.isEmpty) {

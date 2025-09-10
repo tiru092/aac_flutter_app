@@ -30,6 +30,7 @@ import '../services/connectivity_service.dart';  // NEW: Add connectivity servic
 import '../services/data_cache_service.dart';  // NEW: Add data cache service
 import '../services/offline_features_service.dart';  // NEW: Add offline features service
 import '../services/user_data_service.dart';  // NEW: Add user data service for local storage
+import '../utils/profile_sync_fix.dart';  // NEW: Add profile sync fix utility
 import 'accessibility_settings_screen.dart';
 import 'add_symbol_screen.dart';
 import 'profile_screen.dart';

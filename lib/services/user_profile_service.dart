@@ -23,27 +23,43 @@ class UserProfileService {
         return _activeProfile;
       }
       
-      // If user is authenticated, try to load their data from cloud using their Firebase UID
-      if (_cloudSyncService.isCloudSyncAvailable) {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
+      // Check if user is authenticated first
+      final user = FirebaseAuth.instance.currentUser;
+      
+      if (user != null) {
+        // For authenticated users, ensure profile ID matches Firebase UID
+        final prefs = await SharedPreferences.getInstance();
+        final currentProfileId = prefs.getString(_currentProfileKey);
+        
+        // Fix profile ID mismatch
+        if (currentProfileId != user.uid) {
+          AACLogger.info('Fixing profile ID mismatch: $currentProfileId -> ${user.uid}', tag: 'UserProfileService');
+          await prefs.setString(_currentProfileKey, user.uid);
+        }
+        
+        // Try to load from cloud using Firebase UID
+        if (_cloudSyncService.isCloudSyncAvailable) {
           final cloudProfile = await _cloudSyncService.loadProfileFromCloud(user.uid);
           if (cloudProfile != null) {
             _activeProfile = cloudProfile;
+            AACLogger.info('Loaded profile from cloud: ${cloudProfile.name}', tag: 'UserProfileService');
             return _activeProfile;
           }
         }
+        
+        // Fallback to local storage using Firebase UID
+        return await _loadProfileById(user.uid);
+      } else {
+        // For offline mode, use local profile ID
+        final prefs = await SharedPreferences.getInstance();
+        final currentProfileId = prefs.getString(_currentProfileKey);
+        
+        if (currentProfileId == null) {
+          return null;
+        }
+        
+        return await _loadProfileById(currentProfileId);
       }
-      
-      // Fallback to local storage for offline mode
-      final prefs = await SharedPreferences.getInstance();
-      final currentProfileId = prefs.getString(_currentProfileKey);
-      
-      if (currentProfileId == null) {
-        return null;
-      }
-      
-      return await _loadProfileById(currentProfileId);
     } catch (e) {
       AACLogger.error('Error in getActiveProfile: $e', tag: 'UserProfileService');
       return null;
