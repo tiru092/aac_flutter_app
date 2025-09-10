@@ -10,6 +10,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';  // For opening legal documents
 import '../widgets/communication_grid.dart';
 import '../widgets/quick_phrases_bar.dart';
+import '../widgets/legal_document_viewer.dart';
+import '../constants/legal_documents.dart';
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
 import '../utils/aac_logger.dart';
@@ -1002,7 +1004,14 @@ class _HomeScreenState extends State<HomeScreen> {
             CupertinoActionSheetAction(
               onPressed: () {
                 Navigator.pop(context);
-                _launchLegalDocument('https://tiru092.github.io/aac_flutter_app/privacy-policy.html');
+                Navigator.of(context).push(
+                  CupertinoPageRoute(
+                    builder: (context) => const LegalDocumentViewer(
+                      title: LegalDocuments.privacyPolicyTitle,
+                      content: LegalDocuments.privacyPolicyContent,
+                    ),
+                  ),
+                );
               },
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1026,7 +1035,14 @@ class _HomeScreenState extends State<HomeScreen> {
             CupertinoActionSheetAction(
               onPressed: () {
                 Navigator.pop(context);
-                _launchLegalDocument('https://tiru092.github.io/aac_flutter_app/terms-of-service.html');
+                Navigator.of(context).push(
+                  CupertinoPageRoute(
+                    builder: (context) => const LegalDocumentViewer(
+                      title: LegalDocuments.termsOfServiceTitle,
+                      content: LegalDocuments.termsOfServiceContent,
+                    ),
+                  ),
+                );
               },
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,

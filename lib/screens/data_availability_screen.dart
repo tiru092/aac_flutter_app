@@ -63,23 +63,26 @@ class _DataAvailabilityScreenState extends State<DataAvailabilityScreen> {
           ),
         ),
       ),
-      child: SafeArea(
-        child: _isLoading 
-            ? const Center(child: CupertinoActivityIndicator())
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _buildCacheStatusSection(),
-                  const SizedBox(height: 16),
-                  _buildCacheSettingsSection(),
-                  const SizedBox(height: 16),
-                  _buildCacheActionsSection(),
-                  const SizedBox(height: 16),
-                  _buildCacheStatisticsSection(),
-                  const SizedBox(height: 16),
-                  _buildOfflineFeaturesSection(),
-                ],
-              ),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: SafeArea(
+          child: _isLoading 
+              ? const Center(child: CupertinoActivityIndicator())
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _buildCacheStatusSection(),
+                    const SizedBox(height: 16),
+                    _buildCacheSettingsSection(),
+                    const SizedBox(height: 16),
+                    _buildCacheActionsSection(),
+                    const SizedBox(height: 16),
+                    _buildCacheStatisticsSection(),
+                    const SizedBox(height: 16),
+                    _buildOfflineFeaturesSection(),
+                  ],
+                ),
+        ),
       ),
     );
   }

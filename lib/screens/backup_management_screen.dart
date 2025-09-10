@@ -243,41 +243,42 @@ class _BackupManagementScreenState extends State<BackupManagementScreen> {
           ),
         ),
       ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            // Status message
-            if (_statusMessage.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _statusMessage.contains('Error') 
-                      ? const Color(0xFFFFECEB)
-                      : const Color(0xFFE6FFFA),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
+      child: Material(
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Status message
+              if (_statusMessage.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
                     color: _statusMessage.contains('Error') 
-                        ? const Color(0xFFE53E3E)
-                        : const Color(0xFF38A169),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _statusMessage.contains('Error') 
-                          ? CupertinoIcons.exclamationmark_triangle
-                          : CupertinoIcons.check_mark,
+                        ? const Color(0xFFFFECEB)
+                        : const Color(0xFFE6FFFA),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
                       color: _statusMessage.contains('Error') 
                           ? const Color(0xFFE53E3E)
                           : const Color(0xFF38A169),
-                      size: 20,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _statusMessage,
-                        style: const TextStyle(
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _statusMessage.contains('Error') 
+                            ? CupertinoIcons.exclamationmark_triangle
+                            : CupertinoIcons.check_mark,
+                        color: _statusMessage.contains('Error') 
+                            ? const Color(0xFFE53E3E)
+                            : const Color(0xFF38A169),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _statusMessage,
+                          style: const TextStyle(
                           color: Color(0xFF2D3748),
                           fontSize: 14,
                         ),
@@ -575,6 +576,7 @@ class _BackupManagementScreenState extends State<BackupManagementScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 }

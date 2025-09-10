@@ -86,49 +86,60 @@ class _OfflineFeaturesScreenState extends State<OfflineFeaturesScreen> with Tick
           onPressed: _isUpdating ? null : _refreshData,
         ),
       ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            // Tab bar
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+      child: Material(
+        child: SafeArea(
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: Column(
+              children: [
+                // Tab bar
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.white,
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: const Color(0xFF4ECDC4),
+                    unselectedLabelColor: Colors.grey,
+                    indicatorColor: const Color(0xFF4ECDC4),
+                    tabs: const [
+                      Tab(text: 'Insights'),
+                      Tab(text: 'Achievements'),
+                      Tab(text: 'Suggestions'),
+                      Tab(text: 'Analytics'),
+                    ],
                   ),
-                ],
+                ),
               ),
-              child: TabBar(
-                controller: _tabController,
-                labelColor: const Color(0xFF4ECDC4),
-                unselectedLabelColor: Colors.grey,
-                indicatorColor: const Color(0xFF4ECDC4),
-                tabs: const [
-                  Tab(text: 'Insights'),
-                  Tab(text: 'Achievements'),
-                  Tab(text: 'Suggestions'),
-                  Tab(text: 'Analytics'),
-                ],
-              ),
-            ),
             // Tab content
             Expanded(
               child: _isLoading 
                   ? const Center(child: CupertinoActivityIndicator())
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildInsightsTab(),
-                        _buildAchievementsTab(),
-                        _buildRecommendationsTab(),
-                        _buildAnalyticsTab(),
-                      ],
+                  : Material(
+                      color: Colors.transparent,
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildInsightsTab(),
+                          _buildAchievementsTab(),
+                          _buildRecommendationsTab(),
+                          _buildAnalyticsTab(),
+                        ],
+                      ),
                     ),
             ),
           ],
+            ),
+          ),
         ),
       ),
     );
