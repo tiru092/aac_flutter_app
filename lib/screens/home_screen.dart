@@ -211,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
         try {
           await Future.any([
             Firebase.initializeApp(),
-            Future.delayed(const Duration(milliseconds: 500))
+            Future.delayed(const Duration(milliseconds: 500)) 
           ]);
           debugPrint('HomeScreen: Firebase initialized successfully');
         } catch (e) {
@@ -2038,8 +2038,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     ),
   ),
-    );
-  }
+);
+}
 
   Widget _buildCategoryTab(String categoryName, {bool isCustom = false}) {
     final isSelected = _currentCategory == categoryName;
