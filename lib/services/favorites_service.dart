@@ -1,25 +1,27 @@
 import 'dart:async';
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import '../models/symbol.dart';
+import 'user_data_manager.dart';
 
-/// Production-ready Favorites Service
+/// Production-ready Favorites Service with Firebase UID Single Source of Truth
 /// Manages favorite symbols and history of played images/sounds
 /// Designed for ASD users to easily access frequently used items
+/// Uses UserDataManager for Firebase UID-based data isolation
 class FavoritesService extends ChangeNotifier {
   static final FavoritesService _instance = FavoritesService._internal();
   factory FavoritesService() => _instance;
   FavoritesService._internal();
 
-  // Storage keys
+  // UserDataManager for Firebase UID single source of truth
+  final UserDataManager _userDataManager = UserDataManager();
+
+  // Storage keys (will be prefixed with Firebase UID)
   static const String _favoritesKey = 'user_favorites';
   static const String _historyKey = 'usage_history';
   
   // Data
   List<Symbol> _favoriteSymbols = [];
   List<HistoryItem> _usageHistory = [];
-  SharedPreferences? _prefs;
   bool _isInitialized = false;
   
   // Streams for real-time updates
@@ -35,12 +37,22 @@ class FavoritesService extends ChangeNotifier {
   Stream<List<HistoryItem>> get historyStream => _historyController.stream;
   bool get isInitialized => _isInitialized;
   
-  /// Initialize the service
+  /// Initialize the service with Firebase UID
   Future<void> initialize() async {
     if (_isInitialized) return;
     
     try {
-      _prefs = await SharedPreferences.getInstance();
+      // Initialize UserDataManager first
+      await _userDataManager.initialize();
+      
+      // Only proceed if user is authenticated
+      if (!_userDataManager.isAuthenticated) {
+        debugPrint('FavoritesService: No authenticated user, initializing with empty data');
+        _favoriteSymbols = [];
+        _usageHistory = [];
+        _isInitialized = true;
+        return;
+      }
       
       // Try to load data with aggressive error handling
       try {
@@ -58,7 +70,7 @@ class FavoritesService extends ChangeNotifier {
       }
       
       _isInitialized = true;
-      debugPrint('FavoritesService: Initialized successfully');
+      debugPrint('FavoritesService: Initialized successfully for user: ${_userDataManager.currentUserId}');
     } catch (e) {
       debugPrint('FavoritesService: Initialization error: $e');
       // Initialize with empty data if everything fails
@@ -68,14 +80,17 @@ class FavoritesService extends ChangeNotifier {
     }
   }
   
-  /// Load favorites from storage
+  /// Load favorites from storage using Firebase UID
   Future<void> _loadFavorites() async {
+    if (!_userDataManager.isAuthenticated) return;
+    
     try {
-      final favoritesJson = _prefs?.getString(_favoritesKey);
-      if (favoritesJson != null) {
-        final List<dynamic> favoritesData = jsonDecode(favoritesJson);
-        _favoriteSymbols = favoritesData
-            .map((data) => Symbol.fromJson(data))
+      final favoritesBox = await _userDataManager.getFavoritesBox();
+      final favoritesData = favoritesBox.get(_favoritesKey);
+      
+      if (favoritesData != null) {
+        _favoriteSymbols = (favoritesData as List<dynamic>)
+            .map((data) => Symbol.fromJson(Map<String, dynamic>.from(data)))
             .toList();
       }
       _favoritesController.add(_favoriteSymbols);
@@ -85,25 +100,20 @@ class FavoritesService extends ChangeNotifier {
     }
   }
   
-  /// Load history from storage
+  /// Load history from storage using Firebase UID
   Future<void> _loadHistory() async {
+    if (!_userDataManager.isAuthenticated) return;
+    
     try {
-      final historyJson = _prefs?.getString(_historyKey);
-      if (historyJson != null) {
-        // Check if the data is too large before parsing
-        if (historyJson.length > 1000000) { // 1MB limit
-          debugPrint('History data too large, clearing it');
-          await _clearHistoryData();
-          return;
-        }
-        
-        final List<dynamic> historyData = jsonDecode(historyJson);
-        
+      final favoritesBox = await _userDataManager.getFavoritesBox();
+      final historyData = favoritesBox.get(_historyKey);
+      
+      if (historyData != null) {
         // Limit to maximum 50 items for better performance
-        final limitedData = historyData.take(50).toList();
+        final limitedData = (historyData as List<dynamic>).take(50).toList();
         
         _usageHistory = limitedData
-            .map((data) => HistoryItem.fromJson(data))
+            .map((data) => HistoryItem.fromJson(Map<String, dynamic>.from(data)))
             .toList();
         
         // Sort by timestamp (most recent first)
@@ -293,25 +303,33 @@ class FavoritesService extends ChangeNotifier {
     }
   }
   
-  /// Save favorites to storage
+  /// Save favorites to storage using Firebase UID
   Future<void> _saveFavorites() async {
+    if (!_userDataManager.isAuthenticated) return;
+    
     try {
-      final favoritesJson = jsonEncode(
-        _favoriteSymbols.map((symbol) => symbol.toJson()).toList(),
-      );
-      await _prefs?.setString(_favoritesKey, favoritesJson);
+      final favoritesBox = await _userDataManager.getFavoritesBox();
+      final favoritesData = _favoriteSymbols.map((symbol) => symbol.toJson()).toList();
+      await favoritesBox.put(_favoritesKey, favoritesData);
+      
+      // Also sync to cloud
+      await _userDataManager.setCloudData('favorites', favoritesData);
     } catch (e) {
       debugPrint('Error saving favorites: $e');
     }
   }
   
-  /// Save history to storage
+  /// Save history to storage using Firebase UID
   Future<void> _saveHistory() async {
+    if (!_userDataManager.isAuthenticated) return;
+    
     try {
-      final historyJson = jsonEncode(
-        _usageHistory.map((item) => item.toJson()).toList(),
-      );
-      await _prefs?.setString(_historyKey, historyJson);
+      final favoritesBox = await _userDataManager.getFavoritesBox();
+      final historyData = _usageHistory.map((item) => item.toJson()).toList();
+      await favoritesBox.put(_historyKey, historyData);
+      
+      // Also sync to cloud
+      await _userDataManager.setCloudData('favorites_history', historyData);
     } catch (e) {
       debugPrint('Error saving history: $e');
     }
@@ -319,9 +337,12 @@ class FavoritesService extends ChangeNotifier {
   
   /// Clear all data (internal helper)
   Future<void> _clearAllData() async {
+    if (!_userDataManager.isAuthenticated) return;
+    
     try {
-      await _prefs?.remove(_favoritesKey);
-      await _prefs?.remove(_historyKey);
+      final favoritesBox = await _userDataManager.getFavoritesBox();
+      await favoritesBox.delete(_favoritesKey);
+      await favoritesBox.delete(_historyKey);
       _favoriteSymbols = [];
       _usageHistory = [];
       _favoritesController.add(_favoriteSymbols);
@@ -333,8 +354,11 @@ class FavoritesService extends ChangeNotifier {
   
   /// Clear history data (internal helper)
   Future<void> _clearHistoryData() async {
+    if (!_userDataManager.isAuthenticated) return;
+    
     try {
-      await _prefs?.remove(_historyKey);
+      final favoritesBox = await _userDataManager.getFavoritesBox();
+      await favoritesBox.delete(_historyKey);
       _usageHistory = [];
       _historyController.add(_usageHistory);
     } catch (e) {

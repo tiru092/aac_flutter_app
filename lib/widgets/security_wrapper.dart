@@ -25,7 +25,6 @@ class SecurityWrapper extends StatefulWidget {
 class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingObserver {
   bool _isLoading = true;
   bool _isAuthenticated = false;
-  bool _isCOPPACompliant = false;
 
   @override
   void initState() {
@@ -64,19 +63,20 @@ class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingOb
     try {
       AACLogger.info('Initializing security wrapper');
       
-      // Listen to authentication state changes
+      // Listen to authentication state changes for security monitoring
       FirebaseAuth.instance.authStateChanges().listen(_onAuthStateChanged);
       
-      // Initialize secure session if user is already authenticated
-      if (SecureAuthService.isAuthenticated) {
-        await SecureAuthService.initializeSecureSession();
-        await _checkCOPPACompliance();
-      }
-      
+      // Initialize security monitoring without blocking the UI
+      // The AuthWrapper child will handle the actual authentication flow
       setState(() {
-        _isAuthenticated = SecureAuthService.isAuthenticated;
+        _isAuthenticated = FirebaseAuth.instance.currentUser != null;
         _isLoading = false;
       });
+      
+      // Initialize secure session if user is already authenticated
+      if (_isAuthenticated) {
+        await SecureAuthService.initializeSecureSession();
+      }
       
     } catch (e) {
       AACLogger.error('Failed to initialize security wrapper: $e');
@@ -96,11 +96,9 @@ class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingOb
         // User just signed in
         AACLogger.info('User authenticated, initializing secure session');
         await SecureAuthService.initializeSecureSession();
-        await _checkCOPPACompliance();
       } else if (!isNowAuthenticated && wasAuthenticated) {
         // User just signed out
         AACLogger.info('User signed out, cleaning up security');
-        _isCOPPACompliant = false;
       }
       
       setState(() {
@@ -109,25 +107,6 @@ class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingOb
       
     } catch (e) {
       AACLogger.error('Error handling auth state change: $e');
-    }
-  }
-
-  Future<void> _checkCOPPACompliance() async {
-    try {
-      // Get list of child profiles and check their compliance
-      await COPPAComplianceService().getChildProfiles();
-      
-      // For now, assume compliant if no children or if authenticated
-      // In a real implementation, check each child's consent status
-      setState(() {
-        _isCOPPACompliant = true;
-      });
-      
-    } catch (e) {
-      AACLogger.error('Error checking COPPA compliance: $e');
-      setState(() {
-        _isCOPPACompliant = false;
-      });
     }
   }
 
@@ -166,85 +145,14 @@ class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingOb
       );
   }
 
-  Widget _buildSignInWidget() {
-    return widget.signInWidget ?? 
-      Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.security, size: 64),
-              const SizedBox(height: 16),
-              const Text(
-                'Authentication Required',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text('Please sign in to continue'),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  // Navigate to sign in screen
-                  // This should be implemented based on your app's navigation
-                },
-                child: const Text('Sign In'),
-              ),
-            ],
-          ),
-        ),
-      );
-  }
-
-  Widget _buildComplianceWarning() {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.warning, size: 64, color: Colors.orange),
-              const SizedBox(height: 16),
-              const Text(
-                'Compliance Check Required',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'This app requires parental consent for users under 13. '
-                'Please complete the compliance verification.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () async {
-                  // Navigate to COPPA compliance screen
-                  await _checkCOPPACompliance();
-                },
-                child: const Text('Complete Verification'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return _buildLoadingWidget();
     }
     
-    if (!_isAuthenticated) {
-      return _buildSignInWidget();
-    }
-    
-    if (!_isCOPPACompliant) {
-      return _buildComplianceWarning();
-    }
-    
-    // All security checks passed, show the main app
+    // Always pass through to child (AuthWrapper) - let it handle authentication UI
+    // SecurityWrapper provides background security monitoring only
     return widget.child;
   }
 }

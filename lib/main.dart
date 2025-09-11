@@ -9,6 +9,7 @@ import 'services/migration_service.dart';  // NEW: Add migration service
 import 'services/data_recovery_service.dart';  // NEW: Add data recovery service
 import 'services/secure_logger.dart';  // Secure logging
 import 'services/firebase_security_service.dart';  // Firebase security hardening
+import 'services/data_services_initializer.dart';  // NEW: Centralized data services with Firebase UID
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -110,6 +111,18 @@ void _initializeBackgroundServices() {
         SecureLogger.info('Migration check completed successfully');
       } catch (migrationError) {
         SecureLogger.warning('Migration error (app will continue)', migrationError);
+      }
+
+      // NEW: Initialize centralized data services with Firebase UID single source of truth
+      try {
+        SecureLogger.info('Initializing data services with Firebase UID single source of truth...');
+        await DataServicesInitializer().initialize();
+        SecureLogger.info('✅ Data services initialized successfully with Firebase UID consistency');
+        
+        // Log service status for debugging
+        DataServicesInitializer().logServiceStatus();
+      } catch (dataServicesError) {
+        SecureLogger.error('Data services initialization failed', dataServicesError);
       }
     } catch (e) {
       SecureLogger.error('Background initialization error', e);
