@@ -13,6 +13,7 @@ import 'services/firebase_security_service.dart';  // Firebase security hardenin
 import 'services/data_services_initializer_robust.dart';  // NEW: Centralized data services with Firebase UID
 import 'services/encryption_corruption_fix.dart';  // EMERGENCY: Fix encryption corruption
 import 'services/hive_corruption_fix.dart';  // EMERGENCY: Fix Hive corruption
+import 'services/auth_state_manager.dart';  // ENTERPRISE: Auth state management
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -129,15 +130,18 @@ void _initializeBackgroundServices() {
         SecureLogger.warning('Migration error (app will continue)', migrationError);
       }
 
-      // NEW: Initialize centralized data services with Firebase UID single source of truth
+      // ENTERPRISE: Initialize Auth State Manager for automatic data initialization
       try {
-        SecureLogger.info('Initializing data services with Firebase UID single source of truth...');
-        await DataServicesInitializer.instance.initialize();
-        SecureLogger.info('✅ Data services initialized successfully with Firebase UID consistency');
+        SecureLogger.info('Initializing Enterprise Auth State Manager...');
+        await AuthStateManager.instance.initialize();
+        SecureLogger.info('✅ Auth State Manager initialized - automatic data sync enabled');
         
-      } catch (dataServicesError) {
-        SecureLogger.error('Data services initialization failed', dataServicesError);
+      } catch (authStateError) {
+        SecureLogger.error('Auth State Manager initialization failed', authStateError);
       }
+      
+      // Data services initialization is now handled by AuthStateManager and AuthWrapper
+      // No need to initialize here to prevent conflicts
     } catch (e) {
       SecureLogger.error('Background initialization error', e);
     }

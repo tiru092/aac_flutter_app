@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
 import '../utils/aac_logger.dart';
+import '../services/data_services_initializer_robust.dart';
 import '../services/favorites_service.dart';
 import '../services/voice_service.dart';
 import 'edit_tile_dialog.dart';
@@ -56,11 +57,13 @@ class _CommunicationGridState extends State<CommunicationGrid>
   late Animation<double> _gridAnimation;
   late AnimationController _pressAnimationController;
   late Animation<double> _pressAnimation;
-  final FavoritesService _favoritesService = FavoritesService();
+  // Use centralized FavoritesService singleton  
+  FavoritesService? _favoritesService;
 
   @override
   void initState() {
     super.initState();
+    _favoritesService = DataServicesInitializer.instance.favoritesService;
     _gridAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
@@ -486,14 +489,16 @@ class _CommunicationGridState extends State<CommunicationGrid>
                       ],
                     ),
                   ),
-                  // Favorite button overlay
+                  // Favorite button overlay - always show, handle null service gracefully
                   Positioned(
                     top: 4,
                     right: 4,
-                    child: _FavoriteButtonWrapper(
-                      symbol: symbol,
-                      favoritesService: _favoritesService,
-                    ),
+                    child: _favoritesService != null 
+                        ? _FavoriteButtonWrapper(
+                            symbol: symbol,
+                            favoritesService: _favoritesService!,
+                          )
+                        : _SimpleFavoriteButton(symbol: symbol),
                   ),
                 ],
               ),
@@ -1436,6 +1441,109 @@ class _FavoriteButtonState extends State<_FavoriteButton>
           );
         },
       ),
+    );
+  }
+}
+
+/// Simple favorite button that works without FavoritesService
+class _SimpleFavoriteButton extends StatefulWidget {
+  final Symbol symbol;
+  
+  const _SimpleFavoriteButton({required this.symbol});
+  
+  @override
+  State<_SimpleFavoriteButton> createState() => _SimpleFavoriteButtonState();
+}
+
+class _SimpleFavoriteButtonState extends State<_SimpleFavoriteButton> 
+    with SingleTickerProviderStateMixin {
+  bool _isFavorite = false;
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.3).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+  }
+  
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+  
+  void _onTap() async {
+    setState(() {
+      _isFavorite = !_isFavorite;
+    });
+    
+    // Animate the heart
+    await _animationController.forward();
+    _animationController.reverse();
+    
+    // Haptic feedback
+    try {
+      await AACHelper.accessibleHapticFeedback();
+    } catch (e) {
+      // Ignore if haptic feedback fails
+    }
+    
+    // Voice feedback
+    try {
+      final message = _isFavorite 
+          ? 'Added ${widget.symbol.label} to favorites' 
+          : 'Removed ${widget.symbol.label} from favorites';
+      await AACHelper.speak(message);
+    } catch (e) {
+      // Ignore if TTS fails
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _scaleAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: GestureDetector(
+            onTap: _onTap,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: _isFavorite 
+                    ? Colors.red.withOpacity(0.15)
+                    : Colors.white.withOpacity(0.95),
+                shape: BoxShape.circle,
+                border: _isFavorite 
+                    ? Border.all(color: Colors.red.withOpacity(0.4), width: 2)
+                    : Border.all(color: Colors.grey.withOpacity(0.3), width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: _isFavorite 
+                        ? Colors.red.withOpacity(0.3)
+                        : Colors.black.withOpacity(0.1),
+                    blurRadius: _isFavorite ? 8 : 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                _isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                size: 18,
+                color: _isFavorite ? Colors.red : Colors.grey,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

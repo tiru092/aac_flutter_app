@@ -2,9 +2,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io';
-import '../services/favorites_service.dart';
+import '../services/data_services_initializer_robust.dart';
 import '../models/symbol.dart';
 import '../utils/aac_helper.dart';
+import '../services/favorites_service.dart';
 
 /// Production-ready Favorites Screen
 /// Shows favorite symbols and usage history for ASD users
@@ -17,7 +18,8 @@ class FavoritesScreen extends StatefulWidget {
 }
 
 class _FavoritesScreenState extends State<FavoritesScreen> {
-  final FavoritesService _favoritesService = FavoritesService();
+  // Use centralized FavoritesService instance
+  FavoritesService? _favoritesService;
   
   int _selectedTab = 0; // Track selected tab for CupertinoSegmentedControl
   List<Symbol> _favorites = [];
@@ -41,16 +43,21 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   void initState() {
     super.initState();
+    _favoritesService = DataServicesInitializer.instance.favoritesService;
     _initializeFavorites();
   }
 
   Future<void> _initializeFavorites() async {
     try {
-      await _favoritesService.initialize();
+      // Check if FavoritesService is available
+      if (_favoritesService == null) {
+        debugPrint('FavoritesScreen: FavoritesService not available');
+        return;
+      }
       
       // Load initial data first
-      final initialFavorites = _favoritesService.favoriteSymbols;
-      final initialHistory = _favoritesService.usageHistory;
+      final initialFavorites = _favoritesService!.favoriteSymbols;
+      final initialHistory = _favoritesService!.usageHistory;
       
       // Update state with initial data immediately
       if (mounted) {
@@ -61,7 +68,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       }
       
       // Set up real-time streams
-      _favoritesSubscription = _favoritesService.favoritesStream.listen((favorites) {
+      _favoritesSubscription = _favoritesService!.favoritesStream.listen((favorites) {
         if (mounted) {
           setState(() {
             _favorites = favorites;
@@ -69,7 +76,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         }
       });
       
-      _historySubscription = _favoritesService.historyStream.listen((history) {
+      _historySubscription = _favoritesService!.historyStream.listen((history) {
         if (mounted) {
           setState(() {
             _history = history;
@@ -400,9 +407,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                       child: symbol.imagePath.isNotEmpty
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: _buildSymbolImage(symbol),
+                              child: _buildSymbolImage(symbol, context),
                             )
-                          : _buildDefaultIcon(symbol.category),
+                          : _buildDefaultIcon(symbol.category, context),
                     ),
                   ),
                   
@@ -490,7 +497,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(11),
-              child: _buildSymbolImage(symbol),
+              child: _buildSymbolImage(symbol, context),
             ),
           ),
           
@@ -557,19 +564,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               // Add to favorites button
               CupertinoButton(
                 padding: const EdgeInsets.all(8),
-                onPressed: () async {
-                  if (_favoritesService.isFavorite(symbol)) {
-                    await _favoritesService.removeFromFavorites(symbol);
+                onPressed: _favoritesService != null ? () async {
+                  if (_favoritesService!.isFavorite(symbol)) {
+                    await _favoritesService!.removeFromFavorites(symbol);
                   } else {
-                    await _favoritesService.addToFavorites(symbol);
+                    await _favoritesService!.addToFavorites(symbol);
                   }
-                },
+                } : null,
                 child: Icon(
-                  _favoritesService.isFavorite(symbol) 
+                  _favoritesService?.isFavorite(symbol) == true
                       ? CupertinoIcons.heart_fill 
                       : CupertinoIcons.heart,
                   size: 20,
-                  color: _favoritesService.isFavorite(symbol) 
+                  color: _favoritesService?.isFavorite(symbol) == true
                       ? CupertinoColors.systemRed 
                       : CupertinoColors.systemGrey,
                 ),
@@ -590,34 +597,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         ],
       ),
     );
-  }
-
-  // Helper method to build symbol image
-  Widget _buildSymbolImage(Symbol symbol) {
-    if (symbol.imagePath.startsWith('emoji:')) {
-      return Center(
-        child: Text(
-          symbol.imagePath.substring(6), // Remove 'emoji:' prefix
-          style: const TextStyle(fontSize: 40),
-        ),
-      );
-    } else if (symbol.imagePath.startsWith('assets/')) {
-      return Image.asset(
-        symbol.imagePath,
-        fit: BoxFit.contain,
-        semanticLabel: symbol.label,
-        filterQuality: FilterQuality.high,
-        errorBuilder: (context, error, stackTrace) => _buildDefaultIcon(symbol.category),
-      );
-    } else {
-      return Image.file(
-        File(symbol.imagePath),
-        fit: BoxFit.contain,
-        semanticLabel: symbol.label,
-        filterQuality: FilterQuality.high,
-        errorBuilder: (context, error, stackTrace) => _buildDefaultIcon(symbol.category),
-      );
-    }
   }
 
   // Helper method to get action icon
@@ -898,61 +877,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     );
   }
 
-  Widget _buildDefaultIcon(String category) {
-    return Icon(
-      _getCategoryIcon(category),
-      size: 30,
-      color: AACHelper.getCategoryColor(category),
-    );
-  }
-
-  IconData _getCategoryIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'food & drinks':
-      case 'food':
-        return CupertinoIcons.bag_fill;
-      case 'emotions':
-        return CupertinoIcons.smiley;
-      case 'actions':
-        return CupertinoIcons.hand_raised;
-      case 'family':
-        return CupertinoIcons.person_2_fill;
-      case 'basic needs':
-        return CupertinoIcons.heart_fill;
-      case 'vehicles':
-        return CupertinoIcons.car;
-      case 'animals':
-        return CupertinoIcons.paw;
-      case 'toys':
-        return CupertinoIcons.gamecontroller;
-      case 'colors':
-        return CupertinoIcons.paintbrush;
-      case 'numbers':
-        return CupertinoIcons.number;
-      case 'letters':
-        return CupertinoIcons.textformat_abc;
-      default:
-        return CupertinoIcons.circle_fill;
-    }
-  }
-
-  String _getTimeAgo(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-    
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inHours < 1) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inDays < 1) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return '${(difference.inDays / 7).floor()}w ago';
-    }
-  }
-
   void _startSelectionMode(Symbol symbol) {
     final symbolId = symbol.id ?? symbol.label;
     setState(() {
@@ -985,9 +909,11 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   void _removeSelectedSymbols() async {
+    if (_favoritesService == null) return;
+    
     for (String symbolId in _selectedSymbols) {
       final symbol = _favorites.firstWhere((s) => (s.id ?? s.label) == symbolId);
-      await _favoritesService.removeFromFavorites(symbol);
+      await _favoritesService!.removeFromFavorites(symbol);
     }
     _exitSelectionMode();
   }
@@ -998,7 +924,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       await AACHelper.accessibleHapticFeedback();
       
       // Record usage (don't speak here - it will be spoken in the maximized view)
-      await _favoritesService.recordUsage(symbol, action: 'played');
+      if (_favoritesService != null) {
+        await _favoritesService!.recordUsage(symbol, action: 'played');
+      }
       
       // Show maximized view like the main page
       _showSymbolPopup(symbol);
@@ -1066,7 +994,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       await AACHelper.speak(symbol.label);
       
       // Record usage
-      await _favoritesService.recordUsage(symbol, action: 'played');
+      if (_favoritesService != null) {
+        await _favoritesService!.recordUsage(symbol, action: 'played');
+      }
       
     } catch (e) {
       debugPrint('Error playing symbol: $e');
@@ -1095,22 +1025,28 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             child: const Text('Clear Favorites'),
             onPressed: () {
               Navigator.pop(context);
-              _favoritesService.clearFavorites();
+              if (_favoritesService != null) {
+                _favoritesService!.clearFavorites();
+              }
             },
           ),
           CupertinoDialogAction(
             child: const Text('Clear History'),
             onPressed: () {
               Navigator.pop(context);
-              _favoritesService.clearHistory();
+              if (_favoritesService != null) {
+                _favoritesService!.clearHistory();
+              }
             },
           ),
           CupertinoDialogAction(
             child: const Text('Clear All'),
             onPressed: () {
               Navigator.pop(context);
-              _favoritesService.clearFavorites();
-              _favoritesService.clearHistory();
+              if (_favoritesService != null) {
+                _favoritesService!.clearFavorites();
+                _favoritesService!.clearHistory();
+              }
             },
           ),
           CupertinoDialogAction(
@@ -1468,44 +1404,56 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
                   
                   return Transform.scale(
                     scale: _pulseAnimation.value,
-                    child: Container(
-                      width: imageSize,
-                      height: imageSize,
-                      decoration: BoxDecoration(
-                        color: categoryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(25),
-                        border: Border.all(
-                          color: categoryColor.withOpacity(0.3),
-                          width: 3,
+                    child: Stack( // Wrap in a Stack
+                      children: [
+                        Container(
+                          width: imageSize,
+                          height: imageSize,
+                          decoration: BoxDecoration(
+                            color: categoryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(25),
+                            border: Border.all(
+                              color: categoryColor.withOpacity(0.3),
+                              width: 2,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: _buildSymbolImage(widget.symbol, context),
+                          ),
                         ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(22),
-                        child: widget.symbol.imagePath.startsWith('emoji:')
-                            ? Center(
-                                child: Text(
-                                  widget.symbol.imagePath.substring(6),
-                                  style: TextStyle(fontSize: imageSize * 0.4),
+                        // Symbol label below the image
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
                                 ),
-                              )
-                            : widget.symbol.imagePath.startsWith('assets/')
-                                ? Image.asset(
-                                    widget.symbol.imagePath,
-                                    fit: BoxFit.contain,
-                                    semanticLabel: widget.symbol.label,
-                                    filterQuality: FilterQuality.high,
-                                    width: imageSize,
-                                    height: imageSize,
-                                  )
-                                : Image.file(
-                                    File(widget.symbol.imagePath),
-                                    fit: BoxFit.contain,
-                                    semanticLabel: widget.symbol.label,
-                                    filterQuality: FilterQuality.high,
-                                    width: imageSize,
-                                    height: imageSize,
-                                  ),
-                      ),
+                              ],
+                            ),
+                            child: Text(
+                              widget.symbol.label,
+                              style: TextStyle(
+                                fontSize: MediaQuery.of(context).size.width * 0.045 * AACHelper.getTextSizeMultiplier(),
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 },
@@ -1555,4 +1503,87 @@ class DateHistoryGroup {
     required this.items,
     required this.date,
   });
+}
+
+// Helper method to build symbol image
+Widget _buildSymbolImage(Symbol symbol, BuildContext context) {
+  if (symbol.imagePath.startsWith('emoji:')) {
+    return Center(
+      child: Text(
+        symbol.imagePath.substring(6), // Remove 'emoji:' prefix
+        style: const TextStyle(fontSize: 40),
+      ),
+    );
+  } else if (symbol.imagePath.startsWith('assets/')) {
+    return Image.asset(
+      symbol.imagePath,
+      fit: BoxFit.contain,
+      semanticLabel: symbol.label,
+      filterQuality: FilterQuality.high,
+      errorBuilder: (context, error, stackTrace) => _buildDefaultIcon(symbol.category, context),
+    );
+  } else {
+    return Image.file(
+      File(symbol.imagePath),
+      fit: BoxFit.contain,
+      semanticLabel: symbol.label,
+      filterQuality: FilterQuality.high,
+      errorBuilder: (context, error, stackTrace) => _buildDefaultIcon(symbol.category, context),
+    );
+  }
+}
+
+Widget _buildDefaultIcon(String category, BuildContext context) {
+  return Icon(
+    _getCategoryIcon(category),
+    size: 30,
+    color: AACHelper.getCategoryColor(category),
+  );
+}
+
+IconData _getCategoryIcon(String category) {
+  switch (category.toLowerCase()) {
+    case 'food & drinks':
+    case 'food':
+      return CupertinoIcons.bag_fill;
+    case 'emotions':
+      return CupertinoIcons.smiley;
+    case 'actions':
+      return CupertinoIcons.hand_raised;
+    case 'family':
+      return CupertinoIcons.person_2_fill;
+    case 'basic needs':
+      return CupertinoIcons.heart_fill;
+    case 'vehicles':
+      return CupertinoIcons.car;
+    case 'animals':
+      return CupertinoIcons.paw;
+    case 'toys':
+      return CupertinoIcons.gamecontroller;
+    case 'colors':
+      return CupertinoIcons.paintbrush;
+    case 'numbers':
+      return CupertinoIcons.number;
+    case 'letters':
+      return CupertinoIcons.textformat_abc;
+    default:
+      return CupertinoIcons.circle_fill;
+  }
+}
+
+String _getTimeAgo(DateTime timestamp) {
+  final now = DateTime.now();
+  final difference = now.difference(timestamp);
+  
+  if (difference.inMinutes < 1) {
+    return 'Just now';
+  } else if (difference.inHours < 1) {
+    return '${difference.inMinutes}m ago';
+  } else if (difference.inDays < 1) {
+    return '${difference.inHours}h ago';
+  } else if (difference.inDays < 7) {
+    return '${difference.inDays}d ago';
+  } else {
+    return '${(difference.inDays / 7).floor()}w ago';
+  }
 }

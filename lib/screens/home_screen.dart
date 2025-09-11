@@ -23,7 +23,11 @@ import '../screens/aac_learning_goals_screen.dart';
 import '../screens/professional_therapeutic_goals_screen.dart';
 import '../screens/practice_area_screen.dart';
 import '../screens/favorites_screen.dart';
+import '../services/data_services_initializer_robust.dart';
+import '../services/user_data_manager.dart';
 import '../services/favorites_service.dart';
+import '../services/phrase_history_service.dart';
+import '../services/settings_service.dart';
 import '../services/secure_encryption_service.dart';
 import '../services/aac_analytics_service.dart';
 import '../services/connectivity_service.dart';  // NEW: Add connectivity service
@@ -66,25 +70,39 @@ class _HomeScreenState extends State<HomeScreen> {
   String _searchQuery = ''; // Add search query state
   final TextEditingController _searchController = TextEditingController(); // Add search controller
   
-  // Favorites service for tracking user preferences
-  final FavoritesService _favoritesService = FavoritesService();
+  // Services from the central initializer - nullable to handle initialization gracefully
+  FavoritesService? _favoritesService;
+  UserDataManager? _userDataManager;
+  PhraseHistoryService? _phraseHistoryService;
+  SettingsService? _settingsService;
   
   // Speech control values
-  double _speechRate = 0.3; // Slower default speed for Indian users
-  double _speechPitch = 1.0; // More natural pitch
+  double _speechRate = 0.3;
+  double _speechPitch = 1.0;
   double _speechVolume = 1.0;
 
   @override
   void initState() {
     super.initState();
-    // Initialize filtered symbols
-    _filteredSymbols = _allSymbols;
-    // FAST STARTUP: Load only essential data immediately
+    _initializeServices();
     _initializeImmediately();
     // DEFER: Load async data much later
-    Timer(Duration(milliseconds: 500), () {
+    Timer(const Duration(milliseconds: 500), () {
       _loadDataAsync();
     });
+  }
+
+  void _initializeServices() {
+    // Services may not be available if initialization failed - handle gracefully
+    final services = DataServicesInitializer.instance;
+    _favoritesService = services.favoritesService;
+    try {
+      _userDataManager = services.userDataManager;
+    } catch (e) {
+      debugPrint('UserDataManager not available: $e');
+    }
+    _phraseHistoryService = services.phraseHistoryService;
+    _settingsService = services.settingsService;
   }
 
   void _initializeImmediately() {
@@ -164,13 +182,9 @@ class _HomeScreenState extends State<HomeScreen> {
         debugPrint('AAC Analytics Service skipped: $e');
       }
       
-      // Initialize Favorites Service
-      try {
-        await _favoritesService.initialize();
-        debugPrint('Favorites Service initialized (background)');
-      } catch (e) {
-        debugPrint('Favorites Service skipped: $e');
-      }
+      // FavoritesService will be initialized by DataServicesInitializer
+      // Skip duplicate initialization here
+      debugPrint('Favorites Service initialized via DataServicesInitializer');
       
       // Initialize Enterprise Services in background for offline-first experience
       try {
@@ -392,13 +406,15 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         }
         
-        // Load custom categories separately
+        // Load custom categories from user profile
         await Future.delayed(Duration(milliseconds: 50));
         final customCategories = dbCategories.where((cat) => !cat.isDefault).toList();
+        
         if (mounted && customCategories.isNotEmpty) {
           setState(() {
             _customCategories = customCategories;
           });
+          debugPrint('Loaded ${customCategories.length} custom categories from database');
         }
         
       } catch (e) {
@@ -491,7 +507,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
   
-  // Refresh custom categories from user profile
+  // Refresh custom categories from simple Firebase structure
   void _refreshCustomCategories() async {
     try {
       final profile = await UserProfileService.getActiveProfile();
@@ -500,6 +516,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _customCategories = customCategories;
         });
+        debugPrint('Refreshed ${customCategories.length} custom categories from user profile');
       }
     } catch (e) {
       debugPrint('Error refreshing custom categories: $e');
@@ -507,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   
   List<Symbol> _getFilteredSymbols() {
-    try {
+    try      {
       List<Symbol> baseSymbols;
       
       // First filter by category
@@ -572,7 +589,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // Don't await this - let it run in background
     () async {
       try {
-        await _favoritesService.recordUsage(symbol, action: action);
+        if (_favoritesService != null) {
+          await _favoritesService!.recordUsage(symbol, action: action);
+        }
       } catch (e) {
         // Ignore errors - don't block UI
         AACLogger.warning('Favorites recording failed (ignored): $e', tag: 'HomeScreen');
@@ -2424,7 +2443,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         decoration: BoxDecoration(
           color: CupertinoColors.systemGrey6,
-          borderRadius: BorderRadius.circular(12), // Match button border radius
+          borderRadius: BorderRadius.circular(12), // Match + button border radius
           border: Border.all(color: CupertinoColors.systemGrey4),
         ),
         prefix: Padding(
@@ -2505,24 +2524,11 @@ class _HomeScreenState extends State<HomeScreen> {
           decoration: BoxDecoration(
             color: isActive ? const Color(0xFF4ECDC4) : Colors.grey.shade200,
             borderRadius: BorderRadius.circular(12), // Match + button border radius
-            boxShadow: isActive ? [
-              BoxShadow(
-                color: const Color(0xFF4ECDC4).withOpacity(0.3),
-                blurRadius: 8, // Match + button shadow
-                offset: const Offset(0, 4), // Match + button shadow
-              ),
-            ] : [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.2),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
           child: Icon(
             icon,
-            color: isActive ? Colors.white : Colors.grey.shade600,
-            size: iconSize, // Use same icon size as + button
+            color: isActive ? Colors.white : Colors.grey.shade700,
+            size: iconSize,
           ),
         ),
       ),

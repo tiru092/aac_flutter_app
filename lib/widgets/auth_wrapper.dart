@@ -27,28 +27,43 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
   }
 
-  /// Initialize data services and sync user data from Firebase
+  /// Simple initialization - load local data first, sync in background
   Future<void> _initializeAndSyncUserData() async {
     try {
-      // Check if already initialized to avoid duplicate initialization
+      SecureLogger.info('Simple initialization: Loading local data first...');
+      
+      // Check if already initialized - just return if so
       if (DataServicesInitializer.instance.isInitialized) {
-        SecureLogger.info('Data services already initialized, skipping initialization');
+        SecureLogger.info('Data services already initialized, proceeding to app');
+        // Start background sync without waiting
+        _startBackgroundSync();
         return;
       }
       
-      // Step 1: Initialize all data services
+      // Initialize with local data only - this should be fast
       await DataServicesInitializer.instance.initialize();
+      SecureLogger.info('Local data initialization completed');
       
-      // Step 2: Sync disabled temporarily to prevent deployment issues
-      // TODO: Fix sync method null safety issue
-      // await DataServicesInitializer.instance.syncUserDataFromCloud();
+      // Start background sync without blocking UI
+      _startBackgroundSync();
       
-      SecureLogger.info('User data initialization completed successfully');
     } catch (e) {
-      SecureLogger.warning('Data services initialization failed in AuthWrapper (will retry in background): $e');
-      // Don't rethrow - let the background initialization in main.dart handle it
-      // This prevents the UI from showing an error when background initialization will fix it
+      SecureLogger.warning('Local data initialization failed, will use defaults: $e');
+      // Don't rethrow - let user proceed with default data
     }
+  }
+  
+  /// Start background sync without blocking UI
+  void _startBackgroundSync() {
+    Future.microtask(() async {
+      try {
+        SecureLogger.info('Starting background cloud sync...');
+        await DataServicesInitializer.instance.syncUserDataFromCloud();
+        SecureLogger.info('Background cloud sync completed');
+      } catch (e) {
+        SecureLogger.warning('Background sync failed (app continues normally): $e');
+      }
+    });
   }
 
   @override
@@ -84,19 +99,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
 
-        // User is logged in, directly check if services are initialized 
-        // Skip AuthWrapper initialization since main.dart handles it
-        return StreamBuilder<bool>(
-          stream: Stream.periodic(const Duration(milliseconds: 500), (_) => DataServicesInitializer.instance.isInitialized),
-          builder: (context, streamSnapshot) {
-            final isInitialized = streamSnapshot.data ?? false;
-                
-            if (isInitialized) {
-              SecureLogger.info("✅ Data services confirmed initialized, proceeding to HomeScreen");
-              return const HomeScreen();
-            } else {
+        // User is logged in, initialize local data quickly and proceed to home
+        return FutureBuilder(
+          future: _initializeAndSyncUserData(),
+          builder: (context, initSnapshot) {
+            if (initSnapshot.connectionState == ConnectionState.waiting) {
               return const _LoadingScreen(message: 'Loading your data...');
             }
+            
+            // Always proceed to home screen - don't show error screens for initialization
+            // User can use the app with local/default data while background sync happens
+            SecureLogger.info("✅ Proceeding to HomeScreen (local data loaded)");
+            return const HomeScreen();
           },
         );
       },
