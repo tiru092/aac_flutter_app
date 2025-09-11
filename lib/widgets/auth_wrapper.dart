@@ -84,34 +84,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
 
-        // User is logged in, initialize services and sync data
-        return FutureBuilder(
-          future: _initializeAndSyncUserData(),
-          builder: (context, initSnapshot) {
-            if (initSnapshot.connectionState == ConnectionState.waiting) {
-              return const _LoadingScreen(message: 'Loading user data...');
-            }
-
-            // Always check if services are initialized - regardless of AuthWrapper success/failure
-            // This allows the background initialization to take over
-            return StreamBuilder<bool>(
-              stream: Stream.periodic(const Duration(milliseconds: 500), (_) => DataServicesInitializer.instance.isInitialized),
-              builder: (context, streamSnapshot) {
-                final isInitialized = streamSnapshot.data ?? false;
+        // User is logged in, directly check if services are initialized 
+        // Skip AuthWrapper initialization since main.dart handles it
+        return StreamBuilder<bool>(
+          stream: Stream.periodic(const Duration(milliseconds: 500), (_) => DataServicesInitializer.instance.isInitialized),
+          builder: (context, streamSnapshot) {
+            final isInitialized = streamSnapshot.data ?? false;
                 
-                if (isInitialized) {
-                  SecureLogger.info("✅ Data services confirmed initialized, proceeding to HomeScreen");
-                  return const HomeScreen();
-                } else {
-                  // Show appropriate loading message based on initialization state
-                  if (initSnapshot.hasError) {
-                    return const _LoadingScreen(message: 'Setting up your profile...');
-                  } else {
-                    return const _LoadingScreen(message: 'Loading your data...');
-                  }
-                }
-              },
-            );
+            if (isInitialized) {
+              SecureLogger.info("✅ Data services confirmed initialized, proceeding to HomeScreen");
+              return const HomeScreen();
+            } else {
+              return const _LoadingScreen(message: 'Loading your data...');
+            }
           },
         );
       },
