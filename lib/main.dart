@@ -3,18 +3,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'widgets/auth_wrapper.dart';  // Use auth wrapper instead of direct home screen
 import 'widgets/security_wrapper.dart';  // NEW: Security wrapper for enhanced protection
 import 'services/migration_service.dart';  // NEW: Add migration service
 import 'services/data_recovery_service.dart';  // NEW: Add data recovery service
 import 'services/secure_logger.dart';  // Secure logging
 import 'services/firebase_security_service.dart';  // Firebase security hardening
-import 'services/data_services_initializer.dart';  // NEW: Centralized data services with Firebase UID
+import 'services/data_services_initializer_robust.dart';  // NEW: Centralized data services with Firebase UID
+import 'services/encryption_corruption_fix.dart';  // EMERGENCY: Fix encryption corruption
+import 'services/hive_corruption_fix.dart';  // EMERGENCY: Fix Hive corruption
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // CORRUPTION FIXES DISABLED - These were clearing data on every startup!
+  // Only run these if actually needed, not on every startup
+  // await EncryptionCorruptionFix.fixEncryptionCorruption();
+  // await HiveCorruptionFix.fixHiveCorruption();
+  
   bool firebaseAvailable = false;
+  
+  // ESSENTIAL: Initialize Hive first for local storage
+  try {
+    await Hive.initFlutter();
+    SecureLogger.info('Hive initialized successfully');
+  } catch (e) {
+    SecureLogger.error('Hive initialization error', e);
+  }
   
   // FAST STARTUP: Only do essential Firebase initialization
   try {
@@ -116,11 +132,9 @@ void _initializeBackgroundServices() {
       // NEW: Initialize centralized data services with Firebase UID single source of truth
       try {
         SecureLogger.info('Initializing data services with Firebase UID single source of truth...');
-        await DataServicesInitializer().initialize();
+        await DataServicesInitializer.instance.initialize();
         SecureLogger.info('✅ Data services initialized successfully with Firebase UID consistency');
         
-        // Log service status for debugging
-        DataServicesInitializer().logServiceStatus();
       } catch (dataServicesError) {
         SecureLogger.error('Data services initialization failed', dataServicesError);
       }
