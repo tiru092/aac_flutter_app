@@ -28,84 +28,134 @@ class CustomCategoriesService {
 
   /// Initialize with Firebase UID and UserDataManager
   Future<void> initializeWithUid(String uid, UserDataManager userDataManager) async {
-    if (_isInitialized) return;
+    if (_isInitialized) {
+      AACLogger.info('CustomCategoriesService: Already initialized for UID: $_currentUid', tag: 'CustomCategoriesService');
+      return;
+    }
 
     try {
       AACLogger.info('CustomCategoriesService: Initializing with UID: $uid', tag: 'CustomCategoriesService');
+      
+      // Reset any previous state
+      _customCategories.clear();
       _currentUid = uid;
       _userDataManager = userDataManager;
 
       await _loadCustomCategories();
 
       _isInitialized = true;
-      AACLogger.info('CustomCategoriesService: Initialized successfully for UID: $uid', tag: 'CustomCategoriesService');
+      AACLogger.info('CustomCategoriesService: ✅ Initialized successfully for UID: $uid with ${_customCategories.length} categories', tag: 'CustomCategoriesService');
     } catch (e, stacktrace) {
       AACLogger.error('CustomCategoriesService: Initialization failed: $e', stackTrace: stacktrace, tag: 'CustomCategoriesService');
       _customCategories = [];
+      _categoriesController.add(_customCategories);
       _isInitialized = true; // Initialize to prevent crashes, but with empty data.
     }
   }
 
   /// Load custom categories from storage - prioritize Hive first, then sync with Firebase
   Future<void> _loadCustomCategories() async {
-    bool dataLoadedFromHive = false;
+    List<Category> hiveCategories = [];
+    List<Category> firebaseCategories = [];
+    bool hiveDataExists = false;
     
     try {
-      // STEP 1: Load from local Hive storage first (faster, works offline)
-      AACLogger.info('CustomCategoriesService: Loading categories from local Hive storage first...', tag: 'CustomCategoriesService');
+      // STEP 1: Always load from local Hive storage first (faster, works offline)
+      AACLogger.info('CustomCategoriesService: Loading categories from local Hive storage...', tag: 'CustomCategoriesService');
       final localBox = await _userDataManager!.getCustomCategoriesBox();
       final localData = localBox.get(_customCategoriesKey);
       
       if (localData != null && localData is List && localData.isNotEmpty) {
-        _customCategories = localData.map((data) => Category.fromJson(Map<String, dynamic>.from(data))).toList();
-        dataLoadedFromHive = true;
-        AACLogger.info('CustomCategoriesService: Loaded ${_customCategories.length} categories from local Hive storage.', tag: 'CustomCategoriesService');
+        try {
+          hiveCategories = localData.map((data) => Category.fromJson(Map<String, dynamic>.from(data))).toList();
+          hiveDataExists = true;
+          AACLogger.info('CustomCategoriesService: Found ${hiveCategories.length} categories in local Hive storage.', tag: 'CustomCategoriesService');
+        } catch (parseError) {
+          AACLogger.error('CustomCategoriesService: Error parsing Hive data (corrupted?): $parseError - Clearing corrupted data', tag: 'CustomCategoriesService');
+          // Clear corrupted data
+          await localBox.delete(_customCategoriesKey);
+          hiveCategories = [];
+          hiveDataExists = false;
+        }
       } else {
-        AACLogger.info('CustomCategoriesService: No local data found, will try Firebase...', tag: 'CustomCategoriesService');
+        AACLogger.info('CustomCategoriesService: No local data found in Hive.', tag: 'CustomCategoriesService');
       }
       
-      // STEP 2: Sync with Firebase in background (for new device or updates)
+      // STEP 2: Try to load from Firebase (for validation/sync)
       try {
-        AACLogger.info('CustomCategoriesService: Syncing with Firebase...', tag: 'CustomCategoriesService');
-        final firebaseCategories = await SharedResourceService.getUserCustomCategories(_currentUid!);
-        
-        if (firebaseCategories.isNotEmpty) {
-          if (!dataLoadedFromHive) {
-            // No local data, use Firebase data
-            _customCategories = firebaseCategories;
-            await _saveToLocal(); // Cache Firebase data locally
-            AACLogger.info('CustomCategoriesService: Loaded ${_customCategories.length} categories from Firebase (new device).', tag: 'CustomCategoriesService');
-          } else {
-            // We have local data, check if Firebase has newer data
-            if (firebaseCategories.length != _customCategories.length) {
-              AACLogger.info('CustomCategoriesService: Firebase has different data, merging...', tag: 'CustomCategoriesService');
-              // Simple merge: add any Firebase categories not in local storage
-              for (final fbCategory in firebaseCategories) {
-                if (!_customCategories.any((local) => local.id == fbCategory.id)) {
-                  _customCategories.add(fbCategory);
-                  AACLogger.info('CustomCategoriesService: Added category from Firebase: ${fbCategory.name}', tag: 'CustomCategoriesService');
-                }
-              }
-              await _saveToLocal(); // Save merged data
-            }
-          }
-        } else if (!dataLoadedFromHive) {
-          // No data anywhere, start with empty list
-          _customCategories = [];
-          AACLogger.info('CustomCategoriesService: No data found in Hive or Firebase, starting fresh.', tag: 'CustomCategoriesService');
-        }
+        AACLogger.info('CustomCategoriesService: Loading from Firebase for sync validation...', tag: 'CustomCategoriesService');
+        firebaseCategories = await SharedResourceService.getUserCustomCategories(_currentUid!);
+        AACLogger.info('CustomCategoriesService: Found ${firebaseCategories.length} categories in Firebase.', tag: 'CustomCategoriesService');
       } catch (firebaseError) {
-        AACLogger.warning('CustomCategoriesService: Firebase sync failed, using local data only: $firebaseError', tag: 'CustomCategoriesService');
-        if (!dataLoadedFromHive) {
-          _customCategories = [];
+        AACLogger.warning('CustomCategoriesService: Firebase load failed: $firebaseError', tag: 'CustomCategoriesService');
+        // Continue with Hive data only
+      }
+      
+      // STEP 3: Determine final data source with clear priority
+      if (hiveDataExists && hiveCategories.isNotEmpty) {
+        // PRIORITY: Use Hive data (local data has highest priority)
+        _customCategories = hiveCategories;
+        AACLogger.info('CustomCategoriesService: ✅ Using Hive data (${_customCategories.length} categories) - Local data takes priority', tag: 'CustomCategoriesService');
+        
+        // Background sync: if Firebase has data, check for any new items
+        if (firebaseCategories.isNotEmpty) {
+          // Run background sync asynchronously to not block UI
+          _performBackgroundSync(firebaseCategories);
+        }
+      } else if (firebaseCategories.isNotEmpty) {
+        // FALLBACK: Use Firebase data if no local data exists
+        _customCategories = firebaseCategories;
+        await _saveToLocal(); // Cache Firebase data locally
+        AACLogger.info('CustomCategoriesService: ✅ Using Firebase data (${_customCategories.length} categories) - No local data, downloading from cloud', tag: 'CustomCategoriesService');
+      } else {
+        // FALLBACK: No data anywhere, start fresh
+        _customCategories = [];
+        AACLogger.info('CustomCategoriesService: ✅ Starting fresh - No data found in Hive or Firebase', tag: 'CustomCategoriesService');
+      }
+      
+      // STEP 4: Update UI with loaded data
+      _categoriesController.add(_customCategories);
+      AACLogger.info('CustomCategoriesService: ✅ Data loading completed - ${_customCategories.length} categories available', tag: 'CustomCategoriesService');
+      
+    } catch (e, stackTrace) {
+      AACLogger.error('CustomCategoriesService: Error loading categories: $e', stackTrace: stackTrace, tag: 'CustomCategoriesService');
+      _customCategories = []; // Fallback to empty list
+      _categoriesController.add(_customCategories);
+    }
+  }
+
+  /// Perform background sync to merge any new Firebase data with local Hive data
+  Future<void> _performBackgroundSync(List<Category> firebaseCategories) async {
+    try {
+      bool hasChanges = false;
+      
+      // Check if Firebase has any categories not in local storage
+      for (final fbCategory in firebaseCategories) {
+        if (!_customCategories.any((local) => local.id == fbCategory.id)) {
+          _customCategories.add(fbCategory);
+          hasChanges = true;
+          AACLogger.info('CustomCategoriesService: Background sync - Added new category from Firebase: ${fbCategory.name}', tag: 'CustomCategoriesService');
         }
       }
       
+      // Check if local storage has categories not in Firebase (keep them)
+      // This ensures that local-only changes are preserved
+      final localOnlyCategories = _customCategories.where((local) => 
+        !firebaseCategories.any((fb) => fb.id == local.id)).toList();
+      
+      if (localOnlyCategories.isNotEmpty) {
+        AACLogger.info('CustomCategoriesService: Found ${localOnlyCategories.length} local-only categories (preserving them)', tag: 'CustomCategoriesService');
+      }
+      
+      if (hasChanges) {
+        await _saveToLocal(); // Save merged data
+        _categoriesController.add(_customCategories); // Update UI
+        AACLogger.info('CustomCategoriesService: Background sync completed - merged data saved', tag: 'CustomCategoriesService');
+      } else {
+        AACLogger.info('CustomCategoriesService: Background sync - no changes needed', tag: 'CustomCategoriesService');
+      }
     } catch (e) {
-      AACLogger.error('CustomCategoriesService: Error during category loading: $e', tag: 'CustomCategoriesService');
-      _customCategories = [];
-    } finally {
-      _categoriesController.add(_customCategories);
+      AACLogger.error('CustomCategoriesService: Background sync failed: $e', tag: 'CustomCategoriesService');
     }
   }
 
@@ -244,5 +294,29 @@ class CustomCategoriesService {
   void dispose() {
     _categoriesController.close();
     _isInitialized = false;
+    _currentUid = null;
+    _userDataManager = null;
+    _customCategories.clear();
+    AACLogger.info('CustomCategoriesService: Service disposed and state cleared', tag: 'CustomCategoriesService');
+  }
+
+  /// Reset service state (useful for sign-out/sign-in cycles)
+  Future<void> resetServiceState() async {
+    try {
+      AACLogger.info('CustomCategoriesService: Resetting service state...', tag: 'CustomCategoriesService');
+      _isInitialized = false;
+      _currentUid = null;
+      _userDataManager = null;
+      _customCategories.clear();
+      
+      // Clear the stream with empty data
+      if (!_categoriesController.isClosed) {
+        _categoriesController.add([]);
+      }
+      
+      AACLogger.info('CustomCategoriesService: ✅ Service state reset completed', tag: 'CustomCategoriesService');
+    } catch (e) {
+      AACLogger.error('CustomCategoriesService: Error resetting service state: $e', tag: 'CustomCategoriesService');
+    }
   }
 }

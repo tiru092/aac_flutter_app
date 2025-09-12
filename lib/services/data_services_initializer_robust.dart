@@ -156,9 +156,14 @@ class DataServicesInitializer {
     AACLogger.info('🔄 Resetting all data services...');
     if (!_isInitialized) return;
     
-    // Dispose services but DON'T clear their local data
+    // Reset custom categories service state properly
+    if (_customCategoriesService != null) {
+      await _customCategoriesService!.resetServiceState();
+      _customCategoriesService!.dispose();
+    }
+    
+    // Dispose other services but DON'T clear their local data
     favoritesService?.dispose();
-    _customCategoriesService?.dispose();
     
     // Reset service references (but Hive data remains intact)
     _userDataManager = null;
