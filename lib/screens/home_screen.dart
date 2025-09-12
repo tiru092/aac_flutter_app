@@ -118,18 +118,31 @@ class _HomeScreenState extends State<HomeScreen> {
     _settingsService = services.settingsService;
     _customCategoriesService = services.customCategoriesService;
     
+    // Debug CustomCategoriesService state
+    if (_customCategoriesService != null) {
+      debugPrint('🎯 CustomCategoriesService available - initialized: ${_customCategoriesService!.isInitialized}');
+      if (_customCategoriesService!.isInitialized) {
+        debugPrint('🎯 CustomCategoriesService current categories: ${_customCategoriesService!.customCategories.length}');
+      }
+    } else {
+      debugPrint('🚫 CustomCategoriesService NOT available');
+    }
+    
     // Set up CustomCategoriesService stream listener
     if (_customCategoriesService != null) {
+      debugPrint('🎯 Setting up CustomCategoriesService stream listener...');
       _customCategoriesSubscription = _customCategoriesService!.categoriesStream.listen((categories) {
         if (mounted) {
           setState(() {
             _customCategories = categories;
           });
-          debugPrint('CustomCategories updated via stream: ${categories.length} categories');
+          debugPrint('🎯 CustomCategories updated via stream: ${categories.length} categories');
         }
       }, onError: (error) {
-        debugPrint('CustomCategories stream error: $error');
+        debugPrint('🚫 CustomCategories stream error: $error');
       });
+    } else {
+      debugPrint('🚫 CustomCategoriesService not available for stream setup');
     }
   }
 
@@ -435,25 +448,23 @@ class _HomeScreenState extends State<HomeScreen> {
           debugPrint('Background loaded ${dbSymbols.length} symbols from UserProfile (Hive session data)');
         }
         
-        // Load custom categories from CustomCategoriesService (Firebase synced)
+        // Load custom categories from CustomCategoriesService (Firebase synced) - SINGLE SOURCE OF TRUTH
         await Future.delayed(Duration(milliseconds: 50));
         if (_customCategoriesService != null && _customCategoriesService!.isInitialized) {
           final customCategories = _customCategoriesService!.customCategories;
-          if (mounted && customCategories.isNotEmpty) {
+          if (mounted) {
             setState(() {
               _customCategories = customCategories;
             });
             debugPrint('Loaded ${customCategories.length} custom categories from CustomCategoriesService (Firebase synced)');
           }
         } else {
-          // CRITICAL FIX: Load custom categories from Hive (session data) BUT ensure Firebase UID sync
-          final customCategories = dbCategories.where((cat) => !cat.isDefault).toList();
-          if (mounted && customCategories.isNotEmpty) {
+          // FIXED: Always use empty list if CustomCategoriesService not ready - NO FALLBACK TO INCONSISTENT DATA
+          debugPrint('CustomCategoriesService not initialized - starting with empty custom categories');
+          if (mounted) {
             setState(() {
-              _customCategories = customCategories;
+              _customCategories = [];
             });
-            debugPrint('Loaded ${customCategories.length} custom categories from UserProfile (Hive session data)');
-            // Categories are loaded from session data - CustomCategoriesService will handle Firebase sync
           }
         }
         
@@ -547,7 +558,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
   
-  // Refresh custom categories from CustomCategoriesService (Firebase synced)
+  // Refresh custom categories from CustomCategoriesService (Firebase synced) - SINGLE SOURCE OF TRUTH
   void _refreshCustomCategories() async {
     try {
       if (_customCategoriesService != null && _customCategoriesService!.isInitialized && mounted) {
@@ -558,15 +569,8 @@ class _HomeScreenState extends State<HomeScreen> {
         debugPrint('Refreshed ${customCategories.length} custom categories from CustomCategoriesService (Firebase synced)');
         
       } else {
-        // Fallback to UserProfile if service not available
-        final profile = await UserProfileService.getActiveProfile();
-        if (profile != null && mounted) {
-          final customCategories = profile.userCategories.where((cat) => !cat.isDefault).toList();
-          setState(() {
-            _customCategories = customCategories;
-          });
-          debugPrint('Fallback: Refreshed ${customCategories.length} custom categories from user profile');
-        }
+        // FIXED: No fallback to inconsistent UserProfile data - wait for proper service initialization
+        debugPrint('CustomCategoriesService not available - keeping current categories unchanged');
       }
     } catch (e) {
       debugPrint('Error refreshing custom categories: $e');
