@@ -57,13 +57,12 @@ class _CommunicationGridState extends State<CommunicationGrid>
   late Animation<double> _gridAnimation;
   late AnimationController _pressAnimationController;
   late Animation<double> _pressAnimation;
-  // Use centralized FavoritesService singleton  
-  FavoritesService? _favoritesService;
+  // Get FavoritesService reactively to avoid race conditions
+  FavoritesService? get _favoritesService => DataServicesInitializer.instance.favoritesService;
 
   @override
   void initState() {
     super.initState();
-    _favoritesService = DataServicesInitializer.instance.favoritesService;
     _gridAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
@@ -1199,23 +1198,42 @@ class _FavoriteButtonWrapper extends StatefulWidget {
 class _FavoriteButtonWrapperState extends State<_FavoriteButtonWrapper> {
   late bool _isFavorite;
   StreamSubscription? _favoritesSubscription;
+  bool _isToggling = false; // Track if we're in the middle of toggling
 
   @override
   void initState() {
     super.initState();
     _isFavorite = widget.favoritesService.isFavorite(widget.symbol);
     
-    // Listen to favorites stream for real-time updates
-    _favoritesSubscription = widget.favoritesService.favoritesStream.listen((favorites) {
-      final newIsFavorite = widget.favoritesService.isFavorite(widget.symbol);
-      if (mounted && newIsFavorite != _isFavorite) {
-        setState(() {
-          _isFavorite = newIsFavorite;
-        });
+    // ONLY listen to specific symbol changes - NO mass updates
+    _favoritesSubscription = widget.favoritesService.symbolChangedStream.listen((changedSymbol) {
+      // Only update if this is our specific symbol and we're not currently toggling
+      if (!_isToggling && mounted && _isSymbolMatch(changedSymbol, widget.symbol)) {
+        final actualState = widget.favoritesService.isFavorite(widget.symbol);
+        if (actualState != _isFavorite) {
+          setState(() {
+            _isFavorite = actualState;
+          });
+        }
       }
     });
   }
 
+  /// Helper method to check if two symbols are the same
+  bool _isSymbolMatch(Symbol symbol1, Symbol symbol2) {
+    // If both have IDs, compare by ID
+    if (symbol1.id != null && symbol2.id != null) {
+      return symbol1.id == symbol2.id;
+    }
+    
+    // If either has no ID, compare by label (like FavoritesService does)
+    if (symbol1.id == null || symbol2.id == null) {
+      return symbol1.label == symbol2.label;
+    }
+    
+    return false;
+  }
+  
   @override
   void dispose() {
     _favoritesSubscription?.cancel();
@@ -1229,24 +1247,34 @@ class _FavoriteButtonWrapperState extends State<_FavoriteButtonWrapper> {
       isFavorite: _isFavorite,
       favoritesService: widget.favoritesService,
       onToggle: () async {
-        // Force immediate UI update for responsiveness
+        if (_isToggling) return; // Prevent double-taps
+        
+        _isToggling = true;
+        final newState = !_isFavorite;
+        
+        // Optimistic UI update for immediate feedback
         setState(() {
-          _isFavorite = !_isFavorite;
+          _isFavorite = newState;
         });
         
-        // Actually perform the favorite operation
+        // Perform the actual favorite operation
         try {
-          if (_isFavorite) {
+          if (newState) {
             await widget.favoritesService.addToFavorites(widget.symbol);
           } else {
             await widget.favoritesService.removeFromFavorites(widget.symbol);
           }
+          
         } catch (e) {
           // If the operation fails, revert the UI state
           debugPrint('Error toggling favorite: $e');
-          setState(() {
-            _isFavorite = !_isFavorite;
-          });
+          if (mounted) {
+            setState(() {
+              _isFavorite = !newState; // Revert to original state
+            });
+          }
+        } finally {
+          _isToggling = false;
         }
       },
     );

@@ -2,379 +2,249 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/symbol.dart';
 import 'user_data_manager.dart';
+import '../utils/aac_logger.dart';
 
-/// Production-ready Favorites Service with Firebase UID Single Source of Truth
-/// Manages favorite symbols and history of played images/sounds
-/// Designed for ASD users to easily access frequently used items
-/// Uses UserDataManager for Firebase UID-based data isolation
+/// Production-ready Favorites Service that is controlled by DataServicesInitializer.
+/// It uses the Firebase UID provided by the initializer as the single source of truth.
 class FavoritesService extends ChangeNotifier {
-  static final FavoritesService _instance = FavoritesService._internal();
-  factory FavoritesService() => _instance;
-  FavoritesService._internal();
+  late final UserDataManager _userDataManager;
+  late final String _currentUid;
+  bool _isInitialized = false;
 
-  // UserDataManager for Firebase UID single source of truth
-  final UserDataManager _userDataManager = UserDataManager();
+  // Storage keys
+  static const String _favoritesKey = 'favorites';
+  static const String _historyKey = 'favorites_history';
 
-  // Storage keys (will be prefixed with Firebase UID)
-  static const String _favoritesKey = 'user_favorites';
-  static const String _historyKey = 'usage_history';
-  
   // Data
   List<Symbol> _favoriteSymbols = [];
   List<HistoryItem> _usageHistory = [];
-  bool _isInitialized = false;
-  
+
   // Streams for real-time updates
-  final StreamController<List<Symbol>> _favoritesController = 
-      StreamController<List<Symbol>>.broadcast();
-  final StreamController<List<HistoryItem>> _historyController = 
-      StreamController<List<HistoryItem>>.broadcast();
+  final StreamController<List<Symbol>> _favoritesController = StreamController<List<Symbol>>.broadcast();
+  final StreamController<List<HistoryItem>> _historyController = StreamController<List<HistoryItem>>.broadcast();
   
+  // Stream for individual symbol favorite status changes
+  final StreamController<Symbol> _symbolChangedController = StreamController<Symbol>.broadcast();
+
   // Getters
   List<Symbol> get favoriteSymbols => List.unmodifiable(_favoriteSymbols);
   List<HistoryItem> get usageHistory => List.unmodifiable(_usageHistory);
   Stream<List<Symbol>> get favoritesStream => _favoritesController.stream;
   Stream<List<HistoryItem>> get historyStream => _historyController.stream;
+  Stream<Symbol> get symbolChangedStream => _symbolChangedController.stream;
   bool get isInitialized => _isInitialized;
-  
-  /// Initialize the service with Firebase UID
-  Future<void> initialize() async {
+
+  /// Initialize the service with a Firebase UID and a UserDataManager instance.
+  /// This must be called by DataServicesInitializer.
+  Future<void> initializeWithUid(String uid, UserDataManager userDataManager) async {
     if (_isInitialized) return;
-    
+
     try {
-      // Initialize UserDataManager first
-      await _userDataManager.initialize();
-      
-      // Only proceed if user is authenticated
-      if (!_userDataManager.isAuthenticated) {
-        debugPrint('FavoritesService: No authenticated user, initializing with empty data');
-        _favoriteSymbols = [];
-        _usageHistory = [];
-        _isInitialized = true;
-        return;
-      }
-      
-      // Try to load data with aggressive error handling
-      try {
-        await _loadFavorites();
-      } catch (e) {
-        debugPrint('FavoritesService: Error loading favorites, clearing data: $e');
-        await _clearAllData();
-      }
-      
-      try {
-        await _loadHistory();
-      } catch (e) {
-        debugPrint('FavoritesService: Error loading history, clearing data: $e');
-        await _clearHistoryData();
-      }
-      
+      AACLogger.info('FavoritesService: Initializing with UID: $uid', tag: 'FavoritesService');
+      _currentUid = uid;
+      _userDataManager = userDataManager;
+
+      await _loadFavorites();
+      await _loadHistory();
+
       _isInitialized = true;
-      debugPrint('FavoritesService: Initialized successfully for user: ${_userDataManager.currentUserId}');
-    } catch (e) {
-      debugPrint('FavoritesService: Initialization error: $e');
-      // Initialize with empty data if everything fails
+      AACLogger.info('FavoritesService: Initialized successfully for UID: $uid', tag: 'FavoritesService');
+    } catch (e, stacktrace) {
+      AACLogger.error('FavoritesService: Initialization failed: $e', stackTrace: stacktrace, tag: 'FavoritesService');
       _favoriteSymbols = [];
       _usageHistory = [];
-      _isInitialized = true;
+      _isInitialized = true; // Initialize to prevent crashes, but with empty data.
     }
   }
-  
-  /// Load favorites from storage using Firebase UID
+
+  /// Load favorites from storage.
   Future<void> _loadFavorites() async {
-    if (!_userDataManager.isAuthenticated) return;
-    
     try {
-      final favoritesBox = await _userDataManager.getFavoritesBox();
-      final favoritesData = favoritesBox.get(_favoritesKey);
-      
-      if (favoritesData != null) {
-        _favoriteSymbols = (favoritesData as List<dynamic>)
-            .map((data) => Symbol.fromJson(Map<String, dynamic>.from(data)))
-            .toList();
+      final cloudFavorites = await _userDataManager.getCloudData(_favoritesKey);
+      if (cloudFavorites != null && cloudFavorites is List) {
+        _favoriteSymbols = cloudFavorites.map((data) => Symbol.fromJson(Map<String, dynamic>.from(data))).toList();
+        await _saveFavoritesToLocal();
+        AACLogger.info('FavoritesService: Loaded ${_favoriteSymbols.length} favorites from cloud.', tag: 'FavoritesService');
+      } else {
+        final localBox = await _userDataManager.getFavoritesBox();
+        final localData = localBox.get(_favoritesKey);
+        if (localData != null) {
+          _favoriteSymbols = (localData as List<dynamic>).map((data) => Symbol.fromJson(Map<String, dynamic>.from(data))).toList();
+          AACLogger.info('FavoritesService: Loaded ${_favoriteSymbols.length} favorites from local Hive.', tag: 'FavoritesService');
+        }
       }
-      _favoritesController.add(_favoriteSymbols);
     } catch (e) {
-      debugPrint('Error loading favorites: $e');
+      AACLogger.error('FavoritesService: Error loading favorites: $e', tag: 'FavoritesService');
       _favoriteSymbols = [];
+    } finally {
+      _favoritesController.add(_favoriteSymbols);
     }
   }
-  
-  /// Load history from storage using Firebase UID
+
+  /// Load history from storage.
   Future<void> _loadHistory() async {
-    if (!_userDataManager.isAuthenticated) return;
-    
     try {
-      final favoritesBox = await _userDataManager.getFavoritesBox();
-      final historyData = favoritesBox.get(_historyKey);
-      
-      if (historyData != null) {
-        // Limit to maximum 50 items for better performance
-        final limitedData = (historyData as List<dynamic>).take(50).toList();
-        
-        _usageHistory = limitedData
-            .map((data) => HistoryItem.fromJson(Map<String, dynamic>.from(data)))
-            .toList();
-        
-        // Sort by timestamp (most recent first)
-        _usageHistory.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      final cloudHistory = await _userDataManager.getCloudData(_historyKey);
+      if (cloudHistory != null && cloudHistory is List) {
+        _usageHistory = cloudHistory.map((data) => HistoryItem.fromJson(Map<String, dynamic>.from(data))).toList();
+        await _saveHistoryToLocal();
+        AACLogger.info('FavoritesService: Loaded ${_usageHistory.length} history items from cloud.', tag: 'FavoritesService');
+      } else {
+        final localBox = await _userDataManager.getFavoritesBox();
+        final localData = localBox.get(_historyKey);
+        if (localData != null) {
+          _usageHistory = (localData as List<dynamic>).map((data) => HistoryItem.fromJson(Map<String, dynamic>.from(data))).toList();
+          AACLogger.info('FavoritesService: Loaded ${_usageHistory.length} history items from local Hive.', tag: 'FavoritesService');
+        }
       }
-      _historyController.add(_usageHistory);
     } catch (e) {
-      debugPrint('Error loading history: $e');
+      AACLogger.error('FavoritesService: Error loading history: $e', tag: 'FavoritesService');
       _usageHistory = [];
-      await _clearHistoryData();
+    } finally {
+      _usageHistory.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      _historyController.add(_usageHistory);
     }
   }
   
   /// Add symbol to favorites
   Future<void> addToFavorites(Symbol symbol) async {
     if (!_isInitialized) {
-      debugPrint('FavoritesService not initialized, cannot add to favorites');
+      AACLogger.warning('FavoritesService not initialized, cannot add to favorites.', tag: 'FavoritesService');
       return;
     }
-    
     try {
-      debugPrint('AddToFavorites: Attempting to add symbol ${symbol.label} (ID: ${symbol.id})');
-      
-      // Check if already in favorites (handle null ids)
-      bool isAlreadyFavorite = false;
-      if (symbol.id != null) {
-        isAlreadyFavorite = _favoriteSymbols.any((fav) => fav.id == symbol.id);
-        debugPrint('AddToFavorites: Checking by ID - Already favorite: $isAlreadyFavorite');
-      } else {
-        // Fallback for symbols without IDs: match by label and category
-        isAlreadyFavorite = _favoriteSymbols.any((fav) => 
-          fav.label == symbol.label && fav.category == symbol.category);
-        debugPrint('AddToFavorites: Checking by label+category (NO ID) - Already favorite: $isAlreadyFavorite');
-        debugPrint('WARNING: Adding symbol without ID to favorites: ${symbol.label}');
-      }
-      
-      if (isAlreadyFavorite) {
-        debugPrint('AddToFavorites: Symbol ${symbol.label} is already in favorites, skipping');
-        return; // Already in favorites
-      }
-      
-      _favoriteSymbols.add(symbol);
-      debugPrint('AddToFavorites: Successfully added ${symbol.label} to favorites list');
-      
-      await _saveFavorites();
-      _favoritesController.add(_favoriteSymbols);
-      notifyListeners();
-      
-      debugPrint('Added to favorites: ${symbol.label}');
-    } catch (e) {
-      debugPrint('Error adding to favorites: $e');
-    }
-  }
-  
-  /// Remove symbol from favorites
-  Future<void> removeFromFavorites(Symbol symbol) async {
-    if (!_isInitialized) {
-      debugPrint('FavoritesService: Not initialized, cannot remove');
-      return;
-    }
-    
-    try {
-      debugPrint('Attempting to remove symbol: ${symbol.label}, ID: ${symbol.id}');
-      debugPrint('Current favorites count: ${_favoriteSymbols.length}');
-      
-      if (symbol.id != null) {
-        final initialCount = _favoriteSymbols.length;
-        _favoriteSymbols.removeWhere((fav) => fav.id == symbol.id);
-        final newCount = _favoriteSymbols.length;
-        
-        debugPrint('Removed ${initialCount - newCount} items. New count: $newCount');
-        
+      // Avoid duplicates
+      if (!isFavorite(symbol)) {
+        _favoriteSymbols.add(symbol);
         await _saveFavorites();
-        _favoritesController.add(_favoriteSymbols);
-        notifyListeners();
-        
-        debugPrint('Successfully removed from favorites: ${symbol.label}');
-      } else {
-        // Fallback: try to match by label and category if ID is null
-        debugPrint('Symbol ID is null, trying to match by label and category');
-        final initialCount = _favoriteSymbols.length;
-        _favoriteSymbols.removeWhere((fav) => 
-          fav.label == symbol.label && fav.category == symbol.category);
-        final newCount = _favoriteSymbols.length;
-        
-        debugPrint('Removed ${initialCount - newCount} items by label/category match. New count: $newCount');
-        
-        if (newCount < initialCount) {
-          await _saveFavorites();
-          _favoritesController.add(_favoriteSymbols);
-          notifyListeners();
-          debugPrint('Successfully removed from favorites: ${symbol.label}');
-        }
+        // Notify only about this specific symbol change
+        _symbolChangedController.add(symbol);
+        AACLogger.info('Added ${symbol.label} to favorites.', tag: 'FavoritesService');
       }
     } catch (e) {
-      debugPrint('Error removing from favorites: $e');
-    }
-  }
-  
-  /// Check if symbol is in favorites
-  bool isFavorite(Symbol symbol) {
-    if (!_isInitialized) {
-      // Only log this once per session to avoid spam
-      return false;
-    }
-    
-    if (symbol.id != null) {
-      final result = _favoriteSymbols.any((fav) => fav.id == symbol.id);
-      return result;
-    } else {
-      // Fallback for symbols without IDs: match by label and category
-      final result = _favoriteSymbols.any((fav) => 
-        fav.label == symbol.label && fav.category == symbol.category);
-      
-      // Only log warning for fallback matches to avoid spam
-      if (result) {
-        debugPrint('WARNING: Symbol ${symbol.label} matched as favorite using fallback method (no ID). This could cause false positives.');
-      }
-      
-      return result;
-    }
-  }
-  
-  /// Record symbol usage in history
-  Future<void> recordUsage(Symbol symbol, {String? action}) async {
-    if (!_isInitialized) return;
-    
-    try {
-      final historyItem = HistoryItem(
-        symbol: symbol,
-        timestamp: DateTime.now(),
-        action: action ?? 'played',
-      );
-      
-      // Add to beginning of list (most recent first)
-      _usageHistory.insert(0, historyItem);
-      
-      // Keep only last 50 items to prevent data bloat
-      if (_usageHistory.length > 50) {
-        _usageHistory = _usageHistory.take(50).toList();
-      }
-      
-      await _saveHistory();
-      _historyController.add(_usageHistory);
-      notifyListeners();
-      
-      debugPrint('Recorded usage: ${symbol.label} - $action');
-    } catch (e) {
-      debugPrint('Error recording usage: $e');
-    }
-  }
-  
-  /// Get recent history items
-  List<HistoryItem> getRecentHistory({int limit = 20}) {
-    return _usageHistory.take(limit).toList();
-  }
-  
-  /// Clear all favorites
-  Future<void> clearFavorites() async {
-    if (!_isInitialized) return;
-    
-    try {
-      _favoriteSymbols.clear();
-      await _saveFavorites();
-      _favoritesController.add(_favoriteSymbols);
-      notifyListeners();
-      
-      debugPrint('Cleared all favorites');
-    } catch (e) {
-      debugPrint('Error clearing favorites: $e');
-    }
-  }
-  
-  /// Clear all history
-  Future<void> clearHistory() async {
-    if (!_isInitialized) return;
-    
-    try {
-      _usageHistory.clear();
-      await _saveHistory();
-      _historyController.add(_usageHistory);
-      notifyListeners();
-      
-      debugPrint('Cleared all history');
-    } catch (e) {
-      debugPrint('Error clearing history: $e');
-    }
-  }
-  
-  /// Save favorites to storage using Firebase UID
-  Future<void> _saveFavorites() async {
-    if (!_userDataManager.isAuthenticated) return;
-    
-    try {
-      final favoritesBox = await _userDataManager.getFavoritesBox();
-      final favoritesData = _favoriteSymbols.map((symbol) => symbol.toJson()).toList();
-      await favoritesBox.put(_favoritesKey, favoritesData);
-      
-      // Also sync to cloud
-      await _userDataManager.setCloudData('favorites', favoritesData);
-    } catch (e) {
-      debugPrint('Error saving favorites: $e');
-    }
-  }
-  
-  /// Save history to storage using Firebase UID
-  Future<void> _saveHistory() async {
-    if (!_userDataManager.isAuthenticated) return;
-    
-    try {
-      final favoritesBox = await _userDataManager.getFavoritesBox();
-      final historyData = _usageHistory.map((item) => item.toJson()).toList();
-      await favoritesBox.put(_historyKey, historyData);
-      
-      // Also sync to cloud
-      await _userDataManager.setCloudData('favorites_history', historyData);
-    } catch (e) {
-      debugPrint('Error saving history: $e');
-    }
-  }
-  
-  /// Clear all data (internal helper)
-  Future<void> _clearAllData() async {
-    if (!_userDataManager.isAuthenticated) return;
-    
-    try {
-      final favoritesBox = await _userDataManager.getFavoritesBox();
-      await favoritesBox.delete(_favoritesKey);
-      await favoritesBox.delete(_historyKey);
-      _favoriteSymbols = [];
-      _usageHistory = [];
-      _favoritesController.add(_favoriteSymbols);
-      _historyController.add(_usageHistory);
-    } catch (e) {
-      debugPrint('Error clearing all data: $e');
-    }
-  }
-  
-  /// Clear history data (internal helper)
-  Future<void> _clearHistoryData() async {
-    if (!_userDataManager.isAuthenticated) return;
-    
-    try {
-      final favoritesBox = await _userDataManager.getFavoritesBox();
-      await favoritesBox.delete(_historyKey);
-      _usageHistory = [];
-      _historyController.add(_usageHistory);
-    } catch (e) {
-      debugPrint('Error clearing history data: $e');
+      AACLogger.error('Error adding to favorites: $e', tag: 'FavoritesService');
     }
   }
 
-  @override
+  /// Remove symbol from favorites
+  Future<void> removeFromFavorites(Symbol symbol) async {
+    if (!_isInitialized) {
+      AACLogger.warning('FavoritesService not initialized, cannot remove from favorites.', tag: 'FavoritesService');
+      return;
+    }
+    try {
+      final initialLength = _favoriteSymbols.length;
+      _favoriteSymbols.removeWhere((fav) => 
+        (fav.id != null && symbol.id != null && fav.id == symbol.id) ||
+        ((fav.id == null || symbol.id == null) && fav.label == symbol.label)
+      );
+      final wasRemoved = _favoriteSymbols.length < initialLength;
+      
+      if (wasRemoved) {
+        await _saveFavorites();
+        // Notify only about this specific symbol change
+        _symbolChangedController.add(symbol);
+        AACLogger.info('Removed ${symbol.label} from favorites.', tag: 'FavoritesService');
+      }
+    } catch (e) {
+      AACLogger.error('Error removing from favorites: $e', tag: 'FavoritesService');
+    }
+  }
+
+  /// Check if a symbol is a favorite
+  bool isFavorite(Symbol symbol) {
+    if (!_isInitialized) return false;
+    return _favoriteSymbols.any((fav) => 
+      (fav.id != null && symbol.id != null && fav.id == symbol.id) ||
+      ((fav.id == null || symbol.id == null) && fav.label == symbol.label)
+    );
+  }
+
+  /// Add an item to the usage history, now with a required action.
+  Future<void> recordUsage(Symbol symbol, {required String action}) async {
+    if (!_isInitialized) {
+      AACLogger.warning('FavoritesService not initialized, cannot record usage.', tag: 'FavoritesService');
+      return;
+    }
+    try {
+      final historyItem = HistoryItem(symbol: symbol, timestamp: DateTime.now(), action: action);
+      _usageHistory.insert(0, historyItem);
+      // Keep history trimmed to 50 items
+      if (_usageHistory.length > 50) {
+        _usageHistory = _usageHistory.sublist(0, 50);
+      }
+      await _saveHistory();
+      AACLogger.info('Recorded usage of ${symbol.label} with action: $action.', tag: 'FavoritesService');
+    } catch (e) {
+      AACLogger.error('Error recording usage: $e', tag: 'FavoritesService');
+    }
+  }
+
+  /// Clears all favorite symbols.
+  Future<void> clearFavorites() async {
+    if (!_isInitialized) return;
+    _favoriteSymbols.clear();
+    await _saveFavorites();
+    AACLogger.info('All favorites cleared.', tag: 'FavoritesService');
+  }
+
+  /// Clears the entire usage history.
+  Future<void> clearHistory() async {
+    if (!_isInitialized) return;
+    _usageHistory.clear();
+    await _saveHistory();
+    AACLogger.info('Usage history cleared.', tag: 'FavoritesService');
+  }
+
+  /// Save favorites to both local and cloud storage.
+  Future<void> _saveFavorites() async {
+    // Broadcast updated favorites list for components that need the full list
+    _favoritesController.add(_favoriteSymbols);
+    await _saveFavoritesToLocal();
+    await _userDataManager.setCloudData(_favoritesKey, _favoriteSymbols.map((s) => s.toJson()).toList());
+  }
+
+  Future<void> _saveFavoritesToLocal() async {
+    final box = await _userDataManager.getFavoritesBox();
+    await box.put(_favoritesKey, _favoriteSymbols.map((s) => s.toJson()).toList());
+  }
+
+  /// Save history to both local and cloud storage.
+  Future<void> _saveHistory() async {
+    _historyController.add(_usageHistory);
+    await _saveHistoryToLocal();
+    await _userDataManager.setCloudData(_historyKey, _usageHistory.map((h) => h.toJson()).toList());
+  }
+
+  Future<void> _saveHistoryToLocal() async {
+    final box = await _userDataManager.getFavoritesBox();
+    await box.put(_historyKey, _usageHistory.map((h) => h.toJson()).toList());
+  }
+
+  /// Sync from cloud to local (useful after login or when data changes elsewhere)
+  Future<void> syncFromCloud() async {
+    if (!_isInitialized) return;
+    
+    try {
+      await _loadFavorites();
+      await _loadHistory();
+      AACLogger.info('FavoritesService: Synced from cloud.', tag: 'FavoritesService');
+    } catch (e) {
+      AACLogger.error('FavoritesService: Error syncing from cloud: $e', tag: 'FavoritesService');
+    }
+  }
+
+  /// Dispose the service and close streams.
   void dispose() {
     _favoritesController.close();
     _historyController.close();
+    _symbolChangedController.close();
+    _isInitialized = false;
+    AACLogger.info('FavoritesService disposed.', tag: 'FavoritesService');
     super.dispose();
   }
 }
 
-/// History item model
 class HistoryItem {
   final Symbol symbol;
   final DateTime timestamp;
