@@ -4,6 +4,7 @@ import '../models/symbol.dart'; // Category is defined in symbol.dart
 import '../utils/aac_logger.dart';
 import 'user_data_manager.dart';
 import 'shared_resource_service.dart';
+import 'user_profile_service.dart';
 
 /// Service for managing custom categories with Firebase UID isolation
 /// Uses the correct Firebase structure: user_custom_symbols/{uid}/custom_categories
@@ -45,32 +46,64 @@ class CustomCategoriesService {
     }
   }
 
-  /// Load custom categories from storage
+  /// Load custom categories from storage - prioritize Hive first, then sync with Firebase
   Future<void> _loadCustomCategories() async {
+    bool dataLoadedFromHive = false;
+    
     try {
-      // Load directly from SharedResourceService which uses the correct Firebase structure
-      AACLogger.info('CustomCategoriesService: Loading categories from user_custom_symbols/{uid}/custom_categories', tag: 'CustomCategoriesService');
-      _customCategories = await SharedResourceService.getUserCustomCategories(_currentUid!);
+      // STEP 1: Load from local Hive storage first (faster, works offline)
+      AACLogger.info('CustomCategoriesService: Loading categories from local Hive storage first...', tag: 'CustomCategoriesService');
+      final localBox = await _userDataManager!.getCustomCategoriesBox();
+      final localData = localBox.get(_customCategoriesKey);
       
-      // Save to local storage for offline access
-      await _saveToLocal();
-      AACLogger.info('CustomCategoriesService: Loaded ${_customCategories.length} categories from Firebase and cached locally.', tag: 'CustomCategoriesService');
+      if (localData != null && localData is List && localData.isNotEmpty) {
+        _customCategories = localData.map((data) => Category.fromJson(Map<String, dynamic>.from(data))).toList();
+        dataLoadedFromHive = true;
+        AACLogger.info('CustomCategoriesService: Loaded ${_customCategories.length} categories from local Hive storage.', tag: 'CustomCategoriesService');
+      } else {
+        AACLogger.info('CustomCategoriesService: No local data found, will try Firebase...', tag: 'CustomCategoriesService');
+      }
+      
+      // STEP 2: Sync with Firebase in background (for new device or updates)
+      try {
+        AACLogger.info('CustomCategoriesService: Syncing with Firebase...', tag: 'CustomCategoriesService');
+        final firebaseCategories = await SharedResourceService.getUserCustomCategories(_currentUid!);
+        
+        if (firebaseCategories.isNotEmpty) {
+          if (!dataLoadedFromHive) {
+            // No local data, use Firebase data
+            _customCategories = firebaseCategories;
+            await _saveToLocal(); // Cache Firebase data locally
+            AACLogger.info('CustomCategoriesService: Loaded ${_customCategories.length} categories from Firebase (new device).', tag: 'CustomCategoriesService');
+          } else {
+            // We have local data, check if Firebase has newer data
+            if (firebaseCategories.length != _customCategories.length) {
+              AACLogger.info('CustomCategoriesService: Firebase has different data, merging...', tag: 'CustomCategoriesService');
+              // Simple merge: add any Firebase categories not in local storage
+              for (final fbCategory in firebaseCategories) {
+                if (!_customCategories.any((local) => local.id == fbCategory.id)) {
+                  _customCategories.add(fbCategory);
+                  AACLogger.info('CustomCategoriesService: Added category from Firebase: ${fbCategory.name}', tag: 'CustomCategoriesService');
+                }
+              }
+              await _saveToLocal(); // Save merged data
+            }
+          }
+        } else if (!dataLoadedFromHive) {
+          // No data anywhere, start with empty list
+          _customCategories = [];
+          AACLogger.info('CustomCategoriesService: No data found in Hive or Firebase, starting fresh.', tag: 'CustomCategoriesService');
+        }
+      } catch (firebaseError) {
+        AACLogger.warning('CustomCategoriesService: Firebase sync failed, using local data only: $firebaseError', tag: 'CustomCategoriesService');
+        if (!dataLoadedFromHive) {
+          _customCategories = [];
+        }
+      }
       
     } catch (e) {
-      AACLogger.error('CustomCategoriesService: Error loading from Firebase, trying local storage: $e', tag: 'CustomCategoriesService');
-      
-      // Fallback to local storage if Firebase fails
-      try {
-        final localBox = await _userDataManager!.getCustomCategoriesBox();
-        final localData = localBox.get(_customCategoriesKey);
-        if (localData != null && localData is List) {
-          _customCategories = localData.map((data) => Category.fromJson(Map<String, dynamic>.from(data))).toList();
-          AACLogger.info('CustomCategoriesService: Loaded ${_customCategories.length} categories from local Hive fallback.', tag: 'CustomCategoriesService');
-        }
-      } catch (localError) {
-        AACLogger.error('CustomCategoriesService: Failed to load from local storage: $localError', tag: 'CustomCategoriesService');
-        _customCategories = [];
-      }
+      AACLogger.error('CustomCategoriesService: Error during category loading: $e', tag: 'CustomCategoriesService');
+      _customCategories = [];
     } finally {
       _categoriesController.add(_customCategories);
     }
@@ -86,15 +119,27 @@ class CustomCategoriesService {
     try {
       // Avoid duplicates
       if (!_customCategories.any((c) => c.id == category.id)) {
-        // Use SharedResourceService to add to correct Firebase structure
-        final createdCategory = await SharedResourceService.addUserCustomCategory(_currentUid!, category);
+        // STEP 1: Add to local storage immediately for instant UI update
+        _customCategories.add(category);
+        await _saveToLocal();
+        _categoriesController.add(_customCategories);
+        AACLogger.info('CustomCategoriesService: Added category ${category.name} to local storage', tag: 'CustomCategoriesService');
         
-        if (createdCategory != null) {
-          _customCategories.add(createdCategory);
-          await _saveCustomCategories();
-          AACLogger.info('CustomCategoriesService: Added category ${createdCategory.name} with ID: ${createdCategory.id}', tag: 'CustomCategoriesService');
-        } else {
-          AACLogger.error('CustomCategoriesService: Failed to create category ${category.name}', tag: 'CustomCategoriesService');
+        // STEP 2: Save to Firebase in background
+        try {
+          final createdCategory = await SharedResourceService.addUserCustomCategory(_currentUid!, category);
+          if (createdCategory != null) {
+            // Update local category with any server-side changes (like updated timestamps)
+            final index = _customCategories.indexWhere((c) => c.id == category.id);
+            if (index != -1) {
+              _customCategories[index] = createdCategory;
+              await _saveToLocal();
+            }
+            AACLogger.info('CustomCategoriesService: Successfully synced category ${createdCategory.name} to Firebase', tag: 'CustomCategoriesService');
+          }
+        } catch (firebaseError) {
+          AACLogger.warning('CustomCategoriesService: Failed to sync category to Firebase, keeping local copy: $firebaseError', tag: 'CustomCategoriesService');
+          // Category is still saved locally, so user can use it
         }
       }
     } catch (e) {
@@ -110,13 +155,20 @@ class CustomCategoriesService {
     }
     
     try {
-      // Remove from Firebase first
-      await SharedResourceService.deleteUserCustomCategory(_currentUid!, categoryId);
-      
-      // Remove from local list
+      // STEP 1: Remove from local storage immediately for instant UI update
       _customCategories.removeWhere((c) => c.id == categoryId);
-      await _saveCustomCategories();
-      AACLogger.info('CustomCategoriesService: Removed category $categoryId', tag: 'CustomCategoriesService');
+      await _saveToLocal();
+      _categoriesController.add(_customCategories);
+      AACLogger.info('CustomCategoriesService: Removed category $categoryId from local storage', tag: 'CustomCategoriesService');
+      
+      // STEP 2: Remove from Firebase in background
+      try {
+        await SharedResourceService.deleteUserCustomCategory(_currentUid!, categoryId);
+        AACLogger.info('CustomCategoriesService: Successfully removed category $categoryId from Firebase', tag: 'CustomCategoriesService');
+      } catch (firebaseError) {
+        AACLogger.warning('CustomCategoriesService: Failed to remove category from Firebase: $firebaseError', tag: 'CustomCategoriesService');
+        // Category is still removed locally, which is what user sees
+      }
     } catch (e) {
       AACLogger.error('CustomCategoriesService: Error removing category: $e', tag: 'CustomCategoriesService');
     }
