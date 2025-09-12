@@ -156,8 +156,11 @@ class DataServicesInitializer {
     AACLogger.info('🔄 Resetting all data services...');
     if (!_isInitialized) return;
     
+    // Dispose services but DON'T clear their local data
     favoritesService?.dispose();
-    // Reset all services
+    _customCategoriesService?.dispose();
+    
+    // Reset service references (but Hive data remains intact)
     _userDataManager = null;
     _favoritesService = null;
     _phraseHistoryService = null;
@@ -165,7 +168,7 @@ class DataServicesInitializer {
     _customCategoriesService = null;
     _isInitialized = false;
     _currentUid = null;
-    AACLogger.info('✅ All data services have been reset.');
+    AACLogger.info('✅ All data services have been reset (Hive data preserved).');
   }
 
   /// Trigger a sync of all user data from Firebase to local storage
