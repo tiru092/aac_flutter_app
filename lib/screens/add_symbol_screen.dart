@@ -9,6 +9,8 @@ import '../utils/aac_helper.dart';
 import '../utils/sample_data.dart';
 import '../services/user_profile_service.dart';
 import '../services/user_data_service.dart';  // NEW: Add user data service for local storage
+import '../services/data_services_initializer_robust.dart';
+import '../services/custom_categories_service.dart';
 
 class AddSymbolScreen extends StatefulWidget {
   const AddSymbolScreen({super.key});
@@ -29,21 +31,31 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
   List<Category> _categories = [];
   List<Category> _customCategories = [];
   bool _isCreatingCustomCategory = false;
+  
+  // Access to CustomCategoriesService
+  CustomCategoriesService? _customCategoriesService;
 
   @override
   void initState() {
     super.initState();
     _categories = SampleData.getSampleCategories();
+    _customCategoriesService = DataServicesInitializer.instance.customCategoriesService;
     _loadCustomCategories();
   }
 
   void _loadCustomCategories() async {
-    // Load user-specific categories from their profile
-    final userCategories = await UserProfileService.getUserCategories();
-    
-    setState(() {
-      _customCategories = userCategories;
-    });
+    // Load user-specific categories from CustomCategoriesService (Firebase synced)
+    if (_customCategoriesService != null && _customCategoriesService!.isInitialized) {
+      setState(() {
+        _customCategories = _customCategoriesService!.customCategories;
+      });
+    } else {
+      // Fallback to user profile if service not available
+      final userCategories = await UserProfileService.getUserCategories();
+      setState(() {
+        _customCategories = userCategories;
+      });
+    }
   }
 
   @override
@@ -754,7 +766,7 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
     );
   }
 
-  void _createCustomCategory(String name) {
+  void _createCustomCategory(String name) async {
     // Check if category already exists
     final allCategories = [..._categories, ..._customCategories];
     final exists = allCategories.any((cat) => cat.name.toLowerCase() == name.toLowerCase());
@@ -783,13 +795,29 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
       colorCode: randomColor,
     );
 
-    setState(() {
-      _customCategories.add(newCategory);
-      _selectedCategory = name; // Auto-select the new category
-    });
-
-    // In a real app, save to database/storage
-    _saveCustomCategories();
+    // Use CustomCategoriesService to save properly
+    if (_customCategoriesService != null && _customCategoriesService!.isInitialized) {
+      await _customCategoriesService!.addCustomCategory(newCategory);
+      
+      // The service will update via stream, but update local state immediately for UI responsiveness
+      setState(() {
+        _selectedCategory = name; // Auto-select the new category
+      });
+      
+      // Refresh local categories list from service
+      _loadCustomCategories();
+    } else {
+      // Fallback to old method if service not available
+      await UserProfileService.addCategoryToActiveProfile(newCategory);
+      await AACHelper.addCategory(newCategory);
+      
+      // Refresh categories
+      _loadCustomCategories();
+      
+      setState(() {
+        _selectedCategory = name; // Auto-select the new category
+      });
+    }
 
     // Show success message
     AACHelper.speak('Custom category $name created successfully');
@@ -811,18 +839,37 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
           CupertinoDialogAction(
             isDestructiveAction: true,
             child: const Text('Delete'),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              setState(() {
-                _customCategories.remove(category);
-                // If the deleted category was selected, select the first default category
-                if (_selectedCategory == category.name) {
-                  _selectedCategory = _categories.first.name;
-                }
-              });
               
-              // Save the updated custom categories list
-              _saveUpdatedCustomCategories();
+              // Use CustomCategoriesService to delete properly
+              if (_customCategoriesService != null && _customCategoriesService!.isInitialized) {
+                await _customCategoriesService!.removeCustomCategory(category.id!);
+                
+                // Update local state immediately for UI responsiveness
+                setState(() {
+                  // If the deleted category was selected, select the first default category
+                  if (_selectedCategory == category.name) {
+                    _selectedCategory = _categories.first.name;
+                  }
+                });
+                
+                // Refresh local categories list from service
+                _loadCustomCategories();
+              } else {
+                // Fallback to old method if service not available
+                _saveUpdatedCustomCategories();
+                
+                setState(() {
+                  // If the deleted category was selected, select the first default category
+                  if (_selectedCategory == category.name) {
+                    _selectedCategory = _categories.first.name;
+                  }
+                });
+                
+                // Refresh categories
+                _loadCustomCategories();
+              }
               
               AACHelper.speak('Category ${category.name} deleted');
             },
@@ -832,32 +879,27 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
     );
   }
 
-  void _saveCustomCategories() async {
-    // Only save the newly added category (the last one in the list)
-    // This prevents duplication of existing categories
-    if (_customCategories.isNotEmpty) {
-      final newCategory = _customCategories.last;
-      await UserProfileService.addCategoryToActiveProfile(newCategory);
-      // Also save to local database for immediate access
-      await AACHelper.addCategory(newCategory);
-    }
-  }
   
   void _saveUpdatedCustomCategories() async {
     // Save all custom categories (used when deleting categories)
-    // First clear existing custom categories from profile
-    final profile = await UserProfileService.getActiveProfile();
-    if (profile != null) {
-      final updatedProfile = profile.copyWith(
-        userCategories: [..._customCategories],
-        lastActiveAt: DateTime.now(),
-      );
-      await UserProfileService.saveUserProfile(updatedProfile);
-      
-      // Also update local database
-      await AACHelper.clearCustomCategories();
-      for (final category in _customCategories) {
-        await AACHelper.addCategory(category);
+    if (_customCategoriesService != null && _customCategoriesService!.isInitialized) {
+      // CustomCategoriesService handles updates automatically via stream
+      // No additional action needed as the list is already updated in setState
+    } else {
+      // Fallback to UserProfile
+      final profile = await UserProfileService.getActiveProfile();
+      if (profile != null) {
+        final updatedProfile = profile.copyWith(
+          userCategories: [..._customCategories],
+          lastActiveAt: DateTime.now(),
+        );
+        await UserProfileService.saveUserProfile(updatedProfile);
+        
+        // Also update local database
+        await AACHelper.clearCustomCategories();
+        for (final category in _customCategories) {
+          await AACHelper.addCategory(category);
+        }
       }
     }
   }

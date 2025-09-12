@@ -24,17 +24,17 @@ class EnhancedHomeScreenDataLoader {
       final allSymbols = results[0] as List<Symbol>;
       final allCategories = results[1] as List<Category>;
       
-      // Separate custom categories for UI
+      // Simple approach - get custom categories from user profile
       final customCategories = allCategories.where((cat) => !cat.isDefault).toList();
       
-      AACLogger.info('Loaded ${allSymbols.length} symbols and ${allCategories.length} categories', tag: 'HomeScreenDataLoader');
+      AACLogger.info('Loaded ${allSymbols.length} symbols, ${allCategories.length} categories, and ${customCategories.length} custom categories', tag: 'HomeScreenDataLoader');
       
       return {
         'success': true,
         'allSymbols': allSymbols,
         'categories': allCategories,
         'customCategories': customCategories,
-        'message': 'Data loaded successfully using shared architecture',
+        'message': 'Data loaded successfully using simple approach',
       };
       
     } catch (e) {
@@ -105,7 +105,7 @@ class EnhancedHomeScreenDataLoader {
     }
   }
   
-  /// Add custom category using new architecture
+  /// Add custom category using simple approach
   static Future<bool> addCustomCategory(Category category, {String? iconPath}) async {
     try {
       AACLogger.info('Adding custom category: ${category.name}', tag: 'HomeScreenDataLoader');

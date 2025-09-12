@@ -31,6 +31,9 @@ class Symbol extends HiveObject {
   @HiveField(8)
   int? colorCode;
 
+  @HiveField(9)
+  DateTime lastModified;
+
   Symbol({
     this.id,
     required this.label,
@@ -41,7 +44,9 @@ class Symbol extends HiveObject {
     this.description,
     this.speechText,
     this.colorCode,
-  }) : dateCreated = dateCreated ?? DateTime.now();
+    DateTime? lastModified,
+  }) : dateCreated = dateCreated ?? DateTime.now(),
+       lastModified = lastModified ?? DateTime.now();
 
   // Copy constructor for editing
   Symbol copyWith({
@@ -54,6 +59,7 @@ class Symbol extends HiveObject {
     String? description,
     String? speechText,
     int? colorCode,
+    DateTime? lastModified,
   }) {
     return Symbol(
       id: id ?? this.id,
@@ -65,6 +71,7 @@ class Symbol extends HiveObject {
       description: description ?? this.description,
       speechText: speechText ?? this.speechText,
       colorCode: colorCode ?? this.colorCode,
+      lastModified: lastModified ?? this.lastModified,
     );
   }
 
@@ -72,6 +79,23 @@ class Symbol extends HiveObject {
   String toString() {
     return 'Symbol(label: $label, category: $category, imagePath: $imagePath)';
   }
+  
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! Symbol) return false;
+    
+    // If both have IDs, compare by ID
+    if (id != null && other.id != null) {
+      return id == other.id;
+    }
+    
+    // If no IDs, compare by label and category
+    return label == other.label && category == other.category;
+  }
+  
+  @override
+  int get hashCode => id?.hashCode ?? (label.hashCode ^ category.hashCode);
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -83,6 +107,7 @@ class Symbol extends HiveObject {
     'description': description,
     'speechText': speechText,
     'colorCode': colorCode,
+    'lastModified': lastModified.toIso8601String(),
   };
 
   factory Symbol.fromJson(Map<String, dynamic> json) => Symbol(
@@ -95,6 +120,7 @@ class Symbol extends HiveObject {
     description: json['description'],
     speechText: json['speechText'],
     colorCode: json['colorCode'],
+    lastModified: json['lastModified'] != null ? DateTime.parse(json['lastModified']) : DateTime.now(),
   );
 }
 
@@ -118,6 +144,9 @@ class Category extends HiveObject {
   @HiveField(5)
   String? id;
 
+  @HiveField(6)
+  DateTime lastModified;
+
   Category({
     this.id,
     required this.name,
@@ -125,7 +154,9 @@ class Category extends HiveObject {
     required this.colorCode,
     DateTime? dateCreated,
     this.isDefault = false,
-  }) : dateCreated = dateCreated ?? DateTime.now();
+    DateTime? lastModified,
+  }) : dateCreated = dateCreated ?? DateTime.now(),
+       lastModified = lastModified ?? DateTime.now();
 
   Category copyWith({
     String? id,
@@ -134,6 +165,7 @@ class Category extends HiveObject {
     int? colorCode,
     DateTime? dateCreated,
     bool? isDefault,
+    DateTime? lastModified,
   }) {
     return Category(
       id: id ?? this.id,
@@ -142,6 +174,7 @@ class Category extends HiveObject {
       colorCode: colorCode ?? this.colorCode,
       dateCreated: dateCreated ?? this.dateCreated,
       isDefault: isDefault ?? this.isDefault,
+      lastModified: lastModified ?? this.lastModified,
     );
   }
 
@@ -157,6 +190,7 @@ class Category extends HiveObject {
     'colorCode': colorCode,
     'dateCreated': dateCreated.toIso8601String(),
     'isDefault': isDefault,
+    'lastModified': lastModified.toIso8601String(),
   };
 
   factory Category.fromJson(Map<String, dynamic> json) => Category(
@@ -166,6 +200,7 @@ class Category extends HiveObject {
     colorCode: json['colorCode'],
     dateCreated: DateTime.parse(json['dateCreated']),
     isDefault: json['isDefault'] ?? false,
+    lastModified: json['lastModified'] != null ? DateTime.parse(json['lastModified']) : DateTime.now(),
   );
 }
 

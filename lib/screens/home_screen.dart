@@ -28,6 +28,7 @@ import '../services/user_data_manager.dart';
 import '../services/favorites_service.dart';
 import '../services/phrase_history_service.dart';
 import '../services/settings_service.dart';
+import '../services/custom_categories_service.dart';
 import '../services/secure_encryption_service.dart';
 import '../services/aac_analytics_service.dart';
 import '../services/connectivity_service.dart';  // NEW: Add connectivity service
@@ -75,11 +76,15 @@ class _HomeScreenState extends State<HomeScreen> {
   UserDataManager? _userDataManager;
   PhraseHistoryService? _phraseHistoryService;
   SettingsService? _settingsService;
+  CustomCategoriesService? _customCategoriesService;
   
   // Speech control values
   double _speechRate = 0.3;
   double _speechPitch = 1.0;
   double _speechVolume = 1.0;
+  
+  // Stream subscriptions
+  StreamSubscription<List<Category>>? _customCategoriesSubscription;
 
   @override
   void initState() {
@@ -90,6 +95,14 @@ class _HomeScreenState extends State<HomeScreen> {
     Timer(const Duration(milliseconds: 500), () {
       _loadDataAsync();
     });
+  }
+  
+  @override
+  void dispose() {
+    // Clean up stream subscriptions
+    _customCategoriesSubscription?.cancel();
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _initializeServices() {
@@ -103,10 +116,25 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     _phraseHistoryService = services.phraseHistoryService;
     _settingsService = services.settingsService;
+    _customCategoriesService = services.customCategoriesService;
+    
+    // Set up CustomCategoriesService stream listener
+    if (_customCategoriesService != null) {
+      _customCategoriesSubscription = _customCategoriesService!.categoriesStream.listen((categories) {
+        if (mounted) {
+          setState(() {
+            _customCategories = categories;
+          });
+          debugPrint('CustomCategories updated via stream: ${categories.length} categories');
+        }
+      }, onError: (error) {
+        debugPrint('CustomCategories stream error: $error');
+      });
+    }
   }
 
   void _initializeImmediately() {
-    // Load sample data immediately - no async operations
+    // Load sample data immediately for instant UI - real data loads in background
     _allSymbols = SampleData.getSampleSymbols();
     _categories = SampleData.getSampleCategories();
     _filteredSymbols = _allSymbols; // Initialize filtered symbols
@@ -373,48 +401,78 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Load database data in background without blocking UI
+  // Load all data from enterprise SharedResourceService in background
   void _loadDatabaseDataInBackground() {
     Future.microtask(() async {
       try {
-        // Add small delays between each operation to prevent UI blocking
-        await Future.delayed(Duration(milliseconds: 100));
+        // Check if user is authenticated for enterprise data
+        final user = FirebaseAuth.instance.currentUser;
         
-        // Load profile data
-        final profile = await UserProfileService.getActiveProfile();
-        await Future.delayed(Duration(milliseconds: 50));
-        
-        // Load categories and symbols from user profile
-        final dbCategories = profile?.userCategories ?? [];
-        final dbSymbols = profile?.userSymbols ?? [];
-        await Future.delayed(Duration(milliseconds: 50));
-        
-        // Update UI with database data if available
-        if (mounted && (dbCategories.isNotEmpty || dbSymbols.isNotEmpty)) {
-          setState(() {
-            // Combine default symbols with user's custom symbols (don't replace)
-            if (dbSymbols.isNotEmpty) {
-              // Get default symbols
+        if (user != null) {
+          AACLogger.info('Loading enterprise data in background for user: ${user.email}', tag: 'HomeScreen');
+          
+          // Add small delays between each operation to prevent UI blocking
+          await Future.delayed(Duration(milliseconds: 100));
+          
+          // Load using enterprise SharedResourceService - this includes custom category symbols
+          final allSymbols = await SharedResourceService.getAllSymbolsForUser(user.uid);
+          final allCategories = await SharedResourceService.getAllCategoriesForUser(user.uid);
+          
+          await Future.delayed(Duration(milliseconds: 50));
+          
+          AACLogger.info('Background loaded ${allSymbols.length} symbols and ${allCategories.length} categories from enterprise service', tag: 'HomeScreen');
+          
+          // Update UI with enterprise data
+          if (mounted) {
+            setState(() {
+              // CRITICAL: Load ALL symbols from SharedResourceService (includes custom category symbols)
+              _allSymbols = allSymbols;
+              _categories = allCategories.where((cat) => cat.isDefault).toList(); // Default categories only
+              // Custom categories are handled separately via CustomCategoriesService stream
+            });
+            
+            AACLogger.info('Updated UI with enterprise data: ${_allSymbols.length} symbols loaded', tag: 'HomeScreen');
+          }
+        } else {
+          // Fallback for unauthenticated users - load from UserProfile
+          await Future.delayed(Duration(milliseconds: 100));
+          
+          final profile = await UserProfileService.getActiveProfile();
+          final dbSymbols = profile?.userSymbols ?? [];
+          
+          if (mounted && dbSymbols.isNotEmpty) {
+            setState(() {
+              // Combine default symbols with user's custom symbols (legacy fallback)
               final defaultSymbols = SampleData.getSampleSymbols();
-              // Filter out any user symbols that might duplicate defaults (by ID)
               final customSymbols = dbSymbols.where((userSymbol) => 
                 !defaultSymbols.any((defaultSymbol) => defaultSymbol.id == userSymbol.id)
               ).toList();
-              // Combine: defaults + custom symbols
               _allSymbols = [...defaultSymbols, ...customSymbols];
-            }
-          });
+            });
+          }
         }
         
-        // Load custom categories from user profile
+        // Load custom categories from CustomCategoriesService (Firebase synced)
         await Future.delayed(Duration(milliseconds: 50));
-        final customCategories = dbCategories.where((cat) => !cat.isDefault).toList();
-        
-        if (mounted && customCategories.isNotEmpty) {
-          setState(() {
-            _customCategories = customCategories;
-          });
-          debugPrint('Loaded ${customCategories.length} custom categories from database');
+        if (_customCategoriesService != null && _customCategoriesService!.isInitialized) {
+          final customCategories = _customCategoriesService!.customCategories;
+          if (mounted && customCategories.isNotEmpty) {
+            setState(() {
+              _customCategories = customCategories;
+            });
+            debugPrint('Loaded ${customCategories.length} custom categories from CustomCategoriesService (Firebase synced)');
+          }
+        } else {
+          // Fallback to user profile data if service not available
+          final profile = await UserProfileService.getActiveProfile();
+          final dbCategories = profile?.userCategories ?? [];
+          final customCategories = dbCategories.where((cat) => !cat.isDefault).toList();
+          if (mounted && customCategories.isNotEmpty) {
+            setState(() {
+              _customCategories = customCategories;
+            });
+            debugPrint('Fallback: Loaded ${customCategories.length} custom categories from user profile');
+          }
         }
         
       } catch (e) {
@@ -507,19 +565,54 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
   
-  // Refresh custom categories from simple Firebase structure
+  // Refresh custom categories from CustomCategoriesService (Firebase synced)
   void _refreshCustomCategories() async {
     try {
-      final profile = await UserProfileService.getActiveProfile();
-      if (profile != null && mounted) {
-        final customCategories = profile.userCategories.where((cat) => !cat.isDefault).toList();
+      if (_customCategoriesService != null && _customCategoriesService!.isInitialized && mounted) {
+        final customCategories = _customCategoriesService!.customCategories;
         setState(() {
           _customCategories = customCategories;
         });
-        debugPrint('Refreshed ${customCategories.length} custom categories from user profile');
+        debugPrint('Refreshed ${customCategories.length} custom categories from CustomCategoriesService (Firebase synced)');
+        
+        // CRITICAL: Also refresh symbols to ensure custom category symbols are loaded
+        await _refreshAllSymbols();
+      } else {
+        // Fallback to UserProfile if service not available
+        final profile = await UserProfileService.getActiveProfile();
+        if (profile != null && mounted) {
+          final customCategories = profile.userCategories.where((cat) => !cat.isDefault).toList();
+          setState(() {
+            _customCategories = customCategories;
+          });
+          debugPrint('Fallback: Refreshed ${customCategories.length} custom categories from user profile');
+        }
       }
     } catch (e) {
       debugPrint('Error refreshing custom categories: $e');
+    }
+  }
+  
+  // Refresh all symbols from SharedResourceService (ensures custom category symbols are loaded)
+  Future<void> _refreshAllSymbols() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      
+      if (user != null) {
+        AACLogger.info('Refreshing all symbols from SharedResourceService for user: ${user.email}', tag: 'HomeScreen');
+        
+        final allSymbols = await SharedResourceService.getAllSymbolsForUser(user.uid);
+        
+        if (mounted) {
+          setState(() {
+            _allSymbols = allSymbols;
+          });
+          
+          AACLogger.info('Refreshed ${allSymbols.length} symbols from SharedResourceService', tag: 'HomeScreen');
+        }
+      }
+    } catch (e) {
+      AACLogger.error('Error refreshing symbols: $e', tag: 'HomeScreen');
     }
   }
   
@@ -1354,14 +1447,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                             ),
                                           );
                                           
-                                          // If user created a new symbol, add it to our symbols list
+                                          // If user created a new symbol, refresh all data from SharedResourceService
                                           if (newSymbol != null && mounted) {
-                                            setState(() {
-                                              _allSymbols.add(newSymbol);
-                                              
-                                              // Also refresh custom categories in case a new category was created
-                                              _refreshCustomCategories();
-                                            });
+                                            // CRITICAL: Don't just add to local list - refresh from SharedResourceService 
+                                            // to ensure symbols with custom categories are properly loaded
+                                            await _refreshAllSymbols();
+                                            
+                                            // Also refresh custom categories in case a new category was created
+                                            _refreshCustomCategories();
                                           }
                                         } catch (e) {
                                           _showErrorDialog('Error opening Add Symbol screen: $e');
@@ -1708,10 +1801,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                             ),
                                           );
                                           if (newSymbol != null && mounted) {
-                                            setState(() {
-                                              _allSymbols.add(newSymbol);
-                                              _refreshCustomCategories();
-                                            });
+                                            // CRITICAL: Don't just add to local list - refresh from SharedResourceService
+                                            // to ensure symbols with custom categories are properly loaded
+                                            await _refreshAllSymbols();
+                                            
+                                            // Also refresh custom categories in case a new category was created
+                                            _refreshCustomCategories();
                                           }
                                         } catch (e) {
                                           _showErrorDialog('Error opening Add Symbol screen: $e');

@@ -132,9 +132,16 @@ class CustomCategoriesService {
     try {
       final index = _customCategories.indexWhere((c) => c.id == updatedCategory.id);
       if (index != -1) {
-        _customCategories[index] = updatedCategory;
-        await _saveCustomCategories();
-        AACLogger.info('CustomCategoriesService: Updated category ${updatedCategory.name}', tag: 'CustomCategoriesService');
+        // Update in Firebase first
+        final firebaseUpdatedCategory = await SharedResourceService.updateUserCustomCategory(_currentUid!, updatedCategory);
+        
+        if (firebaseUpdatedCategory != null) {
+          _customCategories[index] = firebaseUpdatedCategory;
+          await _saveCustomCategories();
+          AACLogger.info('CustomCategoriesService: Updated category ${updatedCategory.name}', tag: 'CustomCategoriesService');
+        } else {
+          AACLogger.error('CustomCategoriesService: Failed to update category ${updatedCategory.name} in Firebase', tag: 'CustomCategoriesService');
+        }
       }
     } catch (e) {
       AACLogger.error('CustomCategoriesService: Error updating category: $e', tag: 'CustomCategoriesService');
@@ -161,7 +168,9 @@ class CustomCategoriesService {
   Future<void> _saveToLocal() async {
     try {
       final box = await _userDataManager!.getCustomCategoriesBox();
-      await box.put(_customCategoriesKey, _customCategories.map((c) => c.toJson()).toList());
+      final dataToSave = _customCategories.map((c) => c.toJson()).toList();
+      await box.put(_customCategoriesKey, dataToSave);
+      AACLogger.info('CustomCategoriesService: Saved ${_customCategories.length} categories to local storage (key: $_customCategoriesKey)', tag: 'CustomCategoriesService');
     } catch (e) {
       AACLogger.error('CustomCategoriesService: Error saving to local storage: $e', tag: 'CustomCategoriesService');
     }

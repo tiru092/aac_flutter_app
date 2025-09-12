@@ -1,6 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_wrapper_service.dart';
+import '../services/user_data_service.dart';
+import '../services/local_data_manager.dart';
+import '../services/user_profile_service.dart';
+import '../models/user_profile.dart';
 import 'sign_up_screen.dart';
 import 'home_screen.dart';
 
@@ -71,6 +75,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               );
             return;
+          }
+          
+          // Initialize data services and sync after successful login
+          try {
+            // Get the current profile from the auth wrapper
+            final userProfile = _authWrapper.currentProfile;
+            
+            if (userProfile != null) {
+              await UserDataService().onUserLogin();
+            }
+          } catch (e) {
+            debugPrint('LoginScreen: Error initializing after login: $e');
+            // Don't block navigation for data initialization errors
           }
           
           // Navigate to home screen

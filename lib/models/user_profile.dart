@@ -1,6 +1,7 @@
 import '../models/symbol.dart'; // Import the correct Symbol and Category classes
 import '../models/subscription.dart'; // Import the correct Subscription class
-import '../models/subscription.dart'; // Import PaymentTransaction
+import '../models/app_settings.dart'; // Import AppSettings
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import for Timestamp
 
 class UserProfile {
   final String id;
@@ -9,6 +10,7 @@ class UserProfile {
   final String? avatarPath;
   final DateTime createdAt;
   final ProfileSettings settings;
+  final AppSettings appSettings; // Add app settings
   final String? pin; // For caregiver role only
   final String? email;
   final String? phoneNumber;
@@ -27,6 +29,7 @@ class UserProfile {
     this.avatarPath,
     required this.createdAt,
     required this.settings,
+    AppSettings? appSettings, // Make it optional with default
     this.pin,
     this.email,
     this.phoneNumber,
@@ -37,7 +40,7 @@ class UserProfile {
     this.userSymbols = const [], // Add missing parameter
     this.userCategories = const [], // Add missing parameter
     this.paymentHistory = const [], // Add payment history
-  });
+  }) : appSettings = appSettings ?? AppSettings(); // Provide default
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -46,6 +49,7 @@ class UserProfile {
     'avatarPath': avatarPath,
     'createdAt': createdAt.toIso8601String(),
     'settings': settings.toJson(),
+    'appSettings': appSettings.toJson(), // Add app settings to JSON
     'pin': pin,
     'email': email,
     'phoneNumber': phoneNumber,
@@ -59,15 +63,20 @@ class UserProfile {
   };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
-    id: json['id'],
-    name: json['name'],
+    id: json['id'] ?? '', // Handle null id
+    name: json['name'] ?? 'User', // Handle null name with default
     role: UserRole.values.firstWhere(
       (role) => role.toString() == json['role'],
       orElse: () => UserRole.child,
     ),
     avatarPath: json['avatarPath'],
-    createdAt: DateTime.parse(json['createdAt']),
+    createdAt: json['createdAt'] != null 
+        ? _parseDateTime(json['createdAt']) 
+        : DateTime.now(), // Default to now if null
     settings: ProfileSettings.fromJson(json['settings'] ?? {}),
+    appSettings: json['appSettings'] != null // Add app settings from JSON
+        ? AppSettings.fromJson(json['appSettings'])
+        : AppSettings(), // Default if not found
     pin: json['pin'],
     email: json['email'],
     phoneNumber: json['phoneNumber'],
@@ -80,7 +89,7 @@ class UserProfile {
             json['sharedBy'].map((x) => SharedProfile.fromJson(x)))
         : [],
     lastActiveAt: json['lastActiveAt'] != null
-        ? DateTime.parse(json['lastActiveAt'])
+        ? _parseDateTime(json['lastActiveAt'])
         : null,
     subscription: json['subscription'] != null
         ? Subscription.fromJson(json['subscription'])
@@ -98,6 +107,18 @@ class UserProfile {
             json['paymentHistory'].map((x) => PaymentTransaction.fromJson(x)))
         : [],
   );
+  
+  /// Helper method to parse DateTime from either String or Timestamp
+  static DateTime _parseDateTime(dynamic dateValue) {
+    if (dateValue is String) {
+      return DateTime.parse(dateValue);
+    } else if (dateValue is Timestamp) {
+      return dateValue.toDate();
+    } else {
+      // Fallback for any other type
+      return DateTime.now();
+    }
+  }
 
   UserProfile copyWith({
     String? id,
@@ -106,6 +127,7 @@ class UserProfile {
     String? avatarPath,
     DateTime? createdAt,
     ProfileSettings? settings,
+    AppSettings? appSettings, // Add app settings parameter
     String? pin,
     String? email,
     String? phoneNumber,
@@ -123,6 +145,7 @@ class UserProfile {
     avatarPath: avatarPath ?? this.avatarPath,
     createdAt: createdAt ?? this.createdAt,
     settings: settings ?? this.settings,
+    appSettings: appSettings ?? this.appSettings, // Add app settings
     pin: pin ?? this.pin,
     email: email ?? this.email,
     phoneNumber: phoneNumber ?? this.phoneNumber,

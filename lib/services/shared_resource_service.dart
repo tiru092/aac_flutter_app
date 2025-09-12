@@ -294,6 +294,86 @@ class SharedResourceService {
     }
   }
   
+  /// Update user custom symbol
+  /// Returns the updated symbol, or null if update failed
+  static Future<Symbol?> updateUserCustomSymbol(String userUid, Symbol symbol, {String? imagePath}) async {
+    try {
+      AACLogger.info('Updating custom symbol for user $userUid: ${symbol.label}', tag: 'SharedResourceService');
+      
+      String finalImagePath = symbol.imagePath;
+      
+      // Upload new image to user-specific Firebase Storage if provided
+      if (imagePath != null && !imagePath.startsWith('assets/') && !imagePath.startsWith('emoji:')) {
+        finalImagePath = await _uploadUserImage(userUid, imagePath, 'symbol_${DateTime.now().millisecondsSinceEpoch}');
+      }
+      
+      // Create symbol with updated image path
+      final updatedSymbol = symbol.copyWith(
+        imagePath: finalImagePath,
+        isDefault: false, // User custom symbols are never defaults
+      );
+      
+      final symbolData = updatedSymbol.toJson();
+      
+      // Add metadata
+      symbolData['userUid'] = userUid;
+      symbolData['updatedAt'] = FieldValue.serverTimestamp();
+      
+      // Update in user's custom collection
+      await _firestore
+          .collection('$_userCustomSymbolsPath/$userUid/custom_symbols')
+          .doc(symbol.id)
+          .update(symbolData);
+      
+      AACLogger.info('Successfully updated custom symbol with ID ${symbol.id}: ${symbol.label}', tag: 'SharedResourceService');
+      return updatedSymbol;
+      
+    } catch (e) {
+      AACLogger.error('Error updating custom symbol: $e', tag: 'SharedResourceService');
+      return null;
+    }
+  }
+  
+  /// Update user custom category
+  /// Returns the updated category, or null if update failed
+  static Future<Category?> updateUserCustomCategory(String userUid, Category category, {String? iconPath}) async {
+    try {
+      AACLogger.info('Updating custom category for user $userUid: ${category.name}', tag: 'SharedResourceService');
+      
+      String finalIconPath = category.iconPath;
+      
+      // Upload new icon to user-specific Firebase Storage if provided
+      if (iconPath != null && !iconPath.startsWith('assets/')) {
+        finalIconPath = await _uploadUserImage(userUid, iconPath, 'category_icon_${DateTime.now().millisecondsSinceEpoch}');
+      }
+      
+      // Create category with updated icon path
+      final updatedCategory = category.copyWith(
+        iconPath: finalIconPath,
+        isDefault: false, // User custom categories are never defaults
+      );
+      
+      final categoryData = updatedCategory.toJson();
+      
+      // Add metadata
+      categoryData['userUid'] = userUid;
+      categoryData['updatedAt'] = FieldValue.serverTimestamp();
+      
+      // Update in user's custom collection
+      await _firestore
+          .collection('$_userCustomSymbolsPath/$userUid/custom_categories')
+          .doc(category.id)
+          .update(categoryData);
+      
+      AACLogger.info('Successfully updated custom category with ID ${category.id}: ${category.name}', tag: 'SharedResourceService');
+      return updatedCategory;
+      
+    } catch (e) {
+      AACLogger.error('Error updating custom category: $e', tag: 'SharedResourceService');
+      return null;
+    }
+  }
+  
   /// Upload user image/icon to Firebase Storage with proper organization
   static Future<String> _uploadUserImage(String userUid, String localPath, String fileName) async {
     try {

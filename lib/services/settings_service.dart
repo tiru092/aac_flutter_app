@@ -1,66 +1,83 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/app_settings.dart';
-import '../services/user_profile_service.dart';
+import '../services/user_data_manager.dart';
 import '../utils/aac_logger.dart';
 
-class SettingsService {
-  static final SettingsService _instance = SettingsService._internal();
-  factory SettingsService() => _instance;
-  SettingsService._internal();
+/// Settings Service that is initialized and managed by DataServicesInitializer.
+class SettingsService extends ChangeNotifier {
+  late UserDataManager _userDataManager;
+  bool _isInitialized = false;
+
+  bool get isInitialized => _isInitialized;
 
   AppSettings? _currentSettings;
 
-  /// Get current settings for the logged-in user
-  Future<AppSettings> getSettings() async {
+  Future<void> initialize(UserDataManager userDataManager) async {
+    if (_isInitialized) {
+      AACLogger.warning('SettingsService already initialized.', tag: 'SettingsService');
+      return;
+    }
+    AACLogger.info('Initializing SettingsService...', tag: 'SettingsService');
+    _userDataManager = userDataManager;
+    await _loadSettings();
+    _isInitialized = true;
+    notifyListeners();
+    AACLogger.info('SettingsService initialized successfully.', tag: 'SettingsService');
+  }
+
+  AppSettings get settings {
+    if (!_isInitialized) {
+      AACLogger.warning('SettingsService not initialized. Returning default settings.', tag: 'SettingsService');
+      return AppSettings();
+    }
+    return _currentSettings ?? AppSettings();
+  }
+
+  Future<void> _loadSettings() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        // Return default settings if not logged in
+      if (!_userDataManager.isInitialized) {
+        AACLogger.warning('UserDataManager not ready, cannot load settings.', tag: 'SettingsService');
         _currentSettings = AppSettings();
-        return _currentSettings!;
+        return;
       }
 
-      // Get settings from active user profile
-      final userProfile = await UserProfileService.getActiveProfile();
+      // Unified data loading logic from UserDataManager
+      final userProfile = await _userDataManager.getUserProfile();
       if (userProfile != null) {
         _currentSettings = userProfile.appSettings;
-        AACLogger.info('Settings loaded for user: ${user.uid}', tag: 'SettingsService');
+        AACLogger.info('Settings loaded from user profile for user: ${_userDataManager.currentUser?.uid}', tag: 'SettingsService');
       } else {
-        // Create default settings if profile doesn't exist
         _currentSettings = AppSettings();
-        AACLogger.info('Default settings created for user: ${user.uid}', tag: 'SettingsService');
+        AACLogger.info('Default settings created for user: ${_userDataManager.currentUser?.uid}', tag: 'SettingsService');
       }
-
-      return _currentSettings!;
+      notifyListeners();
     } catch (e) {
       AACLogger.error('Failed to load settings: $e', tag: 'SettingsService');
       _currentSettings = AppSettings();
-      return _currentSettings!;
+      notifyListeners();
     }
   }
 
   /// Update settings for the logged-in user
   Future<void> updateSettings(AppSettings newSettings) async {
+    if (!_isInitialized) {
+      AACLogger.warning('Cannot update settings: service not initialized.', tag: 'SettingsService');
+      return;
+    }
+
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        AACLogger.warning('Cannot update settings: user not logged in', tag: 'SettingsService');
-        return;
-      }
-
-      // Get current user profile
-      final userProfile = await UserProfileService.getActiveProfile();
-      if (userProfile == null) {
-        AACLogger.warning('Cannot update settings: user profile not found', tag: 'SettingsService');
-        return;
-      }
-
-      // Update the profile with new settings
-      final updatedProfile = userProfile.copyWith(appSettings: newSettings);
-      await UserProfileService.saveUserProfile(updatedProfile);
-
       _currentSettings = newSettings;
-      AACLogger.info('Settings updated for user: ${user.uid}', tag: 'SettingsService');
+      
+      final userProfile = await _userDataManager.getUserProfile();
+      if (userProfile != null) {
+        final updatedProfile = userProfile.copyWith(appSettings: newSettings);
+        await _userDataManager.saveUserProfile(updatedProfile);
+        AACLogger.info('Settings updated and saved for user: ${_userDataManager.currentUser?.uid}', tag: 'SettingsService');
+      } else {
+         AACLogger.warning('Could not update settings, user profile is null.', tag: 'SettingsService');
+      }
+
+      notifyListeners();
     } catch (e) {
       AACLogger.error('Failed to update settings: $e', tag: 'SettingsService');
       rethrow;
@@ -69,55 +86,29 @@ class SettingsService {
 
   /// Update only the language setting
   Future<void> updateLanguage(String languageCode) async {
-    final currentSettings = await getSettings();
-    final updatedSettings = currentSettings.copyWith(languageCode: languageCode);
+    if (!_isInitialized) return;
+    final updatedSettings = settings.copyWith(languageCode: languageCode);
     await updateSettings(updatedSettings);
   }
 
   /// Update only the voice setting
   Future<void> updateVoice(String? voiceName) async {
-    final currentSettings = await getSettings();
-    final updatedSettings = currentSettings.copyWith(voiceName: voiceName);
+    if (!_isInitialized) return;
+    final updatedSettings = settings.copyWith(voiceName: voiceName);
     await updateSettings(updatedSettings);
   }
 
-  /// Update speech rate and pitch
-  Future<void> updateSpeechSettings({double? speechRate, double? pitch}) async {
-    final currentSettings = await getSettings();
-    final updatedSettings = currentSettings.copyWith(
-      speechRate: speechRate,
-      pitch: pitch,
-    );
+  /// Update only the speech rate
+  Future<void> updateSpeechRate(double rate) async {
+    if (!_isInitialized) return;
+    final updatedSettings = settings.copyWith(speechRate: rate);
     await updateSettings(updatedSettings);
   }
 
-  /// Get current language code
-  Future<String> getCurrentLanguage() async {
-    final settings = await getSettings();
-    return settings.languageCode;
+  void disposeService() {
+    _isInitialized = false;
+    _currentSettings = null;
+    AACLogger.info('SettingsService disposed.', tag: 'SettingsService');
+    super.dispose();
   }
-
-  /// Get current voice name
-  Future<String?> getCurrentVoice() async {
-    final settings = await getSettings();
-    return settings.voiceName;
-  }
-
-  /// Get current speech rate
-  Future<double> getSpeechRate() async {
-    final settings = await getSettings();
-    return settings.speechRate;
-  }
-
-  /// Get current pitch
-  Future<double> getPitch() async {
-    final settings = await getSettings();
-    return settings.pitch;
-  }
-
-  /// Check if settings are available (cached)
-  bool get hasSettings => _currentSettings != null;
-
-  /// Get cached settings (may be null)
-  AppSettings? get cachedSettings => _currentSettings;
 }

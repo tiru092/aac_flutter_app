@@ -282,6 +282,27 @@ class CrashReportingService {
       print('Error reporting handled error: $e');
     }
   }
+
+  /// Report an error with optional stack trace and reason
+  Future<void> reportError(Object error, [StackTrace? stackTrace, String? reason]) async {
+    try {
+      final additionalInfo = <String, dynamic>{};
+      if (reason != null) {
+        additionalInfo['reason'] = reason;
+      }
+      
+      Exception exception;
+      if (error is Exception) {
+        exception = error;
+      } else {
+        exception = Exception(error.toString());
+      }
+      
+      await reportException(exception, stackTrace, additionalInfo);
+    } catch (e) {
+      print('Error reporting error: $e');
+    }
+  }
 }
 
 /// Log level enumeration

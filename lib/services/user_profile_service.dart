@@ -37,8 +37,9 @@ class UserProfileService {
           await prefs.setString(_currentProfileKey, user.uid);
         }
         
-        // Try to load from cloud using Firebase UID
-        if (_cloudSyncService.isCloudSyncAvailable) {
+        // Try to load from cloud using Firebase UID - DISABLED for simple structure
+        // NOTE: Temporarily disabled complex CloudSyncService to use simple Firebase structure
+        if (false && _cloudSyncService.isCloudSyncAvailable) {
           var cloudProfile = await _cloudSyncService.loadProfileFromCloud(user.uid);
           
           // If not found by UID, try to find by email
@@ -441,6 +442,22 @@ class UserProfileService {
     } catch (e) {
       AACLogger.error('Error getting profiles count: $e');
       return 0;
+    }
+  }
+  
+  /// Reset user profile service (called on logout)
+  static Future<void> reset() async {
+    try {
+      AACLogger.info('UserProfileService: Resetting active profile cache...');
+      _activeProfile = null;
+      
+      // Clear current profile ID from preferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_currentProfileKey);
+      
+      AACLogger.info('UserProfileService: Reset completed');
+    } catch (e) {
+      AACLogger.error('Error resetting UserProfileService: $e');
     }
   }
 }

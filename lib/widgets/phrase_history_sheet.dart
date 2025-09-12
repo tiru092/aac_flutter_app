@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/phrase_history_service.dart';
+import '../services/data_services_initializer_robust.dart';
 import '../utils/aac_helper.dart';
 
 class PhraseHistorySheet extends StatefulWidget {
@@ -14,7 +14,7 @@ class PhraseHistorySheet extends StatefulWidget {
 class _PhraseHistorySheetState extends State<PhraseHistorySheet>
     with TickerProviderStateMixin {
   late TabController _tabController;
-  final PhraseHistoryService _historyService = PhraseHistoryService();
+  final PhraseHistoryService _historyService = DataServicesInitializer.instance.phraseHistoryService;
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
 

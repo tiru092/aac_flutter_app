@@ -59,24 +59,38 @@ class FavoritesService extends ChangeNotifier {
 
   /// Load favorites from storage.
   Future<void> _loadFavorites() async {
+    AACLogger.info('FavoritesService: Starting to load favorites...', tag: 'FavoritesService');
     try {
+      // Try cloud first
+      AACLogger.info('FavoritesService: Attempting to load from cloud...', tag: 'FavoritesService');
       final cloudFavorites = await _userDataManager.getCloudData(_favoritesKey);
+      
       if (cloudFavorites != null && cloudFavorites is List) {
+        AACLogger.info('FavoritesService: Found ${cloudFavorites.length} favorites in cloud', tag: 'FavoritesService');
         _favoriteSymbols = cloudFavorites.map((data) => Symbol.fromJson(Map<String, dynamic>.from(data))).toList();
         await _saveFavoritesToLocal();
-        AACLogger.info('FavoritesService: Loaded ${_favoriteSymbols.length} favorites from cloud.', tag: 'FavoritesService');
+        AACLogger.info('FavoritesService: Successfully loaded ${_favoriteSymbols.length} favorites from cloud.', tag: 'FavoritesService');
       } else {
+        // Fallback to local storage
+        AACLogger.info('FavoritesService: No cloud data found, trying local storage...', tag: 'FavoritesService');
         final localBox = await _userDataManager.getFavoritesBox();
+        AACLogger.info('FavoritesService: Got local box, checking for key: $_favoritesKey', tag: 'FavoritesService');
         final localData = localBox.get(_favoritesKey);
+        
         if (localData != null) {
+          AACLogger.info('FavoritesService: Found local data of type: ${localData.runtimeType}', tag: 'FavoritesService');
           _favoriteSymbols = (localData as List<dynamic>).map((data) => Symbol.fromJson(Map<String, dynamic>.from(data))).toList();
-          AACLogger.info('FavoritesService: Loaded ${_favoriteSymbols.length} favorites from local Hive.', tag: 'FavoritesService');
+          AACLogger.info('FavoritesService: Successfully loaded ${_favoriteSymbols.length} favorites from local Hive.', tag: 'FavoritesService');
+        } else {
+          AACLogger.info('FavoritesService: No local data found, starting with empty favorites list', tag: 'FavoritesService');
+          _favoriteSymbols = [];
         }
       }
-    } catch (e) {
-      AACLogger.error('FavoritesService: Error loading favorites: $e', tag: 'FavoritesService');
+    } catch (e, stackTrace) {
+      AACLogger.error('FavoritesService: Error loading favorites: $e', stackTrace: stackTrace, tag: 'FavoritesService');
       _favoriteSymbols = [];
     } finally {
+      AACLogger.info('FavoritesService: Broadcasting ${_favoriteSymbols.length} favorites to stream', tag: 'FavoritesService');
       _favoritesController.add(_favoriteSymbols);
     }
   }
@@ -205,8 +219,15 @@ class FavoritesService extends ChangeNotifier {
   }
 
   Future<void> _saveFavoritesToLocal() async {
-    final box = await _userDataManager.getFavoritesBox();
-    await box.put(_favoritesKey, _favoriteSymbols.map((s) => s.toJson()).toList());
+    try {
+      final box = await _userDataManager.getFavoritesBox();
+      final dataToSave = _favoriteSymbols.map((s) => s.toJson()).toList();
+      await box.put(_favoritesKey, dataToSave);
+      AACLogger.info('FavoritesService: Saved ${_favoriteSymbols.length} favorites to local storage (key: $_favoritesKey)', tag: 'FavoritesService');
+    } catch (e) {
+      AACLogger.error('FavoritesService: Error saving favorites to local storage: $e', tag: 'FavoritesService');
+      rethrow;
+    }
   }
 
   /// Save history to both local and cloud storage.

@@ -27,9 +27,12 @@ class LocalDataManager {
     try {
       print('LocalDataManager: Initializing for user: ${userProfile.name}');
       
-      // Ensure we use Firebase UID as the consistent identifier
+      // CRITICAL: ALWAYS use Firebase UID as the single source of truth
       final user = FirebaseAuth.instance.currentUser;
-      final userId = user?.uid ?? userProfile.id;
+      if (user?.uid == null) {
+        throw Exception('LocalDataManager: No Firebase UID available - user must be authenticated');
+      }
+      final userId = user!.uid; // ALWAYS use Firebase UID, never fallback to profile.id
       
       final prefs = await SharedPreferences.getInstance();
       final userKey = '${_isLocalDataInitializedKey}_$userId';
@@ -258,7 +261,7 @@ class LocalDataManager {
       // Initialize empty history if none exists
       if (box.isEmpty) {
         await box.put('history_list', <Map<String, dynamic>>[]);
-        print('LocalDataManager: Initialized empty communication history for user');
+        print('LocalDataManager: Initialized empty history for user');
       }
       
     } catch (e) {
@@ -266,7 +269,7 @@ class LocalDataManager {
     }
   }
 
-  /// Add new user data (symbols, categories) and sync with cloud in background
+  /// Add user data (symbol, category, favorite, or history)
   Future<void> addUserData({
     required String userId,
     Symbol? newSymbol,
@@ -275,124 +278,115 @@ class LocalDataManager {
     Map<String, dynamic>? historyEntry,
   }) async {
     try {
-      print('LocalDataManager: Adding user data locally...');
-      
-      // Add to local storage immediately
       if (newSymbol != null) {
-        await _addSymbolLocally(userId, newSymbol);
+        final box = await Hive.openBox('user_symbols_$userId');
+        await box.add(newSymbol);
       }
-      
       if (newCategory != null) {
-        await _addCategoryLocally(userId, newCategory);
+        final box = await Hive.openBox('user_categories_$userId');
+        await box.add(newCategory);
       }
-      
       if (favoriteSymbolId != null) {
-        await _addFavoriteLocally(userId, favoriteSymbolId);
+        final box = await Hive.openBox('user_favorites_$userId');
+        final dynamic rawFavorites = box.get('favorites_list', defaultValue: <dynamic>[]);
+        List<dynamic> favorites = rawFavorites is List ? rawFavorites : <dynamic>[];
+        final favoritesStrings = favorites.map((e) => e.toString()).toList();
+        if (!favoritesStrings.contains(favoriteSymbolId)) {
+          favorites.add(favoriteSymbolId);
+          await box.put('favorites_list', favorites);
+        }
       }
-      
       if (historyEntry != null) {
-        await _addHistoryEntryLocally(userId, historyEntry);
+        final box = await Hive.openBox('user_history_$userId');
+        final dynamic rawHistory = box.get('history_list', defaultValue: <dynamic>[]);
+        List<dynamic> history = rawHistory is List ? rawHistory : <dynamic>[];
+        history.add(historyEntry);
+        await box.put('history_list', history);
       }
-      
-      print('LocalDataManager: Data added locally');
-      
-      // Schedule background sync
-      _scheduleBackgroundSync(userId);
-      
     } catch (e) {
       print('LocalDataManager: Error adding user data: $e');
     }
   }
 
-  /// Add symbol to local storage
-  Future<void> _addSymbolLocally(String userId, Symbol symbol) async {
+  /// Update user data (symbol or category)
+  Future<void> updateUserData({
+    required String userId,
+    Symbol? updatedSymbol,
+    Category? updatedCategory,
+  }) async {
     try {
-      final box = await Hive.openBox('user_symbols_$userId');
-      final key = 'symbol_${DateTime.now().millisecondsSinceEpoch}';
-      await box.put(key, symbol);
-      
-      print('LocalDataManager: Added symbol "${symbol.label}" locally');
-      
-    } catch (e) {
-      print('LocalDataManager: Error adding symbol locally: $e');
-    }
-  }
-
-  /// Add category to local storage
-  Future<void> _addCategoryLocally(String userId, Category category) async {
-    try {
-      final box = await Hive.openBox('user_categories_$userId');
-      final key = 'category_${DateTime.now().millisecondsSinceEpoch}';
-      await box.put(key, category);
-      
-      print('LocalDataManager: Added category "${category.name}" locally');
-      
-    } catch (e) {
-      print('LocalDataManager: Error adding category locally: $e');
-    }
-  }
-
-  /// Add favorite to local storage
-  Future<void> _addFavoriteLocally(String userId, String symbolId) async {
-    try {
-      final box = await Hive.openBox('user_favorites_$userId');
-      final favorites = List<String>.from(box.get('favorites_list', defaultValue: <String>[]));
-      
-      if (!favorites.contains(symbolId)) {
-        favorites.add(symbolId);
-        await box.put('favorites_list', favorites);
-        print('LocalDataManager: Added favorite "$symbolId" locally');
+      if (updatedSymbol != null) {
+        final box = await Hive.openBox('user_symbols_$userId');
+        // Find and update the symbol
+        final Map<dynamic, dynamic> rawBox = box.toMap();
+        dynamic keyToUpdate;
+        rawBox.forEach((key, value) {
+          if (value is Symbol && value.id == updatedSymbol.id) {
+            keyToUpdate = key;
+          }
+        });
+        if (keyToUpdate != null) {
+          await box.put(keyToUpdate, updatedSymbol);
+        }
       }
-      
+      if (updatedCategory != null) {
+        final box = await Hive.openBox('user_categories_$userId');
+        // Find and update the category
+        final Map<dynamic, dynamic> rawBox = box.toMap();
+        dynamic keyToUpdate;
+        rawBox.forEach((key, value) {
+          if (value is Category && value.id == updatedCategory.id) {
+            keyToUpdate = key;
+          }
+        });
+        if (keyToUpdate != null) {
+          await box.put(keyToUpdate, updatedCategory);
+        }
+      }
     } catch (e) {
-      print('LocalDataManager: Error adding favorite locally: $e');
+      print('LocalDataManager: Error updating user data: $e');
     }
   }
 
-  /// Add history entry to local storage
-  Future<void> _addHistoryEntryLocally(String userId, Map<String, dynamic> entry) async {
+  /// Delete user data (symbol or category)
+  Future<void> deleteUserData({
+    required String userId,
+    String? symbolId,
+    String? categoryId,
+  }) async {
     try {
-      final box = await Hive.openBox('user_history_$userId');
-      final history = List<Map<String, dynamic>>.from(box.get('history_list', defaultValue: <Map<String, dynamic>>[]));
-      
-      history.insert(0, entry); // Add to beginning for most recent first
-      
-      // Keep only last 1000 entries to manage storage
-      if (history.length > 1000) {
-        history.removeRange(1000, history.length);
+      if (symbolId != null) {
+        final box = await Hive.openBox('user_symbols_$userId');
+        final Map<dynamic, dynamic> rawBox = box.toMap();
+        dynamic keyToDelete;
+        rawBox.forEach((key, value) {
+          if (value is Symbol && value.id == symbolId) {
+            keyToDelete = key;
+          }
+        });
+        if (keyToDelete != null) {
+          await box.delete(keyToDelete);
+        }
       }
-      
-      await box.put('history_list', history);
-      print('LocalDataManager: Added history entry locally');
-      
+      if (categoryId != null) {
+        final box = await Hive.openBox('user_categories_$userId');
+        final Map<dynamic, dynamic> rawBox = box.toMap();
+        dynamic keyToDelete;
+        rawBox.forEach((key, value) {
+          if (value is Category && value.id == categoryId) {
+            keyToDelete = key;
+          }
+        });
+        if (keyToDelete != null) {
+          await box.delete(keyToDelete);
+        }
+      }
     } catch (e) {
-      print('LocalDataManager: Error adding history entry locally: $e');
+      print('LocalDataManager: Error deleting user data: $e');
     }
   }
 
-  /// Schedule background sync with cloud
-  void _scheduleBackgroundSync(String userId) {
-    // Use a timer to sync after a short delay to batch multiple operations
-    Future.delayed(Duration(seconds: 5), () async {
-      try {
-        print('LocalDataManager: Starting background sync for user $userId');
-        
-        // TODO: Implement cloud sync logic here
-        // This would sync with Firebase or other cloud service
-        
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('last_sync_timestamp_$userId', DateTime.now().millisecondsSinceEpoch);
-        
-        print('LocalDataManager: Background sync completed for user $userId');
-        
-      } catch (e) {
-        print('LocalDataManager: Background sync failed: $e');
-        // Sync will be retried later
-      }
-    });
-  }
-
-  /// Get user's local data summary
+  /// Get user data summary
   Future<Map<String, int>> getUserDataSummary(String userId) async {
     try {
       final symbolsBox = await Hive.openBox('user_symbols_$userId');
@@ -400,8 +394,10 @@ class LocalDataManager {
       final favoritesBox = await Hive.openBox('user_favorites_$userId');
       final historyBox = await Hive.openBox('user_history_$userId');
       
-      final favorites = List<String>.from(favoritesBox.get('favorites_list', defaultValue: <String>[]));
-      final history = List<Map<String, dynamic>>.from(historyBox.get('history_list', defaultValue: <Map<String, dynamic>>[]));
+      final dynamic rawFavorites = favoritesBox.get('favorites_list', defaultValue: <dynamic>[]);
+      final favorites = rawFavorites is List ? List<String>.from(rawFavorites.map((e) => e.toString())) : <String>[];
+      final dynamic rawHistory = historyBox.get('history_list', defaultValue: <dynamic>[]);
+      final history = rawHistory is List ? List<dynamic>.from(rawHistory) : <dynamic>[];
       
       return {
         'symbols': symbolsBox.length,
