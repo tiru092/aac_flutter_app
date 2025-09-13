@@ -4,6 +4,8 @@ import 'favorites_service.dart';
 import 'phrase_history_service.dart';
 import 'settings_service.dart';
 import 'custom_categories_service.dart';
+import 'custom_symbols_service.dart';
+import 'language_service.dart';
 import '../utils/aac_logger.dart';
 
 /// A robust, centralized initializer for all data-related services.
@@ -24,6 +26,8 @@ class DataServicesInitializer {
   PhraseHistoryService? _phraseHistoryService;
   SettingsService? _settingsService;
   CustomCategoriesService? _customCategoriesService;
+  CustomSymbolsService? _customSymbolsService;
+  LanguageService? _languageService;
 
   // Getters for service access - UserDataManager is required, others can be null
   UserDataManager get userDataManager {
@@ -36,12 +40,16 @@ class DataServicesInitializer {
   PhraseHistoryService? get phraseHistoryService => _phraseHistoryService;
   SettingsService? get settingsService => _settingsService;
   CustomCategoriesService? get customCategoriesService => _customCategoriesService;
+  CustomSymbolsService? get customSymbolsService => _customSymbolsService;
+  LanguageService? get languageService => _languageService;
   
   // Helper methods to check if services are available
   bool get hasFavoritesService => _favoritesService != null;
   bool get hasPhraseHistoryService => _phraseHistoryService != null;
   bool get hasSettingsService => _settingsService != null;
   bool get hasCustomCategoriesService => _customCategoriesService != null;
+  bool get hasCustomSymbolsService => _customSymbolsService != null;
+  bool get hasLanguageService => _languageService != null;
 
   /// Returns true if the services have been successfully initialized.
   bool get isInitialized => _isInitialized;
@@ -125,6 +133,25 @@ class DataServicesInitializer {
         AACLogger.info('✅ CustomCategoriesService already initialized.');
       }
 
+      if (_customSymbolsService == null) {
+        _customSymbolsService = CustomSymbolsService();
+        try {
+          await _customSymbolsService!.initializeWithUid(_currentUid!, _userDataManager!);
+          AACLogger.info('✅ CustomSymbolsService initialized.');
+        } catch (e) {
+          AACLogger.warning('⚠️ CustomSymbolsService initialization failed (app will continue): $e');
+          _customSymbolsService = null; // Clear failed service
+        }
+      } else {
+        // CRITICAL FIX: Re-initialize with new UID for migration to work
+        try {
+          await _customSymbolsService!.initializeWithUid(_currentUid!, _userDataManager!);
+          AACLogger.info('✅ CustomSymbolsService re-initialized with new UID.');
+        } catch (e) {
+          AACLogger.warning('⚠️ CustomSymbolsService re-initialization failed (app will continue): $e');
+        }
+      }
+
       if (_settingsService == null) {
         _settingsService = SettingsService();
         try {
@@ -136,6 +163,20 @@ class DataServicesInitializer {
         }
       } else {
         AACLogger.info('✅ SettingsService already initialized.');
+      }
+
+      // Initialize LanguageService - CRITICAL for Indian language support
+      if (_languageService == null) {
+        _languageService = LanguageService();
+        try {
+          await _languageService!.initialize();
+          AACLogger.info('✅ LanguageService initialized with Indian languages.');
+        } catch (e) {
+          AACLogger.warning('⚠️ LanguageService initialization failed (app will continue): $e');
+          _languageService = null; // Clear failed service
+        }
+      } else {
+        AACLogger.info('✅ LanguageService already initialized.');
       }
 
       _isInitialized = true;
@@ -161,6 +202,12 @@ class DataServicesInitializer {
       await _customCategoriesService!.resetServiceState();
       _customCategoriesService!.dispose();
     }
+
+    // Reset custom symbols service state properly
+    if (_customSymbolsService != null) {
+      _customSymbolsService!.resetServiceState();
+      _customSymbolsService!.dispose();
+    }
     
     // Dispose other services but DON'T clear their local data
     favoritesService?.dispose();
@@ -171,6 +218,8 @@ class DataServicesInitializer {
     _phraseHistoryService = null;
     _settingsService = null;
     _customCategoriesService = null;
+    _customSymbolsService = null;
+    _languageService = null;
     _isInitialized = false;
     _currentUid = null;
     AACLogger.info('✅ All data services have been reset (Hive data preserved).');
@@ -241,6 +290,7 @@ class DataServicesInitializer {
       AACLogger.info('  - PhraseHistoryService: ${_phraseHistoryService?.isInitialized == true ? "✅" : "❌"}');
       AACLogger.info('  - CustomCategoriesService: ${_customCategoriesService?.isInitialized == true ? "✅" : "❌"}');
       AACLogger.info('  - SettingsService: ${_settingsService?.isInitialized == true ? "✅" : "❌"}');
+      AACLogger.info('  - LanguageService: ${hasLanguageService ? "✅" : "❌"}');
     }
     AACLogger.info('======================================================');
   }

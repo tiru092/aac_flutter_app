@@ -9,6 +9,7 @@ import '../models/communication_history.dart';
 import '../models/app_settings.dart';
 import '../models/history_entry.dart';
 import '../utils/aac_logger.dart';
+import 'firebase_path_registry.dart';
 
 /// Centralized User Data Manager that is controlled by DataServicesInitializer.
 /// It uses the Firebase UID provided by the initializer as the single source of truth
@@ -243,8 +244,7 @@ class UserDataManager {
   /// Get user favorites box (for FavoritesService)
   Future<Box> getFavoritesBox() async {
     if (!_isInitialized) throw Exception('UserDataManager not initialized');
-    // This box name is now managed by UserDataManager for consistency
-    final boxName = 'favorites_$_currentUserId';
+    final boxName = FirebasePathRegistry.hiveUserFavoritesBox(_currentUserId);
     if (Hive.isBoxOpen(boxName)) {
       return Hive.box(boxName);
     }
@@ -254,7 +254,17 @@ class UserDataManager {
   /// Get user custom categories box (for CustomCategoriesService)
   Future<Box> getCustomCategoriesBox() async {
     if (!_isInitialized) throw Exception('UserDataManager not initialized');
-    final boxName = 'custom_categories_$_currentUserId';
+    final boxName = FirebasePathRegistry.hiveCustomCategoriesBox(_currentUserId);
+    if (Hive.isBoxOpen(boxName)) {
+      return Hive.box(boxName);
+    }
+    return await Hive.openBox(boxName);
+  }
+
+  /// Get user custom symbols box (for CustomSymbolsService)
+  Future<Box> getCustomSymbolsBox() async {
+    if (!_isInitialized) throw Exception('UserDataManager not initialized');
+    final boxName = FirebasePathRegistry.hiveCustomSymbolsBox(_currentUserId);
     if (Hive.isBoxOpen(boxName)) {
       return Hive.box(boxName);
     }
@@ -266,12 +276,12 @@ class UserDataManager {
   /// Get user's Firestore document reference
   DocumentReference get userDocument {
     if (!_isInitialized) throw Exception('UserDataManager not initialized');
-    return _firestore.collection('users').doc(_currentUserId);
+    return _firestore.doc(FirebasePathRegistry.userDocument(_currentUserId));
   }
 
   /// Get user's symbols collection
   CollectionReference get userSymbolsCollection {
-    return userDocument.collection('symbols');
+    return _firestore.collection(FirebasePathRegistry.userSymbols(_currentUserId));
   }
 
   /// Get user's favorites collection

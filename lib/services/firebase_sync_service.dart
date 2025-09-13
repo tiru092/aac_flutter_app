@@ -2,6 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/symbol.dart';
 import 'crash_reporting_service.dart';
+import 'firebase_path_registry.dart';
 
 class FirebaseSyncService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -13,7 +14,7 @@ class FirebaseSyncService {
 
       final WriteBatch batch = _firestore.batch();
       final CollectionReference symbolsRef =
-          _firestore.collection('users').doc(userId).collection('symbols');
+          _firestore.collection(FirebasePathRegistry.userSymbols(userId));
 
       for (final symbol in symbols) {
         final DocumentReference docRef = symbolsRef.doc(symbol.id);
@@ -34,7 +35,7 @@ class FirebaseSyncService {
 
   Future<List<Symbol>> getSymbolsFromCloud(String userId, {DateTime? lastSync}) async {
     try {
-      Query query = _firestore.collection('users').doc(userId).collection('symbols');
+      Query query = _firestore.collection(FirebasePathRegistry.userSymbols(userId));
       if (lastSync != null) {
         query = query.where('lastModified', isGreaterThan: lastSync);
       }
@@ -56,7 +57,7 @@ class FirebaseSyncService {
 
   Future<void> deleteSymbolFromCloud(String userId, String symbolId) async {
     try {
-      await _firestore.collection('users').doc(userId).collection('symbols').doc(symbolId).delete();
+      await _firestore.doc(FirebasePathRegistry.userSymbolDocument(userId, symbolId)).delete();
     } on FirebaseException catch (e, s) {
       _crashReportingService.reportError(e, s,
           'Firebase error deleting symbol from cloud');
@@ -74,7 +75,7 @@ class FirebaseSyncService {
 
       final WriteBatch batch = _firestore.batch();
       final CollectionReference categoriesRef =
-          _firestore.collection('users').doc(userId).collection('categories');
+          _firestore.collection(FirebasePathRegistry.userCategories(userId));
 
       for (final category in categories) {
         final DocumentReference docRef = categoriesRef.doc(category.id);
@@ -95,7 +96,7 @@ class FirebaseSyncService {
 
   Future<List<Category>> getCategoriesFromCloud(String userId, {DateTime? lastSync}) async {
     try {
-      Query query = _firestore.collection('users').doc(userId).collection('categories');
+      Query query = _firestore.collection(FirebasePathRegistry.userCategories(userId));
       if (lastSync != null) {
         query = query.where('lastModified', isGreaterThan: lastSync);
       }
@@ -117,7 +118,7 @@ class FirebaseSyncService {
 
   Future<void> deleteCategoryFromCloud(String userId, String categoryId) async {
     try {
-      await _firestore.collection('users').doc(userId).collection('categories').doc(categoryId).delete();
+      await _firestore.doc(FirebasePathRegistry.userCategoryDocument(userId, categoryId)).delete();
     } on FirebaseException catch (e, s) {
       _crashReportingService.reportError(e, s,
           'Firebase error deleting category from cloud');

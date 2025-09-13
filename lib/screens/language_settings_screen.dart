@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/language_service.dart';
+import '../services/locale_notifier.dart';
+import '../services/aac_localizations.dart';
 import '../utils/aac_helper.dart';
 
 class LanguageSettingsScreen extends StatefulWidget {
@@ -70,20 +72,21 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AACLocalizations.of(context);
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       body: SlideTransition(
         position: _slideAnimation,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(localizations),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildLanguageSection(),
+                    _buildLanguageSection(localizations),
                     const SizedBox(height: 24),
                     _buildVoiceSection(),
                     const SizedBox(height: 24),
@@ -100,7 +103,7 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AACLocalizations? localizations) {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -129,7 +132,7 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
               ),
               const SizedBox(width: 16),
               Text(
-                '${_languageService.getLanguageFlag()} ${_languageService.translate('language_settings')}',
+                '${_languageService.getLanguageFlag()} ${localizations?.translate('language_settings') ?? 'Language Settings'}',
                 style: TextStyle(
                   fontSize: 20 * AACHelper.getTextSizeMultiplier(),
                   fontWeight: FontWeight.bold,
@@ -143,7 +146,7 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
     );
   }
 
-  Widget _buildLanguageSection() {
+  Widget _buildLanguageSection(AACLocalizations? localizations) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -180,7 +183,7 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  _languageService.translate('select_language'),
+                  localizations?.translate('select_language') ?? 'Select Language',
                   style: TextStyle(
                     fontSize: 18 * AACHelper.getTextSizeMultiplier(),
                     fontWeight: FontWeight.bold,
@@ -191,13 +194,18 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
             ),
           ),
           const Divider(height: 1),
+
           ..._languageService.supportedLanguages.values.map(
+
             (language) => _buildLanguageItem(language),
+
           ),
         ],
       ),
     );
   }
+
+
 
   Widget _buildLanguageItem(SupportedLanguage language) {
     final isSelected = _languageService.currentLanguage == language.code;
@@ -583,7 +591,8 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
   }
 
   void _selectLanguage(String languageCode) async {
-    await _languageService.changeLanguage(languageCode);
+    // Use LocaleNotifier to change language and trigger app-wide updates
+    await LocaleNotifier.instance.changeLocale(languageCode);
     setState(() {
       _selectedVoiceId = '';
     });
@@ -626,13 +635,33 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
     if (currentSettings != null) {
       await _languageService.updateTTSVoiceSettings(currentSettings);
     }
-  }
-
-  void _testCurrentSettings() async {
+  }  void _testCurrentSettings() async {
     final testText = _languageService.translate('hello') + 
         ', ' + 
         _languageService.translate('test_voice');
     await _languageService.testVoice(testText);
+  }
+
+  // Helper methods to organize languages
+  List<SupportedLanguage> _getIndianLanguages() {
+    final indianLanguageCodes = ['en-IN', 'hi-IN', 'kn-IN', 'ta-IN', 'te-IN', 'mr-IN', 'gu-IN'];
+    return _languageService.supportedLanguages.values
+        .where((language) => indianLanguageCodes.contains(language.code))
+        .toList()
+        ..sort((a, b) {
+          // Sort English (India) first, then alphabetically
+          if (a.code == 'en-IN') return -1;
+          if (b.code == 'en-IN') return 1;
+          return a.name.compareTo(b.name);
+        });
+  }
+  
+  List<SupportedLanguage> _getOtherLanguages() {
+    final indianLanguageCodes = ['en-IN', 'hi-IN', 'kn-IN', 'ta-IN', 'te-IN', 'mr-IN', 'gu-IN'];
+    return _languageService.supportedLanguages.values
+        .where((language) => !indianLanguageCodes.contains(language.code))
+        .toList()
+        ..sort((a, b) => a.name.compareTo(b.name));
   }
 
   @override

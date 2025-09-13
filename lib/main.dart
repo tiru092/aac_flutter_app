@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'widgets/auth_wrapper.dart';  // Use auth wrapper instead of direct home screen
 import 'widgets/security_wrapper.dart';  // NEW: Security wrapper for enhanced protection
 import 'services/migration_service.dart';  // NEW: Add migration service
@@ -14,6 +15,8 @@ import 'services/data_services_initializer_robust.dart';  // NEW: Centralized da
 import 'services/encryption_corruption_fix.dart';  // EMERGENCY: Fix encryption corruption
 import 'services/hive_corruption_fix.dart';  // EMERGENCY: Fix Hive corruption
 import 'services/auth_state_manager.dart';  // ENTERPRISE: Auth state management
+import 'services/aac_localizations.dart';  // Custom localization delegate
+import 'services/locale_notifier.dart';  // Locale change notifier
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,6 +34,14 @@ void main() async {
     SecureLogger.info('Hive initialized successfully');
   } catch (e) {
     SecureLogger.error('Hive initialization error', e);
+  }
+  
+  // Initialize locale notifier early
+  try {
+    await LocaleNotifier.instance.initialize();
+    SecureLogger.info('Locale notifier initialized successfully');
+  } catch (e) {
+    SecureLogger.error('Locale notifier initialization error', e);
   }
   
   // FAST STARTUP: Only do essential Firebase initialization
@@ -155,21 +166,35 @@ class AACApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoApp(
-      title: 'AAC Communication Helper',
-      debugShowCheckedModeBanner: false,
-      theme: const CupertinoThemeData(
-        brightness: Brightness.light,
-        primaryColor: Color(0xFF4ECDC4),
-        scaffoldBackgroundColor: Color(0xFFF8F9FA),
-        textTheme: CupertinoTextThemeData(
-          primaryColor: Color(0xFF2C3E50),
-        ),
-      ),
-      // NEW: Wrap with security wrapper for enhanced protection
-      home: SecurityWrapper(
-        child: AuthWrapper(firebaseAvailable: firebaseAvailable),
-      ),
+    return AnimatedBuilder(
+      animation: LocaleNotifier.instance,
+      builder: (context, child) {
+        return CupertinoApp(
+          title: 'AAC Communication Helper',
+          debugShowCheckedModeBanner: false,
+          theme: const CupertinoThemeData(
+            brightness: Brightness.light,
+            primaryColor: Color(0xFF4ECDC4),
+            scaffoldBackgroundColor: Color(0xFFF8F9FA),
+            textTheme: CupertinoTextThemeData(
+              primaryColor: Color(0xFF2C3E50),
+            ),
+          ),
+          // Configure localization
+          locale: LocaleNotifier.instance.currentLocale,
+          localizationsDelegates: const [
+            AACLocalizationsDelegate(),
+            GlobalCupertinoLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          supportedLocales: LocaleNotifier.instance.getSupportedLocales(),
+          // NEW: Wrap with security wrapper for enhanced protection
+          home: SecurityWrapper(
+            child: AuthWrapper(firebaseAvailable: firebaseAvailable),
+          ),
+        );
+      },
     );
   }
 }

@@ -1203,7 +1203,20 @@ class _FavoriteButtonWrapperState extends State<_FavoriteButtonWrapper> {
   @override
   void initState() {
     super.initState();
-    _isFavorite = widget.favoritesService.isFavorite(widget.symbol);
+    // Initialize to false by default, then check actual state
+    _isFavorite = false;
+    
+    // Check the actual favorite state after initialization
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final actualState = widget.favoritesService.isFavorite(widget.symbol);
+        if (actualState != _isFavorite) {
+          setState(() {
+            _isFavorite = actualState;
+          });
+        }
+      }
+    });
     
     // ONLY listen to specific symbol changes - NO mass updates
     _favoritesSubscription = widget.favoritesService.symbolChangedStream.listen((changedSymbol) {
