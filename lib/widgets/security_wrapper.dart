@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/secure_auth_service.dart';
 import '../services/coppa_compliance_service.dart';
+import '../services/aac_localizations.dart';
 import '../utils/aac_logger.dart';
 
 /// Security Wrapper Widget that ensures proper authentication and compliance
@@ -129,16 +130,16 @@ class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingOb
     SecureAuthService.dispose();
   }
 
-  Widget _buildLoadingWidget() {
+  Widget _buildLoadingWidget(BuildContext context) {
     return widget.loadingWidget ?? 
-      const Scaffold(
+      Scaffold(
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Initializing security...'),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(AACLocalizations.of(context)?.translate('initializing_security') ?? 'Initializing security...'),
             ],
           ),
         ),
@@ -148,7 +149,7 @@ class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return _buildLoadingWidget();
+      return _buildLoadingWidget(context);
     }
     
     // Always pass through to child (AuthWrapper) - let it handle authentication UI

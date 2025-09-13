@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/data_services_initializer_robust.dart';
+import '../services/aac_localizations.dart';
 import '../services/secure_logger.dart';
 import '../screens/login_screen.dart';
 import '../screens/home_screen.dart';
@@ -160,7 +161,7 @@ class _ErrorScreen extends StatelessWidget {
               const SizedBox(height: 20),
               CupertinoButton.filled(
                 onPressed: onRetry,
-                child: const Text('Try Again'),
+                child: Text(AACLocalizations.of(context)?.translate('try_again') ?? 'Try Again'),
               ),
             ],
           ),

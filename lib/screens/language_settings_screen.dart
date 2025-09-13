@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:marquee/marquee.dart';
 import '../services/language_service.dart';
 import '../services/locale_notifier.dart';
 import '../services/aac_localizations.dart';
@@ -80,6 +81,7 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
         child: Column(
           children: [
             _buildHeader(localizations),
+            _buildComingSoonBanner(localizations),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
@@ -98,7 +100,7 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
               ),
             ),
           ],
-        ),
+        )
       ),
     );
   }
@@ -662,6 +664,66 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen>
         .where((language) => !indianLanguageCodes.contains(language.code))
         .toList()
         ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  Widget _buildComingSoonBanner(AACLocalizations? localizations) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade700, Colors.purple.shade700],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            spreadRadius: 2,
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.hourglass_empty,
+            color: Colors.white,
+            size: 30,
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: 30, // Adjust height as needed
+                  child: Marquee(
+                    text: (localizations?.translate('feature_coming_soon') ?? 'This feature coming soon on next release').replaceAll('_', ' '),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 18,
+                    ),
+                    scrollAxis: Axis.horizontal,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    blankSpace: 20.0,
+                    velocity: 30.0,
+                    pauseAfterRound: const Duration(seconds: 1),
+                    startPadding: 10.0,
+                    accelerationDuration: const Duration(seconds: 1),
+                    accelerationCurve: Curves.easeOut,
+                    decelerationDuration: const Duration(milliseconds: 500),
+                    decelerationCurve: Curves.easeIn,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

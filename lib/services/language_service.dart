@@ -19,21 +19,115 @@ class LanguageService {
   TTSVoiceSettings? _ttsVoiceSettings;
   Map<String, Map<String, String>> _translations = {};
   FlutterTts? _flutterTts;
+  
+  // Performance monitoring
+  int _translationCacheHits = 0;
+  int _translationCacheMisses = 0;
+  DateTime? _lastPerformanceReport;
+  
+  // Memory management
+  static const int _maxCacheSize = 1000;
+  final Map<String, String> _translationCache = {};
 
   String get currentLanguage => _currentLanguage;
   Map<String, SupportedLanguage> get supportedLanguages => _supportedLanguages;
   TTSVoiceSettings? get ttsVoiceSettings => _ttsVoiceSettings;
+  
+  // Performance monitoring methods
+  void _reportPerformanceMetrics() {
+    final now = DateTime.now();
+    if (_lastPerformanceReport == null || 
+        now.difference(_lastPerformanceReport!).inMinutes >= 5) {
+      final totalRequests = _translationCacheHits + _translationCacheMisses;
+      final hitRate = totalRequests > 0 ? (_translationCacheHits / totalRequests * 100).toStringAsFixed(2) : '0.00';
+      
+      print('[LanguageService] Performance Report:');
+      print('  - Cache hits: $_translationCacheHits');
+      print('  - Cache misses: $_translationCacheMisses');
+      print('  - Hit rate: $hitRate%');
+      print('  - Cache size: ${_translationCache.length}');
+      print('  - Memory usage: ${_translations.length} languages loaded');
+      
+      _lastPerformanceReport = now;
+    }
+  }
+  
+  void _manageCacheSize() {
+    if (_translationCache.length > _maxCacheSize) {
+      // Remove oldest entries (simple LRU simulation)
+      final keysToRemove = _translationCache.keys.take(_translationCache.length - _maxCacheSize ~/ 2).toList();
+      for (final key in keysToRemove) {
+        _translationCache.remove(key);
+      }
+      print('[LanguageService] Cache cleaned: removed ${keysToRemove.length} entries');
+    }
+  }
+  
+  // Security and maintenance methods
+  void clearCache() {
+    _translationCache.clear();
+    _translationCacheHits = 0;
+    _translationCacheMisses = 0;
+    print('[LanguageService] Cache and metrics cleared');
+  }
+  
+  Map<String, dynamic> getServiceHealth() {
+    final totalRequests = _translationCacheHits + _translationCacheMisses;
+    return {
+      'status': 'healthy',
+      'current_language': _currentLanguage,
+      'supported_languages_count': _supportedLanguages.length,
+      'translations_loaded': _translations.length,
+      'cache_size': _translationCache.length,
+      'cache_hits': _translationCacheHits,
+      'cache_misses': _translationCacheMisses,
+      'cache_hit_rate': totalRequests > 0 ? (_translationCacheHits / totalRequests * 100).toStringAsFixed(2) : '0.00',
+      'tts_initialized': _flutterTts != null,
+      'last_performance_report': _lastPerformanceReport?.toIso8601String(),
+    };
+  }
 
   Future<void> initialize() async {
-    await _loadCurrentLanguage();
-    await _loadSupportedLanguages();
-    await _loadTTSVoiceSettings();
-    await _loadTranslations();
-    await _initializeTTS();
-    
-    // If no supported languages, initialize with defaults
-    if (_supportedLanguages.isEmpty) {
-      await _initializeDefaultLanguages();
+    try {
+      print('[LanguageService] Starting initialization...');
+      
+      await _loadCurrentLanguage();
+      await _loadSupportedLanguages();
+      await _loadTTSVoiceSettings();
+      await _loadTranslations();
+      
+      // If no supported languages, initialize with defaults
+      if (_supportedLanguages.isEmpty) {
+        print('[LanguageService] No supported languages found, initializing defaults...');
+        await _initializeDefaultLanguages();
+      }
+      
+      // If no translations loaded, initialize defaults
+      if (_translations.isEmpty) {
+        print('[LanguageService] No translations found, initializing defaults...');
+        await _initializeDefaultTranslations();
+      }
+      
+      await _initializeTTS();
+      
+      print('[LanguageService] Initialization completed successfully');
+      print('[LanguageService] Current language: $_currentLanguage');
+      print('[LanguageService] Supported languages: ${_supportedLanguages.keys.join(", ")}');
+      print('[LanguageService] Available translations: ${_translations.keys.join(", ")}');
+      
+    } catch (e, stackTrace) {
+      print('[LanguageService] ERROR during initialization: $e');
+      print('[LanguageService] Stack trace: $stackTrace');
+      
+      // Fallback initialization to ensure app doesn't crash
+      try {
+        await _initializeDefaultLanguages();
+        await _initializeDefaultTranslations();
+        print('[LanguageService] Fallback initialization completed');
+      } catch (fallbackError) {
+        print('[LanguageService] CRITICAL ERROR: Fallback initialization failed: $fallbackError');
+        rethrow;
+      }
     }
   }
 
@@ -356,6 +450,10 @@ class LanguageService {
 
         'help_me': 'Help Me',
 
+        'feature_coming_soon': 'This feature coming soon on next release',
+
+        'coming_soon_banner': 'Coming Soon',
+
         'stop': 'Stop',
 
         'more': 'More',
@@ -369,8 +467,8 @@ class LanguageService {
   'symbol_label': 'Symbol',
   'double_tap_to_speak': 'Double tap to speak',
   'no_symbols_yet': 'No symbols yet!',
-  'tap_plus_to_add': 'Tap the + button to add your first symbol',
-
+        'tap_plus_to_add': 'Tap the + button to add your first symbol',
+        'failed_to_change_category': 'Failed to change category',
       },
 
       'en-IN': {
@@ -447,6 +545,37 @@ class LanguageService {
   'double_tap_to_speak': 'Double tap to speak',
   'no_symbols_yet': 'No symbols yet!',
   'tap_plus_to_add': 'Tap the + button to add your first symbol',
+        
+        // Common symbol translations
+        'milk': 'Milk',
+        'water': 'Water',
+        'apple': 'Apple',
+        'food': 'Food',
+        'drink': 'Drink',
+        'hello': 'Hello',
+        'yes': 'Yes',
+        'no': 'No',
+        'please': 'Please',
+        'thank_you': 'Thank You',
+        'help': 'Help',
+        'more': 'More',
+        'stop': 'Stop',
+        
+        // Core UI translations
+        'initializing_security': 'Initializing security...',
+        'try_again': 'Try Again',
+        'ok': 'OK',
+        'cancel': 'Cancel',
+        'delete': 'Delete',
+        'save': 'Save',
+        'add': 'Add',
+        'edit': 'Edit',
+        'close': 'Close',
+        'loading': 'Loading...',
+        'error': 'Error',
+        'success': 'Success',
+        'warning': 'Warning',
+        'confirm': 'Confirm',
 
       },
 
@@ -525,7 +654,43 @@ class LanguageService {
   'symbol_label': 'प्रतीक',
   'double_tap_to_speak': 'बोलने के लिए डबल टैप करें',
   'no_symbols_yet': 'अभी तक कोई प्रतीक नहीं!',
-  'tap_plus_to_add': '+ बटन दबाकर पहला प्रतीक जोड़ें',
+  'tap_plus_to_add': '+ बटन दबाकर अपना पहला प्रतीक जोड़ें',
+        'failed_to_change_category': 'श्रेणी बदलने में असफल',
+        
+        // Common symbol translations
+        'milk': 'दूध',
+        'water': 'पानी',
+        'apple': 'सेब',
+        'food': 'खाना',
+        'drink': 'पेय',
+        'hello': 'नमस्ते',
+        'yes': 'हाँ',
+        'no': 'नहीं',
+        'please': 'कृपया',
+        'thank_you': 'धन्यवाद',
+        'help': 'मदद',
+        'more': 'और',
+        'stop': 'रुको',
+        
+        // Core UI translations
+        'initializing_security': 'सुरक्षा प्रारंभ की जा रही है...',
+        'try_again': 'पुनः प्रयास करें',
+        'ok': 'ठीक है',
+        'cancel': 'रद्द करें',
+        'delete': 'हटाएं',
+        'save': 'सहेजें',
+        'add': 'जोड़ें',
+        'edit': 'संपादित करें',
+        'close': 'बंद करें',
+        'loading': 'लोड हो रहा है...',
+        'error': 'त्रुटि',
+        'success': 'सफलता',
+        'warning': 'चेतावनी',
+        'confirm': 'पुष्टि करें',
+
+        'feature_coming_soon': 'यह सुविधा अगली रिलीज़ में जल्द आ रही है',
+
+        'coming_soon_banner': 'जल्द आ रहा है',
 
       },
 
@@ -621,6 +786,42 @@ class LanguageService {
   'double_tap_to_speak': 'ಮಾತನಾಡಲು ಡಬಲ್ ಟ್ಯಾಪ್ ಮಾಡಿ',
   'no_symbols_yet': 'ಇನ್ನೂ ಚಿಹ್ನೆಗಳು ಇಲ್ಲ!',
   'tap_plus_to_add': '+ ಬಟನ್ ಒತ್ತಿ ಮೊದಲ ಚಿಹ್ನೆ ಸೇರಿಸಿ',
+        'failed_to_change_category': 'ವರ್ಗವನ್ನು ಬದಲಾಯಿಸಲು ವಿಫಲವಾಗಿದೆ',
+        
+        // Common symbol translations
+        'milk': 'ಹಾಲು',
+        'water': 'ನೀರು',
+        'apple': 'ಸೇಬು',
+        'food': 'ಆಹಾರ',
+        'drink': 'ಪಾನೀಯ',
+        'hello': 'ನಮಸ್ಕಾರ',
+        'yes': 'ಹೌದು',
+        'no': 'ಇಲ್ಲ',
+        'please': 'ದಯವಿಟ್ಟು',
+        'thank_you': 'ಧನ್ಯವಾದ',
+        'help': 'ಸಹಾಯ',
+        'more': 'ಹೆಚ್ಚು',
+        'stop': 'ನಿಲ್ಲಿಸಿ',
+        
+        // Core UI translations
+        'initializing_security': 'ಭದ್ರತೆಯನ್ನು ಪ್ರಾರಂಭಿಸಲಾಗುತ್ತಿದೆ...',
+        'try_again': 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ',
+        'ok': 'ಸರಿ',
+        'cancel': 'ರದ್ದುಮಾಡಿ',
+        'delete': 'ಅಳಿಸಿ',
+        'save': 'ಉಳಿಸಿ',
+        'add': 'ಸೇರಿಸಿ',
+        'edit': 'ಸಂಪಾದಿಸಿ',
+        'close': 'ಮುಚ್ಚಿ',
+        'loading': 'ಲೋಡ್ ಆಗುತ್ತಿದೆ...',
+        'error': 'ದೋಷ',
+        'success': 'ಯಶಸ್ಸು',
+        'warning': 'ಎಚ್ಚರಿಕೆ',
+        'confirm': 'ದೃಢೀಕರಿಸಿ',
+
+        'feature_coming_soon': 'ಈ ವೈಶಿಷ್ಟ್ಯವು ಮುಂದಿನ ಬಿಡುಗಡೆಯಲ್ಲಿ ಶೀಘ್ರದಲ್ಲೇ ಬರುತ್ತಿದೆ',
+
+        'coming_soon_banner': 'ಶೀಘ್ರದಲ್ಲೇ ಬರುತ್ತಿದೆ',
 
       },
 
@@ -716,6 +917,38 @@ class LanguageService {
   'double_tap_to_speak': 'பேச இருமுறை தட்டவும்',
   'no_symbols_yet': 'இன்னும் குறியீடுகள் இல்லை!',
   'tap_plus_to_add': '+ பொத்தானைத் தட்டி முதல் குறியீட்டைச் சேர்க்கவும்',
+        'failed_to_change_category': 'வகையை மாற்றுவதில் தோல்வி',
+        
+        // Common symbol translations
+        'milk': 'பால்',
+        'water': 'தண்ணீர்',
+        'apple': 'ஆப்பிள்',
+        'food': 'உணவு',
+        'drink': 'பானம்',
+        'hello': 'வணக்கம்',
+        'yes': 'ஆம்',
+        'no': 'இல்லை',
+        'please': 'தயவுசெய்து',
+        'thank_you': 'நன்றி',
+        'help': 'உதவி',
+        'more': 'மேலும்',
+        'stop': 'நிறுத்து',
+        
+        // Core UI translations
+        'initializing_security': 'பாதுகாப்பு தொடங்கப்படுகிறது...',
+        'try_again': 'மீண்டும் முயற்சிக்கவும்',
+        'ok': 'சரி',
+        'cancel': 'ரத்து செய்',
+        'delete': 'நீக்கு',
+        'save': 'சேமி',
+        'add': 'சேர்',
+        'edit': 'திருத்து',
+        'close': 'மூடு',
+        'loading': 'ஏற்றப்படுகிறது...',
+        'error': 'பிழை',
+        'success': 'வெற்றி',
+        'warning': 'எச்சரிக்கை',
+        'confirm': 'உறுதிப்படுத்து',
 
       },
 
@@ -811,6 +1044,7 @@ class LanguageService {
   'double_tap_to_speak': 'మాట్లాడేందుకు డబుల్ ట్యాప్ చేయండి',
   'no_symbols_yet': 'ఇంకా చిహ్నాలు లేవు!',
   'tap_plus_to_add': '+ బటన్‌ను నొక్కి మొదటి చిహ్నాన్ని జోడించండి',
+  'failed_to_change_category': 'వర్గాన్ని మార్చడంలో విఫలమైంది',
 
       },
 
@@ -906,6 +1140,7 @@ class LanguageService {
   'double_tap_to_speak': 'बोलण्यासाठी दुहेरी टॅप करा',
   'no_symbols_yet': 'अजून कोणतीही चिन्हे नाहीत!',
   'tap_plus_to_add': '+ बटणावर टॅप करून पहिले चिन्ह जोडा',
+  'failed_to_change_category': 'श्रेणी बदलण्यात अयशस्वी',
 
       },
 
@@ -1001,6 +1236,7 @@ class LanguageService {
   'double_tap_to_speak': 'બોલવા માટે ડબલ ટેપ કરો',
   'no_symbols_yet': 'હજુ સુધી કોઈ પ્રતીકો નથી!',
   'tap_plus_to_add': '+ બટન પર ટેપ કરીને તમારું પ્રથમ પ્રતીક ઉમેરો',
+  'failed_to_change_category': 'કેટેગરી બદલવામાં નિષ્ફળ',
 
       },
 
@@ -1094,7 +1330,220 @@ class LanguageService {
   'double_tap_to_speak': 'Toque dos veces para hablar',
   'no_symbols_yet': '¡Aún no hay símbolos!',
   'tap_plus_to_add': 'Toque el botón + para agregar su primer símbolo',
+  'failed_to_change_category': 'Error al cambiar categoría',
 
+      },
+
+      // French translations
+      'fr-FR': {
+        'app_title': 'Communication CAA',
+        'hello': 'Bonjour',
+        'categories': 'Catégories',
+        'all_symbols': 'Tous les Symboles',
+        'settings': 'Paramètres',
+        'history': 'Historique',
+        'profile': 'Profil',
+        'add_symbol': 'Ajouter un Symbole',
+        'edit_symbol': 'Modifier le Symbole',
+        'delete_symbol': 'Supprimer le Symbole',
+        'speak': 'Parler',
+        'clear': 'Effacer',
+        'undo': 'Annuler',
+        'quick_phrases': 'Phrases Rapides',
+        'phrase_history': 'Historique des Phrases',
+        'recent': 'Récent',
+        'favorites': 'Favoris',
+        'language_settings': 'Paramètres de Langue',
+        'voice_settings': 'Paramètres Vocaux',
+        'select_language': 'Sélectionner la Langue',
+        'select_voice': 'Sélectionner la Voix',
+        'speech_rate': 'Vitesse de Parole',
+        'pitch': 'Tonalité',
+        'test_voice': 'Tester la Voix',
+        'all': 'Tout',
+        'menu': 'Menu',
+        'say_hello_friend': 'Dire "bonjour" à un ami',
+        'ask_for_drink': 'Demander une boisson',
+        'express_emotion': 'Exprimer une émotion',
+        'practice_name': 'Pratiquer dire mon nom',
+        'access_app_features': 'Accéder aux fonctionnalités et paramètres de l\'application',
+        'configure_aac_settings': 'Configurer les paramètres de votre application CAA',
+        'error': 'Erreur',
+        'ok': 'OK',
+        'please': 'S\'il vous plaît',
+        'thank_you': 'Merci',
+        'help_me': 'Aidez-moi',
+        'stop': 'Arrêter',
+        'more': 'Plus',
+        'more_please': 'Plus s\'il vous plaît',
+        'help_me_please': 'S\'il vous plaît aidez-moi',
+        'category_label': 'Catégorie',
+        'symbols_available': 'symboles disponibles',
+        'double_tap_to_open': 'Appuyez deux fois pour ouvrir',
+        'symbol_label': 'Symbole',
+        'double_tap_to_speak': 'Appuyez deux fois pour parler',
+        'no_symbols_yet': 'Aucun symbole pour le moment!',
+        'tap_plus_to_add': 'Appuyez sur le bouton + pour ajouter votre premier symbole',
+        'failed_to_change_category': 'Échec du changement de catégorie',
+      },
+
+      // German translations
+      'de-DE': {
+        'app_title': 'AAC Kommunikation',
+        'hello': 'Hallo',
+        'categories': 'Kategorien',
+        'all_symbols': 'Alle Symbole',
+        'settings': 'Einstellungen',
+        'history': 'Verlauf',
+        'profile': 'Profil',
+        'add_symbol': 'Symbol hinzufügen',
+        'edit_symbol': 'Symbol bearbeiten',
+        'delete_symbol': 'Symbol löschen',
+        'speak': 'Sprechen',
+        'clear': 'Löschen',
+        'undo': 'Rückgängig',
+        'quick_phrases': 'Schnelle Phrasen',
+        'phrase_history': 'Phrasen-Verlauf',
+        'recent': 'Kürzlich',
+        'favorites': 'Favoriten',
+        'language_settings': 'Spracheinstellungen',
+        'voice_settings': 'Stimmeinstellungen',
+        'select_language': 'Sprache auswählen',
+        'select_voice': 'Stimme auswählen',
+        'speech_rate': 'Sprechgeschwindigkeit',
+        'pitch': 'Tonhöhe',
+        'test_voice': 'Stimme testen',
+        'all': 'Alle',
+        'menu': 'Menü',
+        'say_hello_friend': 'Sage "hallo" zu einem Freund',
+        'ask_for_drink': 'Nach einem Getränk fragen',
+        'express_emotion': 'Eine Emotion ausdrücken',
+        'practice_name': 'Übe meinen Namen zu sagen',
+        'access_app_features': 'Auf App-Funktionen und Einstellungen zugreifen',
+        'configure_aac_settings': 'Konfiguriere deine AAC-App-Einstellungen',
+        'error': 'Fehler',
+        'ok': 'OK',
+        'please': 'Bitte',
+        'thank_you': 'Danke',
+        'help_me': 'Hilf mir',
+        'stop': 'Stopp',
+        'more': 'Mehr',
+        'more_please': 'Mehr bitte',
+        'help_me_please': 'Bitte hilf mir',
+        'category_label': 'Kategorie',
+        'symbols_available': 'verfügbare Symbole',
+        'double_tap_to_open': 'Doppelt tippen zum Öffnen',
+        'symbol_label': 'Symbol',
+        'double_tap_to_speak': 'Doppelt tippen zum Sprechen',
+        'no_symbols_yet': 'Noch keine Symbole!',
+        'tap_plus_to_add': 'Tippe auf + um dein erstes Symbol hinzuzufügen',
+        'failed_to_change_category': 'Kategorie konnte nicht geändert werden',
+      },
+
+      // Chinese (Simplified) translations
+      'zh-CN': {
+        'app_title': 'AAC 沟通',
+        'hello': '你好',
+        'categories': '类别',
+        'all_symbols': '所有符号',
+        'settings': '设置',
+        'history': '历史',
+        'profile': '个人资料',
+        'add_symbol': '添加符号',
+        'edit_symbol': '编辑符号',
+        'delete_symbol': '删除符号',
+        'speak': '说话',
+        'clear': '清除',
+        'undo': '撤销',
+        'quick_phrases': '快速短语',
+        'phrase_history': '短语历史',
+        'recent': '最近',
+        'favorites': '收藏',
+        'language_settings': '语言设置',
+        'voice_settings': '语音设置',
+        'select_language': '选择语言',
+        'select_voice': '选择语音',
+        'speech_rate': '语速',
+        'pitch': '音调',
+        'test_voice': '测试语音',
+        'all': '全部',
+        'menu': '菜单',
+        'say_hello_friend': '对朋友说"你好"',
+        'ask_for_drink': '要饮料',
+        'express_emotion': '表达情感',
+        'practice_name': '练习说我的名字',
+        'access_app_features': '访问应用功能和设置',
+        'configure_aac_settings': '配置您的AAC应用设置',
+        'error': '错误',
+        'ok': '确定',
+        'please': '请',
+        'thank_you': '谢谢',
+        'help_me': '帮助我',
+        'stop': '停止',
+        'more': '更多',
+        'more_please': '请再多一些',
+        'help_me_please': '请帮助我',
+        'category_label': '类别',
+        'symbols_available': '可用符号',
+        'double_tap_to_open': '双击打开',
+        'symbol_label': '符号',
+        'double_tap_to_speak': '双击说话',
+        'no_symbols_yet': '还没有符号！',
+        'tap_plus_to_add': '点击+按钮添加您的第一个符号',
+        'failed_to_change_category': '更改类别失败',
+      },
+
+      // Arabic translations
+      'ar-SA': {
+        'app_title': 'تواصل AAC',
+        'hello': 'مرحبا',
+        'categories': 'الفئات',
+        'all_symbols': 'جميع الرموز',
+        'settings': 'الإعدادات',
+        'history': 'التاريخ',
+        'profile': 'الملف الشخصي',
+        'add_symbol': 'إضافة رمز',
+        'edit_symbol': 'تحرير الرمز',
+        'delete_symbol': 'حذف الرمز',
+        'speak': 'تحدث',
+        'clear': 'مسح',
+        'undo': 'تراجع',
+        'quick_phrases': 'العبارات السريعة',
+        'phrase_history': 'تاريخ العبارات',
+        'recent': 'الأخيرة',
+        'favorites': 'المفضلة',
+        'language_settings': 'إعدادات اللغة',
+        'voice_settings': 'إعدادات الصوت',
+        'select_language': 'اختر اللغة',
+        'select_voice': 'اختر الصوت',
+        'speech_rate': 'سرعة الكلام',
+        'pitch': 'النبرة',
+        'test_voice': 'اختبار الصوت',
+        'all': 'الكل',
+        'menu': 'القائمة',
+        'say_hello_friend': 'قل "مرحبا" لصديق',
+        'ask_for_drink': 'اطلب مشروبا',
+        'express_emotion': 'عبر عن مشاعر',
+        'practice_name': 'تدرب على قول اسمي',
+        'access_app_features': 'الوصول إلى ميزات التطبيق والإعدادات',
+        'configure_aac_settings': 'تكوين إعدادات تطبيق AAC الخاص بك',
+        'error': 'خطأ',
+        'ok': 'موافق',
+        'please': 'من فضلك',
+        'thank_you': 'شكرا لك',
+        'help_me': 'ساعدني',
+        'stop': 'توقف',
+        'more': 'المزيد',
+        'more_please': 'المزيد من فضلك',
+        'help_me_please': 'من فضلك ساعدني',
+        'category_label': 'الفئة',
+        'symbols_available': 'الرموز المتاحة',
+        'double_tap_to_open': 'انقر مرتين للفتح',
+        'symbol_label': 'الرمز',
+        'double_tap_to_speak': 'انقر مرتين للتحدث',
+        'no_symbols_yet': 'لا توجد رموز بعد!',
+        'tap_plus_to_add': 'انقر على زر + لإضافة رمزك الأول',
+        'failed_to_change_category': 'فشل في تغيير الفئة',
       },
 
     };
@@ -1103,8 +1552,27 @@ class LanguageService {
   }
 
   Future<void> changeLanguage(String languageCode) async {
-    if (_supportedLanguages.containsKey(languageCode)) {
+    try {
+      // Input validation
+      if (languageCode.isEmpty) {
+        throw ArgumentError('Language code cannot be empty');
+      }
+      
+      // Validate language code format (e.g., 'en-US', 'hi-IN')
+      final languageCodeRegex = RegExp(r'^[a-z]{2}-[A-Z]{2}$');
+      if (!languageCodeRegex.hasMatch(languageCode)) {
+        throw ArgumentError('Invalid language code format: $languageCode');
+      }
+      
+      if (!_supportedLanguages.containsKey(languageCode)) {
+        throw ArgumentError('Unsupported language: $languageCode');
+      }
+      
+      final previousLanguage = _currentLanguage;
       _currentLanguage = languageCode;
+      
+      print('[LanguageService] Changing language from $previousLanguage to $languageCode');
+      
       await _saveCurrentLanguage();
       
       // Update TTS language
@@ -1119,7 +1587,19 @@ class LanguageService {
           pitch: 1.0,
         );
         await _saveTTSVoiceSettings();
+        print('[LanguageService] TTS language and voice settings updated');
       }
+      
+      // Clear translation cache when language changes for consistency
+      _translationCache.clear();
+      print('[LanguageService] Translation cache cleared for language change');
+      
+      print('[LanguageService] Language change completed successfully');
+      
+    } catch (e, stackTrace) {
+      print('[LanguageService] ERROR changing language to $languageCode: $e');
+      print('[LanguageService] Stack trace: $stackTrace');
+      throw Exception('Failed to change language: $e');
     }
   }
 
@@ -1240,14 +1720,103 @@ class LanguageService {
   }
 
   String translate(String key, {String? fallback}) {
-    final translation = _translations[_currentLanguage]?[key];
-    return translation ?? fallback ?? key;
+    // Input validation for security
+    if (key.isEmpty) {
+      print('[LanguageService] WARNING: Empty translation key provided');
+      return fallback ?? '';
+    }
+    
+    // Sanitize key to prevent injection attacks
+    final sanitizedKey = key.replaceAll(RegExp(r'[^a-zA-Z0-9_.-]'), '');
+    if (sanitizedKey != key) {
+      print('[LanguageService] WARNING: Translation key sanitized: "$key" -> "$sanitizedKey"');
+    }
+    
+    try {
+      // Check cache first for performance
+      final cacheKey = '${_currentLanguage}_$sanitizedKey';
+      if (_translationCache.containsKey(cacheKey)) {
+        _translationCacheHits++;
+        _reportPerformanceMetrics();
+        return _translationCache[cacheKey]!;
+      }
+      
+      _translationCacheMisses++;
+      
+      final currentTranslations = _translations[_currentLanguage];
+      final translation = currentTranslations?[sanitizedKey];
+      
+      if (translation == null) {
+        print('[LanguageService] Missing translation for key: "$sanitizedKey" in language: $_currentLanguage');
+        
+        // Fallback to English if available
+        final fallbackTranslation = _translations['en-US']?[sanitizedKey];
+        if (fallbackTranslation != null) {
+          print('[LanguageService] Using English fallback for key: "$sanitizedKey"');
+          
+          // Cache the fallback translation
+          _translationCache[cacheKey] = fallbackTranslation;
+          _manageCacheSize();
+          
+          return fallbackTranslation;
+        }
+        
+        final result = fallback ?? sanitizedKey;
+        
+        // Cache the result to avoid repeated lookups
+        _translationCache[cacheKey] = result;
+        _manageCacheSize();
+        
+        return result;
+      }
+      
+      // Cache the successful translation
+      _translationCache[cacheKey] = translation;
+      _manageCacheSize();
+      _reportPerformanceMetrics();
+      
+      return translation;
+    } catch (e, stackTrace) {
+      print('[LanguageService] ERROR in translate(): $e');
+      print('[LanguageService] Stack trace: $stackTrace');
+      return fallback ?? sanitizedKey;
+    }
   }
 
   Future<void> addCustomTranslation(String languageCode, String key, String translation) async {
-    _translations[languageCode] ??= {};
-    _translations[languageCode]![key] = translation;
-    await _saveTranslations();
+    try {
+      // Input validation
+      if (languageCode.isEmpty || key.isEmpty || translation.isEmpty) {
+        throw ArgumentError('Language code, key, and translation cannot be empty');
+      }
+      
+      // Validate language code format
+      final languageCodeRegex = RegExp(r'^[a-z]{2}-[A-Z]{2}$');
+      if (!languageCodeRegex.hasMatch(languageCode)) {
+        throw ArgumentError('Invalid language code format: $languageCode');
+      }
+      
+      // Sanitize inputs to prevent injection
+      final sanitizedKey = key.replaceAll(RegExp(r'[^a-zA-Z0-9_.-]'), '');
+      final sanitizedTranslation = translation.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), ''); // Remove control characters
+      
+      // Validate translation length for performance
+      if (sanitizedTranslation.length > 1000) {
+        throw ArgumentError('Translation value too long (max 1000 characters)');
+      }
+      
+      _translations[languageCode] ??= {};
+      _translations[languageCode]![sanitizedKey] = sanitizedTranslation;
+      
+      print('[LanguageService] Added custom translation: $languageCode.$sanitizedKey = "$sanitizedTranslation"');
+      
+      await _saveTranslations();
+      
+    } catch (e, stackTrace) {
+      print('[LanguageService] ERROR adding custom translation: $e');
+      print('[LanguageService] Stack trace: $stackTrace');
+      throw Exception('Failed to add custom translation: $e');
+    }
   }
 
   bool isRTL() {
@@ -1339,27 +1908,51 @@ class LanguageService {
 
   Future<void> _loadTranslations() async {
     try {
+      print('[LanguageService] Loading translations from storage...');
       final prefs = await SharedPreferences.getInstance();
       final translationsJson = prefs.getString(_translationsKey);
       
-      if (translationsJson != null) {
+      if (translationsJson != null && translationsJson.isNotEmpty) {
         final Map<String, dynamic> translationsMap = jsonDecode(translationsJson);
         _translations = translationsMap.map(
-          (key, value) => MapEntry(key, Map<String, String>.from(value)),
+          (key, value) => MapEntry(key, Map<String, String>.from(value ?? {})),
         );
+        print('[LanguageService] Successfully loaded ${_translations.length} translation sets');
+      } else {
+        print('[LanguageService] No translations found in storage');
+        _translations = {};
       }
-    } catch (e) {
-      print('Error loading translations: $e');
+    } catch (e, stackTrace) {
+      print('[LanguageService] ERROR loading translations: $e');
+      print('[LanguageService] Stack trace: $stackTrace');
+      _translations = {}; // Ensure we have an empty map instead of null
     }
   }
 
   Future<void> _saveTranslations() async {
     try {
+      print('[LanguageService] Saving translations to storage...');
       final prefs = await SharedPreferences.getInstance();
+      
+      if (_translations.isEmpty) {
+        print('[LanguageService] WARNING: Attempting to save empty translations');
+        return;
+      }
+      
       final translationsJson = jsonEncode(_translations);
+      
+      // Validate JSON before saving
+      if (translationsJson.length > 1024 * 1024) { // 1MB limit
+        print('[LanguageService] WARNING: Translations data is very large (${translationsJson.length} bytes)');
+      }
+      
       await prefs.setString(_translationsKey, translationsJson);
-    } catch (e) {
-      print('Error saving translations: $e');
+      print('[LanguageService] Successfully saved ${_translations.length} translation sets');
+      
+    } catch (e, stackTrace) {
+      print('[LanguageService] ERROR saving translations: $e');
+      print('[LanguageService] Stack trace: $stackTrace');
+      throw Exception('Failed to save translations: $e');
     }
   }
 }

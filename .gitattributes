@@ -1,0 +1,27 @@
+# Auto-detect text files and normalize to LF in repo
+* text=auto
+
+# Keep binary files as-is
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.so binary
+*.jar binary
+*.aar binary
+*.keystore binary
+
+# Ensure common source files use LF in repo
+*.dart text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.xml text eol=lf
+*.gradle text eol=lf
+*.kt text eol=lf
+*.java text eol=lf
+*.swift text eol=lf
+*.sh text eol=lf
+
+# Ignore end-of-line normalization for build artifacts (these should be ignored anyway)
+build/** -text
+android/**/build/** -text

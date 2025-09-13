@@ -13,6 +13,7 @@ import '../services/favorites_service.dart';
 import '../services/voice_service.dart';
 import '../services/aac_localizations.dart';
 import '../services/locale_notifier.dart';
+import '../services/language_service.dart';
 import 'edit_tile_dialog.dart';
 
 enum ViewType { categories, symbols }
@@ -443,7 +444,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
                                     imageWidget = Image.asset(
                                       symbol.imagePath,
                                       fit: BoxFit.contain,
-                                      semanticLabel: symbol.label,
+                                      semanticLabel: LanguageService.instance.translate(symbol.label.toLowerCase()) ?? symbol.label,
                                       filterQuality: FilterQuality.high,
                                       errorBuilder: (context, error, stackTrace) => _buildErrorIcon(),
                                     );
@@ -451,7 +452,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
                                     imageWidget = Image.file(
                                       File(symbol.imagePath),
                                       fit: BoxFit.contain,
-                                      semanticLabel: symbol.label,
+                                      semanticLabel: LanguageService.instance.translate(symbol.label.toLowerCase()) ?? symbol.label,
                                       filterQuality: FilterQuality.high,
                                       errorBuilder: (context, error, stackTrace) => _buildErrorIcon(),
                                     );
@@ -487,7 +488,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
                             ),
                             child: Center(
                               child: AutoSizeText(
-                                symbol.label,
+                                LanguageService.instance.translate(symbol.label.toLowerCase()) ?? symbol.label,
                                 maxLines: 2,
                                 minFontSize: 11,
                                 maxFontSize: 18,
