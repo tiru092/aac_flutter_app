@@ -11,6 +11,7 @@ import '../utils/aac_logger.dart';
 import '../services/data_services_initializer_robust.dart';
 import '../services/favorites_service.dart';
 import '../services/voice_service.dart';
+import '../services/aac_localizations.dart';
 import 'edit_tile_dialog.dart';
 
 enum ViewType { categories, symbols }
@@ -159,14 +160,14 @@ class _CommunicationGridState extends State<CommunicationGrid>
             final category = widget.categories[index];
             final delay = index * 0.1;
 
-            return _buildCategoryCard(category, index);
+            return _buildCategoryCard(context, category, index);
           },
         );
       },
     );
   }
 
-  Widget _buildCategoryCard(Category category, int index) {
+  Widget _buildCategoryCard(BuildContext context, Category category, int index) {
     final symbolCount = widget.symbols
         .where((symbol) => symbol.category == category.name)
         .length;
@@ -174,9 +175,12 @@ class _CommunicationGridState extends State<CommunicationGrid>
     // Get therapy-tested color for this category
     final categoryColor = AACHelper.getCategoryColor(category.name);
     final isHighContrast = AACHelper.isHighContrastEnabled;
+    final localizations = AACLocalizations.of(context);
     
     return Semantics(
-      label: 'Category: ${category.name}, $symbolCount symbols available, Double tap to open',
+      label: localizations?.translate('category_label') != null ? 
+        '${localizations!.translate('category_label')}: ${category.name}, $symbolCount ${localizations.translate('symbols_available') ?? 'symbols available'}, ${localizations.translate('double_tap_to_open') ?? 'Double tap to open'}' : 
+        'Category: ${category.name}, $symbolCount symbols available, Double tap to open',
       button: true,
       enabled: true,
       child: AnimatedBuilder(
@@ -327,20 +331,23 @@ class _CommunicationGridState extends State<CommunicationGrid>
           itemBuilder: (context, index) {
             final delay = index * 0.05;
 
-            return _buildSymbolCard(widget.symbols[index], index);
+            return _buildSymbolCard(context, widget.symbols[index], index);
           },
         );
       },
     );
   }
 
-  Widget _buildSymbolCard(Symbol symbol, int index) {
+  Widget _buildSymbolCard(BuildContext context, Symbol symbol, int index) {
     // Get therapy-tested color for this symbol's category
     final categoryColor = AACHelper.getCategoryColor(symbol.category);
     final isHighContrast = AACHelper.isHighContrastEnabled;
+    final localizations = AACLocalizations.of(context);
 
     return Semantics(
-      label: 'Symbol: ${symbol.label}, ${symbol.description ?? ''}, Double tap to speak',
+      label: localizations?.translate('symbol_label') != null ? 
+        '${localizations!.translate('symbol_label')}: ${symbol.label}, ${symbol.description ?? ''}, ${localizations.translate('double_tap_to_speak') ?? 'Double tap to speak'}' : 
+        'Symbol: ${symbol.label}, ${symbol.description ?? ''}, Double tap to speak',
       button: true,
       enabled: true,
       child: AnimatedBuilder(
@@ -619,6 +626,8 @@ class _CommunicationGridState extends State<CommunicationGrid>
   }
 
   Widget _buildEmptyState() {
+    final localizations = AACLocalizations.of(context);
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -637,9 +646,9 @@ class _CommunicationGridState extends State<CommunicationGrid>
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
-            'No symbols yet!',
-            style: TextStyle(
+          Text(
+            localizations?.translate('no_symbols_yet') ?? 'No symbols yet!',
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
@@ -647,7 +656,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
           ),
           const SizedBox(height: 8),
           Text(
-            'Tap the + button to add your first symbol',
+            localizations?.translate('tap_plus_to_add') ?? 'Tap the + button to add your first symbol',
             style: TextStyle(
               fontSize: 16,
               color: Colors.grey.shade600,

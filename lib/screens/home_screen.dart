@@ -37,6 +37,7 @@ import '../services/data_cache_service.dart';  // NEW: Add data cache service
 import '../services/offline_features_service.dart';  // NEW: Add offline features service
 import '../services/user_data_service.dart';  // NEW: Add user data service for local storage
 import '../utils/profile_sync_fix.dart';  // NEW: Add profile sync fix utility
+import '../services/aac_localizations.dart';  // For translation support
 import 'accessibility_settings_screen.dart';
 import 'add_symbol_screen.dart';
 import 'profile_screen.dart';
@@ -67,6 +68,16 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _showQuickPhrases = false;
   bool _showSpeechControls = false;
   String _currentCategory = 'All'; // Track current category
+  late List<String> _quickPhrases;
+
+  List<String> _getLocalizedQuickPhrases(BuildContext context) {
+    final localizations = AACLocalizations.of(context);
+    return [
+      localizations?.translate('ask_for_drink') ?? 'Ask for a drink',
+      localizations?.translate('express_emotion') ?? 'Express an emotion',
+      localizations?.translate('practice_name') ?? 'Practice saying my name'
+    ];
+  }
   String? _errorMessage; // Add error message state
   bool _servicesInitialized = false; // Track service initialization
   String _searchQuery = ''; // Add search query state
@@ -651,7 +662,8 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       AACLogger.error('Error changing category: $e', tag: 'HomeScreen');
       // Show error to user
-      _showErrorDialog('Failed to change category');
+      final localizations = AACLocalizations.of(context);
+      _showErrorDialog(localizations?.translate('failed_to_change_category') ?? 'Failed to change category');
     }
   }
 
@@ -1741,7 +1753,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     SizedBox(width: 6),
                                     Expanded(
                                       child: AutoSizeText(
-                                        'Categories',
+                                        AACLocalizations.of(context)?.translate('categories') ?? 'Categories',
                                         style: GoogleFonts.nunito(
                                           fontSize: 16, // Slightly smaller
                                           fontWeight: FontWeight.w600,
