@@ -29,6 +29,7 @@ import '../services/favorites_service.dart';
 import '../services/phrase_history_service.dart';
 import '../services/settings_service.dart';
 import '../services/custom_categories_service.dart';
+import '../services/custom_symbols_service.dart';
 import '../services/secure_encryption_service.dart';
 import '../services/aac_analytics_service.dart';
 import '../services/connectivity_service.dart';  // NEW: Add connectivity service
@@ -77,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
   PhraseHistoryService? _phraseHistoryService;
   SettingsService? _settingsService;
   CustomCategoriesService? _customCategoriesService;
+  CustomSymbolsService? _customSymbolsService;
   
   // Speech control values
   double _speechRate = 0.3;
@@ -85,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
   
   // Stream subscriptions
   StreamSubscription<List<Category>>? _customCategoriesSubscription;
+  StreamSubscription<List<Symbol>>? _customSymbolsSubscription;
 
   @override
   void initState() {
@@ -101,6 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     // Clean up stream subscriptions
     _customCategoriesSubscription?.cancel();
+    _customSymbolsSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -117,6 +121,17 @@ class _HomeScreenState extends State<HomeScreen> {
     _phraseHistoryService = services.phraseHistoryService;
     _settingsService = services.settingsService;
     _customCategoriesService = services.customCategoriesService;
+    _customSymbolsService = services.customSymbolsService;
+    
+    // Debug CustomSymbolsService state
+    if (_customSymbolsService != null) {
+      debugPrint('🔥 CustomSymbolsService available - initialized: ${_customSymbolsService!.isInitialized}');
+      if (_customSymbolsService!.isInitialized) {
+        debugPrint('🔥 CustomSymbolsService current symbols: ${_customSymbolsService!.customSymbols.length}');
+      }
+    } else {
+      debugPrint('🔥 CustomSymbolsService is NULL!');
+    }
     
     // Debug CustomCategoriesService state
     if (_customCategoriesService != null) {
@@ -143,6 +158,26 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     } else {
       debugPrint('🚫 CustomCategoriesService not available for stream setup');
+    }
+
+    // Set up CustomSymbolsService stream listener
+    if (_customSymbolsService != null) {
+      debugPrint('🔥 Setting up CustomSymbolsService stream listener...');
+      _customSymbolsSubscription = _customSymbolsService!.symbolsStream.listen((symbols) {
+        if (mounted) {
+          setState(() {
+            // Combine default symbols with user's custom symbols
+            final defaultSymbols = SampleData.getSampleSymbols();
+            _allSymbols = [...defaultSymbols, ...symbols];
+            _filteredSymbols = _allSymbols; // Update filtered symbols too
+          });
+          debugPrint('🔥 CustomSymbols updated via stream: ${symbols.length} custom symbols (${_allSymbols.length} total)');
+        }
+      }, onError: (error) {
+        debugPrint('🚫 CustomSymbols stream error: $error');
+      });
+    } else {
+      debugPrint('🚫 CustomSymbolsService not available for stream setup');
     }
   }
 
@@ -425,27 +460,30 @@ class _HomeScreenState extends State<HomeScreen> {
         final profile = await UserProfileService.getActiveProfile();
         await Future.delayed(Duration(milliseconds: 50));
         
-        // Load categories and symbols from user profile (Hive)
+        // Load categories from user profile (Hive) - kept for compatibility
         final dbCategories = profile?.userCategories ?? [];
-        final dbSymbols = profile?.userSymbols ?? [];
         await Future.delayed(Duration(milliseconds: 50));
         
-        // Update UI with Hive data if available (immediate session restore)
-        if (mounted && (dbCategories.isNotEmpty || dbSymbols.isNotEmpty)) {
-          setState(() {
-            // Combine default symbols with user's custom symbols (don't replace)
-            if (dbSymbols.isNotEmpty) {
-              // Get default symbols
+        // Load custom symbols from CustomSymbolsService (Firebase synced) - SINGLE SOURCE OF TRUTH
+        if (_customSymbolsService != null && _customSymbolsService!.isInitialized) {
+          final customSymbols = _customSymbolsService!.customSymbols;
+          if (mounted) {
+            setState(() {
+              // Combine default symbols with user's custom symbols
               final defaultSymbols = SampleData.getSampleSymbols();
-              // Filter out any user symbols that might duplicate defaults (by ID)
-              final customSymbols = dbSymbols.where((userSymbol) => 
-                !defaultSymbols.any((defaultSymbol) => defaultSymbol.id == userSymbol.id)
-              ).toList();
-              // Combine: defaults + custom symbols
               _allSymbols = [...defaultSymbols, ...customSymbols];
-            }
-          });
-          debugPrint('Background loaded ${dbSymbols.length} symbols from UserProfile (Hive session data)');
+              _filteredSymbols = _allSymbols; // Update filtered symbols too
+            });
+            debugPrint('Loaded ${customSymbols.length} custom symbols from CustomSymbolsService (Firebase synced)');
+          }
+        } else {
+          debugPrint('CustomSymbolsService not initialized - using default symbols only');
+          if (mounted) {
+            setState(() {
+              _allSymbols = SampleData.getSampleSymbols();
+              _filteredSymbols = _allSymbols;
+            });
+          }
         }
         
         // Load custom categories from CustomCategoriesService (Firebase synced) - SINGLE SOURCE OF TRUTH
@@ -780,8 +818,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   
   // Handle symbol deletion from edit dialog
-  void _onSymbolDelete(Symbol deletedSymbol) {
+  void _onSymbolDelete(Symbol deletedSymbol) async {
     try {
+      // For custom symbols, delete from CustomSymbolsService (persistent storage)
+      if (!deletedSymbol.isDefault && deletedSymbol.id != null) {
+        if (_customSymbolsService != null && _customSymbolsService!.isInitialized) {
+          final success = await _customSymbolsService!.removeCustomSymbol(deletedSymbol.id!);
+          if (!success) {
+            _showErrorDialog('Failed to delete symbol from storage');
+            return;
+          }
+          AACLogger.info('Custom symbol deleted from storage: ${deletedSymbol.label}', tag: 'HomeScreen');
+        } else {
+          AACLogger.warning('CustomSymbolsService not available for deletion', tag: 'HomeScreen');
+        }
+      }
+      
       setState(() {
         // Remove the symbol from _allSymbols
         _allSymbols.removeWhere((s) => s.id == deletedSymbol.id);
@@ -790,7 +842,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Show success message
       _trySpeak('Symbol deleted successfully');
     } catch (e) {
-      print('Error deleting symbol: $e');
+      AACLogger.error('Error deleting symbol: $e', tag: 'HomeScreen');
       _showErrorDialog('Failed to delete symbol');
     }
   }

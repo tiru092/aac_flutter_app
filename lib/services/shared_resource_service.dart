@@ -1,26 +1,29 @@
 import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:firebase_storage/firebase_storage.dart';
+
 import '../models/symbol.dart';
+
 import '../utils/aac_logger.dart';
+
+import 'firebase_path_registry.dart';
 
 /// Enterprise-level shared resource management service
 /// 
 /// Architecture:
 /// - Global default symbols/categories stored once in 'global_defaults' collection
-/// - User-specific data stored in 'user_profiles/{uid}/custom_symbols' 
+/// - User-specific data stored in 'user_profiles/{uid}/symbols' and 'user_profiles/{uid}/custom_categories' 
 /// - Images stored efficiently with Firebase Storage references
 /// - Massive scalability improvement - default resources shared across all users
 class SharedResourceService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseStorage _storage = FirebaseStorage.instance;
   
-  // Global collections for shared resources (read-only for users)
-  static const String _globalSymbolsCollection = 'global_default_symbols';
-  static const String _globalCategoriesCollection = 'global_default_categories';
-  
-  // User-specific collections for custom uploads only
-  static const String _userCustomSymbolsPath = 'user_profiles';
+  // Use centralized path registry for consistency
+
+  // No more hardcoded paths to prevent drift
   
   /// Initialize global default resources (admin/setup operation)
   /// This runs once during app deployment to populate shared defaults
@@ -29,9 +32,13 @@ class SharedResourceService {
       AACLogger.info('Initializing global default resources...', tag: 'SharedResourceService');
       
       // Check if already initialized
+
       final globalSymbolsDoc = await _firestore
-          .collection(_globalSymbolsCollection)
+
+          .collection(FirebasePathRegistry.globalDefaultSymbols)
+
           .limit(1)
+
           .get();
       
       if (globalSymbolsDoc.docs.isNotEmpty) {
@@ -59,7 +66,8 @@ class SharedResourceService {
       AACLogger.debug('Fetching global default symbols...', tag: 'SharedResourceService');
       
       final snapshot = await _firestore
-          .collection(_globalSymbolsCollection)
+
+          .collection(FirebasePathRegistry.globalDefaultSymbols)
           .orderBy('category')
           .orderBy('label')
           .get();
@@ -83,7 +91,8 @@ class SharedResourceService {
       AACLogger.debug('Fetching global default categories...', tag: 'SharedResourceService');
       
       final snapshot = await _firestore
-          .collection(_globalCategoriesCollection)
+
+          .collection(FirebasePathRegistry.globalDefaultCategories)
           .orderBy('name')
           .get();
       
@@ -106,7 +115,8 @@ class SharedResourceService {
       AACLogger.debug('Fetching custom symbols for user: $userUid', tag: 'SharedResourceService');
       
       final snapshot = await _firestore
-          .collection('$_userCustomSymbolsPath/$userUid/custom_symbols')
+
+          .collection(FirebasePathRegistry.userSymbols(userUid))
           .orderBy('dateCreated', descending: true)
           .get();
       
@@ -128,16 +138,43 @@ class SharedResourceService {
     try {
       AACLogger.debug('Fetching custom categories for user: $userUid', tag: 'SharedResourceService');
       
-      final snapshot = await _firestore
-          .collection('$_userCustomSymbolsPath/$userUid/custom_categories')
-          .orderBy('dateCreated', descending: true)
-          .get();
+      // Read from correct path: user_profiles/{uid}/custom_categories
+      final List<Category> categoriesFromProfile = await _getCategoriesFromPath(
+          FirebasePathRegistry.userCustomCategories(userUid), userUid);
       
-      final customCategories = snapshot.docs
-          .map((doc) => Category.fromJson({...doc.data(), 'id': doc.id}))
-          .toList();
+      // Also check legacy path for migration
+      final List<Category> categoriesFromLegacy = await _getCategoriesFromPath(
+          FirebasePathRegistry.legacyUserCustomCategories(userUid), userUid);
       
+      // Merge categories, preferring user_profiles path data
+      final Map<String, Category> mergedCategories = {};
+      
+      // Add legacy categories first
+      for (final category in categoriesFromLegacy) {
+        if (category.id != null) {
+          mergedCategories[category.id!] = category;
+        }
+      }
+      
+      // Add user_profiles categories (overwrites any duplicates from legacy)
+      for (final category in categoriesFromProfile) {
+        if (category.id != null) {
+          mergedCategories[category.id!] = category;
+        }
+      }
+
+      final customCategories = mergedCategories.values.toList();
+      
+      // If we found legacy data but no new data, trigger background migration
+      if (categoriesFromLegacy.isNotEmpty && categoriesFromProfile.isEmpty) {
+        AACLogger.info('Found legacy custom categories, triggering background migration', tag: 'SharedResourceService');
+        _migrateUserCustomCategoriesInBackground(userUid, categoriesFromLegacy);
+      }
+
+      
+
       AACLogger.debug('Loaded ${customCategories.length} custom categories for user', tag: 'SharedResourceService');
+
       return customCategories;
       
     } catch (e) {
@@ -228,8 +265,11 @@ class SharedResourceService {
       symbolData['updatedAt'] = FieldValue.serverTimestamp();
       
       // Store in user's custom collection and get the generated ID
+
       final docRef = await _firestore
-          .collection('$_userCustomSymbolsPath/$userUid/custom_symbols')
+
+          .collection(FirebasePathRegistry.userSymbols(userUid))
+
           .add(symbolData);
       
       // Create final symbol with Firebase ID
@@ -274,9 +314,9 @@ class SharedResourceService {
       categoryData['createdAt'] = FieldValue.serverTimestamp();
       categoryData['updatedAt'] = FieldValue.serverTimestamp();
       
-      // Store in user's custom collection and get the generated ID
+      // Store in user_profiles/{uid}/custom_categories collection
       final docRef = await _firestore
-          .collection('$_userCustomSymbolsPath/$userUid/custom_categories')
+          .collection(FirebasePathRegistry.userCustomCategories(userUid))
           .add(categoryData);
       
       // Create final category with Firebase ID
@@ -295,9 +335,23 @@ class SharedResourceService {
   }
   
   /// Update user custom symbol
+
   /// Returns the updated symbol, or null if update failed
+
   static Future<Symbol?> updateUserCustomSymbol(String userUid, Symbol symbol, {String? imagePath}) async {
+
+    if (symbol.id == null) {
+
+      AACLogger.error('Cannot update symbol without an ID: ${symbol.label}', tag: 'SharedResourceService');
+
+      return null;
+
+    }
+
+    
+
     try {
+
       AACLogger.info('Updating custom symbol for user $userUid: ${symbol.label}', tag: 'SharedResourceService');
       
       String finalImagePath = symbol.imagePath;
@@ -320,9 +374,11 @@ class SharedResourceService {
       symbolData['updatedAt'] = FieldValue.serverTimestamp();
       
       // Update in user's custom collection
+
       await _firestore
-          .collection('$_userCustomSymbolsPath/$userUid/custom_symbols')
-          .doc(symbol.id)
+
+          .doc(FirebasePathRegistry.userSymbolDocument(userUid, symbol.id!))
+
           .update(symbolData);
       
       AACLogger.info('Successfully updated custom symbol with ID ${symbol.id}: ${symbol.label}', tag: 'SharedResourceService');
@@ -335,9 +391,23 @@ class SharedResourceService {
   }
   
   /// Update user custom category
+
   /// Returns the updated category, or null if update failed
+
   static Future<Category?> updateUserCustomCategory(String userUid, Category category, {String? iconPath}) async {
+
+    if (category.id == null) {
+
+      AACLogger.error('Cannot update category without an ID: ${category.name}', tag: 'SharedResourceService');
+
+      return null;
+
+    }
+
+    
+
     try {
+
       AACLogger.info('Updating custom category for user $userUid: ${category.name}', tag: 'SharedResourceService');
       
       String finalIconPath = category.iconPath;
@@ -359,10 +429,9 @@ class SharedResourceService {
       categoryData['userUid'] = userUid;
       categoryData['updatedAt'] = FieldValue.serverTimestamp();
       
-      // Update in user's custom collection
+      // Update in user_profiles/{uid}/custom_categories collection
       await _firestore
-          .collection('$_userCustomSymbolsPath/$userUid/custom_categories')
-          .doc(category.id)
+          .doc(FirebasePathRegistry.userCustomCategoryDocument(userUid, category.id!))
           .update(categoryData);
       
       AACLogger.info('Successfully updated custom category with ID ${category.id}: ${category.name}', tag: 'SharedResourceService');
@@ -403,9 +472,11 @@ class SharedResourceService {
       AACLogger.info('Deleting custom symbol: $symbolId for user: $userUid', tag: 'SharedResourceService');
       
       // Get symbol data first to delete associated image
+
       final doc = await _firestore
-          .collection('$_userCustomSymbolsPath/$userUid/custom_symbols')
-          .doc(symbolId)
+
+          .doc(FirebasePathRegistry.userSymbolDocument(userUid, symbolId))
+
           .get();
       
       if (doc.exists) {
@@ -437,10 +508,9 @@ class SharedResourceService {
     try {
       AACLogger.info('Deleting custom category: $categoryId for user: $userUid', tag: 'SharedResourceService');
       
-      // Get category data first to delete associated icon
+      // Use correct path: user_profiles/{uid}/custom_categories/{categoryId}
       final doc = await _firestore
-          .collection('$_userCustomSymbolsPath/$userUid/custom_categories')
-          .doc(categoryId)
+          .doc(FirebasePathRegistry.userCustomCategoryDocument(userUid, categoryId))
           .get();
       
       if (doc.exists) {
@@ -483,7 +553,8 @@ class SharedResourceService {
   static Future<void> _initializeDefaultCategories() async {
     try {
       final batch = _firestore.batch();
-      final collection = _firestore.collection(_globalCategoriesCollection);
+
+      final collection = _firestore.collection(FirebasePathRegistry.globalDefaultCategories);
       
       final defaultCategories = [
         {
@@ -554,7 +625,8 @@ class SharedResourceService {
   static Future<void> _initializeDefaultSymbols() async {
     try {
       final batch = _firestore.batch();
-      final collection = _firestore.collection(_globalSymbolsCollection);
+
+      final collection = _firestore.collection(FirebasePathRegistry.globalDefaultSymbols);
       
       // Core essential symbols - this would be expanded with full symbol set
       final defaultSymbols = [
@@ -611,7 +683,98 @@ class SharedResourceService {
     }
   }
   
+  /// Helper method to get categories from a specific path
+
+  static Future<List<Category>> _getCategoriesFromPath(String collectionPath, String userUid) async {
+
+    try {
+
+      final snapshot = await _firestore
+
+          .collection(collectionPath)
+
+          .orderBy('dateCreated', descending: true)
+
+          .get();
+
+      
+
+      return snapshot.docs
+
+          .map((doc) => Category.fromJson({...doc.data(), 'id': doc.id}))
+
+          .toList();
+
+    } catch (e) {
+
+      AACLogger.warning('Could not fetch categories from path $collectionPath: $e', tag: 'SharedResourceService');
+
+      return [];
+
+    }
+
+  }
+
+  
+
+  /// Migrate user custom categories from legacy path to canonical path in background
+
+  static Future<void> _migrateUserCustomCategoriesInBackground(String userUid, List<Category> legacyCategories) async {
+
+    try {
+
+      AACLogger.info('Starting background migration of ${legacyCategories.length} categories for user $userUid', tag: 'SharedResourceService');
+
+      
+
+      final batch = _firestore.batch();
+
+      final canonicalCollection = _firestore.collection(FirebasePathRegistry.userCategories(userUid));
+
+      
+
+      for (final category in legacyCategories) {
+
+        if (category.id != null) {
+
+          final docRef = canonicalCollection.doc(category.id);
+
+          final categoryData = category.toJson();
+
+          categoryData['migratedAt'] = FieldValue.serverTimestamp();
+
+          batch.set(docRef, categoryData);
+
+        }
+
+      }
+
+      
+
+      await batch.commit();
+
+      AACLogger.info('Successfully migrated ${legacyCategories.length} categories to canonical path', tag: 'SharedResourceService');
+
+      
+
+      // Optional: Clean up legacy data after successful migration
+
+      // This would be done in a separate cleanup phase
+
+      
+
+    } catch (e) {
+
+      AACLogger.error('Failed to migrate categories for user $userUid: $e', tag: 'SharedResourceService');
+
+    }
+
+  }
+
+  
+
   /// Get storage statistics for monitoring
+
   static Future<Map<String, dynamic>> getStorageStats(String userUid) async {
     try {
       final customSymbols = await getUserCustomSymbols(userUid);
