@@ -71,8 +71,7 @@ class _PracticeGoalsScreenWorkingState extends State<PracticeGoalsScreenWorking>
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
+    return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
           backgroundColor: Colors.transparent,

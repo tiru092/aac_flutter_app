@@ -12,6 +12,7 @@ import '../services/data_services_initializer_robust.dart';
 import '../services/favorites_service.dart';
 import '../services/voice_service.dart';
 import '../services/aac_localizations.dart';
+import '../services/locale_notifier.dart';
 import 'edit_tile_dialog.dart';
 
 enum ViewType { categories, symbols }
@@ -90,6 +91,13 @@ class _CommunicationGridState extends State<CommunicationGrid>
 
   @override
   Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: LocaleNotifier.instance,
+      builder: (context, child) => _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final isLandscape = screenWidth > screenHeight;
@@ -671,6 +679,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
   Widget _buildSpeakBar() {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
+    final localizations = AACLocalizations.of(context);
     
     return Container(
       margin: EdgeInsets.symmetric(
@@ -738,7 +747,7 @@ class _CommunicationGridState extends State<CommunicationGrid>
             child: ElevatedButton.icon(
               onPressed: widget.onSpeakSentence,
               icon: Icon(CupertinoIcons.speaker_3, size: 20),
-              label: Text('Speak'),
+              label: Text(localizations?.translate('speak') ?? 'Speak'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF38A169),
                 foregroundColor: Colors.white,

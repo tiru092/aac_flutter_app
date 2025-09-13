@@ -7,13 +7,7 @@ class EnhancedGoalsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.green,
-        useMaterial3: true,
-      ),
-      home: Scaffold(
+    return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
           backgroundColor: const Color(0xFF4CAF50),
@@ -46,7 +40,6 @@ class EnhancedGoalsScreen extends StatelessWidget {
             child: GoalsSection(),
           ),
         ),
-      ),
     );
   }
 }

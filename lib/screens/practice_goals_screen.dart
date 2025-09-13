@@ -80,10 +80,9 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
     for (var controller in _cardControllers) {
       controller.dispose();
     }
-    super.dispose();
-  }
-
-  @override
+    @override
+    Widget build(BuildContext context) {
+      return Scaffold(
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
@@ -97,14 +96,14 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
               color: Color(0xFF2D4356),
               size: 24,
             ),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          centerTitle: true,
-          title: const Text(
-    color: _parseColor(goal.color),
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
+            title: const Text(
+              'Practice Goals',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2D4356),
+              ),
+            ),
               color: Color(0xFF2D4356),
             ),
           ),
@@ -115,8 +114,8 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
               children: [
                 _buildGoalsSection(context),
                 const SizedBox(height: 20),
-              ],
-            ),
+        ),
+      );
           ),
         ),
       ),

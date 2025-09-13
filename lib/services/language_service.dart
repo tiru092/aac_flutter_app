@@ -362,7 +362,14 @@ class LanguageService {
 
         'more_please': 'More please',
 
-        'help_me_please': 'Help me please',
+  'help_me_please': 'Help me please',
+  'category_label': 'Category',
+  'symbols_available': 'symbols available',
+  'double_tap_to_open': 'Double tap to open',
+  'symbol_label': 'Symbol',
+  'double_tap_to_speak': 'Double tap to speak',
+  'no_symbols_yet': 'No symbols yet!',
+  'tap_plus_to_add': 'Tap the + button to add your first symbol',
 
       },
 
@@ -432,7 +439,14 @@ class LanguageService {
 
         'error': 'Error',
 
-        'ok': 'OK',
+  'ok': 'OK',
+  'category_label': 'Category',
+  'symbols_available': 'symbols available',
+  'double_tap_to_open': 'Double tap to open',
+  'symbol_label': 'Symbol',
+  'double_tap_to_speak': 'Double tap to speak',
+  'no_symbols_yet': 'No symbols yet!',
+  'tap_plus_to_add': 'Tap the + button to add your first symbol',
 
       },
 
@@ -504,7 +518,14 @@ class LanguageService {
 
         'error': 'त्रुटि',
 
-        'ok': 'ठीक है',
+  'ok': 'ठीक है',
+  'category_label': 'श्रेणी',
+  'symbols_available': 'उपलब्ध प्रतीक',
+  'double_tap_to_open': 'खोलने के लिए डबल टैप करें',
+  'symbol_label': 'प्रतीक',
+  'double_tap_to_speak': 'बोलने के लिए डबल टैप करें',
+  'no_symbols_yet': 'अभी तक कोई प्रतीक नहीं!',
+  'tap_plus_to_add': '+ बटन दबाकर पहला प्रतीक जोड़ें',
 
       },
 
@@ -592,7 +613,14 @@ class LanguageService {
 
         'more_please': 'ಇನ್ನಷ್ಟು ದಯವಿಟ್ಟು',
 
-        'help_me_please': 'ದಯವಿಟ್ಟು ನನಗೆ ಸಹಾಯ ಮಾಡಿ',
+  'help_me_please': 'ದಯವಿಟ್ಟು ನನಗೆ ಸಹಾಯ ಮಾಡಿ',
+  'category_label': 'ವರ್ಗ',
+  'symbols_available': 'ಲಭ್ಯ ಚಿಹ್ನೆಗಳು',
+  'double_tap_to_open': 'ತೆರೆಯಲು ಡಬಲ್ ಟ್ಯಾಪ್ ಮಾಡಿ',
+  'symbol_label': 'ಚಿಹ್ನೆ',
+  'double_tap_to_speak': 'ಮಾತನಾಡಲು ಡಬಲ್ ಟ್ಯಾಪ್ ಮಾಡಿ',
+  'no_symbols_yet': 'ಇನ್ನೂ ಚಿಹ್ನೆಗಳು ಇಲ್ಲ!',
+  'tap_plus_to_add': '+ ಬಟನ್ ಒತ್ತಿ ಮೊದಲ ಚಿಹ್ನೆ ಸೇರಿಸಿ',
 
       },
 
@@ -680,7 +708,14 @@ class LanguageService {
 
         'more_please': 'மேலும் தயவுசெய்து',
 
-        'help_me_please': 'தயவுசெய்து எனக்கு உதவுங்கள்',
+  'help_me_please': 'தயவுசெய்து எனக்கு உதவுங்கள்',
+  'category_label': 'வகை',
+  'symbols_available': 'கிடைக்கும் குறியீடுகள்',
+  'double_tap_to_open': 'திறக்க இருமுறை தட்டவும்',
+  'symbol_label': 'குறியீடு',
+  'double_tap_to_speak': 'பேச இருமுறை தட்டவும்',
+  'no_symbols_yet': 'இன்னும் குறியீடுகள் இல்லை!',
+  'tap_plus_to_add': '+ பொத்தானைத் தட்டி முதல் குறியீட்டைச் சேர்க்கவும்',
 
       },
 
@@ -768,7 +803,14 @@ class LanguageService {
 
         'more_please': 'మరింత దయచేసి',
 
-        'help_me_please': 'దయచేసి నాకు సహాయం చేయండి',
+  'help_me_please': 'దయచేసి నాకు సహాయం చేయండి',
+  'category_label': 'వర్గం',
+  'symbols_available': 'లభ్యమయ్యే చిహ్నాలు',
+  'double_tap_to_open': 'తెరవడానికి డబుల్ ట్యాప్ చేయండి',
+  'symbol_label': 'చిహ్నం',
+  'double_tap_to_speak': 'మాట్లాడేందుకు డబుల్ ట్యాప్ చేయండి',
+  'no_symbols_yet': 'ఇంకా చిహ్నాలు లేవు!',
+  'tap_plus_to_add': '+ బటన్‌ను నొక్కి మొదటి చిహ్నాన్ని జోడించండి',
 
       },
 
@@ -856,7 +898,14 @@ class LanguageService {
 
         'more_please': 'अधिक कृपया',
 
-        'help_me_please': 'कृपया मला मदत करा',
+  'help_me_please': 'कृपया मला मदत करा',
+  'category_label': 'श्रेणी',
+  'symbols_available': 'उपलब्ध चिन्हे',
+  'double_tap_to_open': 'उघडण्यासाठी दुहेरी टॅप करा',
+  'symbol_label': 'चिन्ह',
+  'double_tap_to_speak': 'बोलण्यासाठी दुहेरी टॅप करा',
+  'no_symbols_yet': 'अजून कोणतीही चिन्हे नाहीत!',
+  'tap_plus_to_add': '+ बटणावर टॅप करून पहिले चिन्ह जोडा',
 
       },
 
@@ -944,7 +993,14 @@ class LanguageService {
 
         'more_please': 'વધુ કૃપા કરીને',
 
-        'help_me_please': 'કૃપા કરીને મને મદદ કરો',
+  'help_me_please': 'કૃપા કરીને મને મદદ કરો',
+  'category_label': 'શ્રેણી',
+  'symbols_available': 'ઉપલબ્ધ પ્રતીકો',
+  'double_tap_to_open': 'ખોલવા માટે ડબલ ટેપ કરો',
+  'symbol_label': 'પ્રતીક',
+  'double_tap_to_speak': 'બોલવા માટે ડબલ ટેપ કરો',
+  'no_symbols_yet': 'હજુ સુધી કોઈ પ્રતીકો નથી!',
+  'tap_plus_to_add': '+ બટન પર ટેપ કરીને તમારું પ્રથમ પ્રતીક ઉમેરો',
 
       },
 
@@ -1030,7 +1086,14 @@ class LanguageService {
 
         'more_please': 'Más por favor',
 
-        'help_me_please': 'Por favor ayúdame',
+  'help_me_please': 'Por favor ayúdame',
+  'category_label': 'Categoría',
+  'symbols_available': 'símbolos disponibles',
+  'double_tap_to_open': 'Toque dos veces para abrir',
+  'symbol_label': 'Símbolo',
+  'double_tap_to_speak': 'Toque dos veces para hablar',
+  'no_symbols_yet': '¡Aún no hay símbolos!',
+  'tap_plus_to_add': 'Toque el botón + para agregar su primer símbolo',
 
       },
 

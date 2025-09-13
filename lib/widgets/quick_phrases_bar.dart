@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/aac_helper.dart';
 import '../services/aac_localizations.dart';
+import '../services/locale_notifier.dart';
 import 'dart:convert';
 
 class QuickPhrase {
@@ -162,40 +163,43 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
 
   @override
   Widget build(BuildContext context) {
-    return SlideTransition(
-      position: _slideAnimation,
-      child: Container(
-        margin: EdgeInsets.symmetric(
-          horizontal: MediaQuery.of(context).size.width * 0.016, // Reduced by 50% from 0.032
-          vertical: MediaQuery.of(context).size.height * 0.004, // Reduced by 50% from 0.008
-        ),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white,
-              const Color(0xFFF8F9FA),
+    return AnimatedBuilder(
+      animation: LocaleNotifier.instance,
+      builder: (context, child) => SlideTransition(
+        position: _slideAnimation,
+        child: Container(
+          margin: EdgeInsets.symmetric(
+            horizontal: MediaQuery.of(context).size.width * 0.016, // Reduced by 50% from 0.032
+            vertical: MediaQuery.of(context).size.height * 0.004, // Reduced by 50% from 0.008
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                const Color(0xFFF8F9FA),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFF6C63FF).withOpacity(0.2),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
             ],
           ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: const Color(0xFF6C63FF).withOpacity(0.2),
-            width: 2,
+          child: Column(
+            children: [
+              _buildHeader(),
+              _buildPhrasesGrid(),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildPhrasesGrid(),
-          ],
         ),
       ),
     );

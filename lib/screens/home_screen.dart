@@ -38,6 +38,7 @@ import '../services/offline_features_service.dart';  // NEW: Add offline feature
 import '../services/user_data_service.dart';  // NEW: Add user data service for local storage
 import '../utils/profile_sync_fix.dart';  // NEW: Add profile sync fix utility
 import '../services/aac_localizations.dart';  // For translation support
+import '../services/locale_notifier.dart';  // For locale change notifications
 import 'accessibility_settings_screen.dart';
 import 'add_symbol_screen.dart';
 import 'profile_screen.dart';
@@ -1400,6 +1401,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Wrap with AnimatedBuilder to listen for locale changes
+    return AnimatedBuilder(
+      animation: LocaleNotifier.instance,
+      builder: (context, child) => _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     // Debug: log screen metrics and state to help diagnose missing speak bar / extra buttons on device
     try {
       final w = MediaQuery.of(context).size.width;

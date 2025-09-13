@@ -87,7 +87,7 @@ class AACLocalizationsDelegate extends LocalizationsDelegate<AACLocalizations> {
   }
 
   @override
-  bool shouldReload(AACLocalizationsDelegate old) => false;
+  bool shouldReload(AACLocalizationsDelegate old) => true;
 
   @override
   String toString() => 'AACLocalizationsDelegate';

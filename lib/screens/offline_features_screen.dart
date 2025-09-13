@@ -88,9 +88,7 @@ class _OfflineFeaturesScreenState extends State<OfflineFeaturesScreen> with Tick
       ),
       child: Material(
         child: SafeArea(
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            home: Column(
+          child: Column(
               children: [
                 // Tab bar
                 Container(
@@ -138,7 +136,6 @@ class _OfflineFeaturesScreenState extends State<OfflineFeaturesScreen> with Tick
                     ),
             ),
           ],
-            ),
           ),
         ),
       ),
