@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/aac_helper.dart';
+import '../services/aac_localizations.dart';
 import 'dart:convert';
 
 class QuickPhrase {
@@ -103,47 +104,48 @@ class _QuickPhrasesBarState extends State<QuickPhrasesBar>
   }
 
   void _loadDefaultPhrases() {
+    final localizations = AACLocalizations.of(context);
     setState(() {
       _phrases = [
         QuickPhrase(
           id: 'hello',
-          label: 'Hello',
-          speechText: 'Hello',
+          label: localizations?.translate('hello') ?? 'Hello',
+          speechText: localizations?.translate('hello') ?? 'Hello',
           color: const Color(0xFF6C63FF),
           icon: CupertinoIcons.hand_raised_fill,
         ),
         QuickPhrase(
           id: 'please',
-          label: 'Please',
-          speechText: 'Please',
+          label: localizations?.translate('please') ?? 'Please',
+          speechText: localizations?.translate('please') ?? 'Please',
           color: const Color(0xFF4ECDC4),
           icon: CupertinoIcons.heart_fill,
         ),
         QuickPhrase(
           id: 'thank_you',
-          label: 'Thank You',
-          speechText: 'Thank you',
+          label: localizations?.translate('thank_you') ?? 'Thank You',
+          speechText: localizations?.translate('thank_you') ?? 'Thank you',
           color: const Color(0xFFFFE66D),
           icon: CupertinoIcons.star_fill,
         ),
         QuickPhrase(
           id: 'help',
-          label: 'Help Me',
-          speechText: 'Help me please',
+          label: localizations?.translate('help_me') ?? 'Help Me',
+          speechText: localizations?.translate('help_me_please') ?? 'Help me please',
           color: const Color(0xFFFF6B6B),
           icon: CupertinoIcons.hand_raised_slash_fill,
         ),
         QuickPhrase(
           id: 'stop',
-          label: 'Stop',
-          speechText: 'Stop',
+          label: localizations?.translate('stop') ?? 'Stop',
+          speechText: localizations?.translate('stop') ?? 'Stop',
           color: const Color(0xFFFF9F43),
           icon: CupertinoIcons.stop_fill,
         ),
         QuickPhrase(
           id: 'more',
-          label: 'More',
-          speechText: 'More please',
+          label: localizations?.translate('more') ?? 'More',
+          speechText: localizations?.translate('more_please') ?? 'More please',
           color: const Color(0xFF51CF66),
           icon: CupertinoIcons.plus_circle_fill,
         ),

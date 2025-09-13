@@ -58,16 +58,26 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Symbol> _filteredSymbols = []; // Add filtered symbols for search
   List<Category> _categories = [];
   List<Category> _customCategories = [];
-  final List<String> _goals = [
-    'Say "hello" to a friend',
-    'Ask for a drink',
-    'Express an emotion',
-    'Practice saying my name'
-  ];
+  String _currentCategory = 'All'; // Add missing current category state variable
+  
+  List<String> _getLocalizedGoals(BuildContext context) {
+    final localizations = AACLocalizations.of(context);
+    return [
+      localizations?.translate('say_hello_friend') ?? 'Say "hello" to a friend',
+      localizations?.translate('ask_for_drink') ?? 'Ask for a drink',
+      localizations?.translate('express_emotion') ?? 'Express an emotion',
+      localizations?.translate('practice_name') ?? 'Practice saying my name'
+    ];
+  }
+  
   bool _isLoading = true;
   bool _showQuickPhrases = false;
   bool _showSpeechControls = false;
-  String _currentCategory = 'All'; // Track current category
+  
+  String _getCurrentCategory(BuildContext context) {
+    final localizations = AACLocalizations.of(context);
+    return localizations?.translate('all') ?? 'All';
+  }
   late List<String> _quickPhrases;
 
   List<String> _getLocalizedQuickPhrases(BuildContext context) {
@@ -883,17 +893,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showMenuOptions() {
     try {
+      final localizations = AACLocalizations.of(context);
       showCupertinoModalPopup(
         context: context,
         builder: (context) => CupertinoActionSheet(
-          title: const Text(
-            'Menu',
-            style: TextStyle(
+          title: Text(
+            localizations?.translate('menu') ?? 'Menu',
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
           ),
-          message: const Text('Access app features and settings'),
+          message: Text(localizations?.translate('access_app_features') ?? 'Access app features and settings'),
           actions: [
             CupertinoActionSheetAction(
               onPressed: () {
@@ -1013,6 +1024,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showProfileSwitcher() async {
     try {
+      final localizations = AACLocalizations.of(context);
       // Get all available profiles
       final profiles = await UserProfileService.getAllProfiles();
       final currentProfile = await UserProfileService.getActiveProfile();
@@ -1020,8 +1032,8 @@ class _HomeScreenState extends State<HomeScreen> {
       showCupertinoModalPopup(
         context: context,
         builder: (context) => CupertinoActionSheet(
-          title: const Text('Settings'),
-          message: const Text('Configure your AAC app settings'),
+          title: Text(localizations?.translate('settings') ?? 'Settings'),
+          message: Text(localizations?.translate('configure_aac_settings') ?? 'Configure your AAC app settings'),
           actions: [
             CupertinoActionSheetAction(
               onPressed: () {
@@ -1227,14 +1239,15 @@ class _HomeScreenState extends State<HomeScreen> {
   // Show error dialog to user
   void _showErrorDialog(String message) {
     if (mounted) {
+      final localizations = AACLocalizations.of(context);
       showCupertinoDialog(
         context: context,
         builder: (context) => CupertinoAlertDialog(
-          title: const Text('Error'),
+          title: Text(localizations?.translate('error') ?? 'Error'),
           content: Text(message),
           actions: [
             CupertinoDialogAction(
-              child: const Text('OK'),
+              child: Text(localizations?.translate('ok') ?? 'OK'),
               onPressed: () => Navigator.pop(context),
             ),
           ],

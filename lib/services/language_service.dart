@@ -48,13 +48,31 @@ class LanguageService {
       
       if (_ttsVoiceSettings!.voiceId.isNotEmpty) {
         // Try to set specific voice if supported
-        final voices = await _flutterTts!.getVoices;
-        final voice = voices?.firstWhere(
-          (v) => v['name'] == _ttsVoiceSettings!.voiceId,
-          orElse: () => null,
-        );
-        if (voice != null) {
-          await _flutterTts!.setVoice(voice);
+        try {
+          final voices = await _flutterTts!.getVoices;
+          final voice = voices?.firstWhere(
+            (v) {
+              try {
+                if (v is! Map) return false;
+                final voiceMap = Map<String, dynamic>.from(v as Map);
+                return voiceMap['name']?.toString() == _ttsVoiceSettings!.voiceId;
+              } catch (e) {
+                return false;
+              }
+            },
+            orElse: () => null,
+          );
+          if (voice != null) {
+            // Convert to Map<String, String> as expected by setVoice
+            final voiceData = Map<String, String>.from(
+              Map<String, dynamic>.from(voice as Map).map(
+                (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
+              ),
+            );
+            await _flutterTts!.setVoice(voiceData);
+          }
+        } catch (e) {
+          print('[TTS] Error setting voice during initialization: $e');
         }
       }
     }
@@ -312,6 +330,40 @@ class LanguageService {
 
         'test_voice': 'Test Voice',
 
+        'all': 'All',
+
+        'menu': 'Menu',
+
+        'say_hello_friend': 'Say "hello" to a friend',
+
+        'ask_for_drink': 'Ask for a drink',
+
+        'express_emotion': 'Express an emotion',
+
+        'practice_name': 'Practice saying my name',
+
+        'access_app_features': 'Access app features and settings',
+
+        'configure_aac_settings': 'Configure your AAC app settings',
+
+        'error': 'Error',
+
+        'ok': 'OK',
+
+        'please': 'Please',
+
+        'thank_you': 'Thank You',
+
+        'help_me': 'Help Me',
+
+        'stop': 'Stop',
+
+        'more': 'More',
+
+        'more_please': 'More please',
+
+        'help_me_please': 'Help me please',
+
       },
 
       'en-IN': {
@@ -363,6 +415,24 @@ class LanguageService {
         'pitch': 'Pitch',
 
         'test_voice': 'Test Voice',
+
+        'all': 'All',
+
+        'say_hello_friend': 'Say "hello" to a friend',
+
+        'ask_for_drink': 'Ask for a drink',
+
+        'express_emotion': 'Express an emotion',
+
+        'practice_name': 'Practice saying my name',
+
+        'access_app_features': 'Access app features and settings',
+
+        'configure_aac_settings': 'Configure your AAC app settings',
+
+        'error': 'Error',
+
+        'ok': 'OK',
 
       },
 
@@ -418,6 +488,24 @@ class LanguageService {
 
         'test_voice': 'आवाज़ परखें',
 
+        'all': 'सभी',
+
+        'say_hello_friend': 'किसी दोस्त को "नमस्ते" कहें',
+
+        'ask_for_drink': 'पीने की चीज़ मांगें',
+
+        'express_emotion': 'भावना व्यक्त करें',
+
+        'practice_name': 'अपना नाम कहने का अभ्यास करें',
+
+        'access_app_features': 'ऐप सुविधाओं और सेटिंग्स तक पहुंचें',
+
+        'configure_aac_settings': 'अपनी AAC ऐप सेटिंग्स कॉन्फ़िगर करें',
+
+        'error': 'त्रुटि',
+
+        'ok': 'ठीक है',
+
       },
 
       // Kannada translations
@@ -471,6 +559,40 @@ class LanguageService {
         'pitch': 'ಸ್ವರ',
 
         'test_voice': 'ಧ್ವನಿ ಪರೀಕ್ಷೆ',
+
+        'all': 'ಎಲ್ಲಾ',
+
+        'menu': 'ಮೆನು',
+
+        'say_hello_friend': 'ಸ್ನೇಹಿತನಿಗೆ "ನಮಸ್ಕಾರ" ಹೇಳಿ',
+
+        'ask_for_drink': 'ಪಾನೀಯವನ್ನು ಕೇಳಿ',
+
+        'express_emotion': 'ಭಾವನೆಯನ್ನು ವ್ಯಕ್ತಪಡಿಸಿ',
+
+        'practice_name': 'ನನ್ನ ಹೆಸರನ್ನು ಹೇಳುವ ಅಭ್ಯಾಸ ಮಾಡಿ',
+
+        'access_app_features': 'ಆ್ಯಪ್ ವೈಶಿಷ್ಟ್ಯಗಳು ಮತ್ತು ಸೆಟ್ಟಿಂಗ್‌ಗಳನ್ನು ಪ್ರವೇಶಿಸಿ',
+
+        'configure_aac_settings': 'ನಿಮ್ಮ AAC ಆ್ಯಪ್ ಸೆಟ್ಟಿಂಗ್‌ಗಳನ್ನು ಕಾನ್ಫಿಗರ್ ಮಾಡಿ',
+
+        'error': 'ದೋಷ',
+
+        'ok': 'ಸರಿ',
+
+        'please': 'ದಯವಿಟ್ಟು',
+
+        'thank_you': 'ಧನ್ಯವಾದ',
+
+        'help_me': 'ನನಗೆ ಸಹಾಯ ಮಾಡಿ',
+
+        'stop': 'ನಿಲ್ಲಿಸಿ',
+
+        'more': 'ಇನ್ನಷ್ಟು',
+
+        'more_please': 'ಇನ್ನಷ್ಟು ದಯವಿಟ್ಟು',
+
+        'help_me_please': 'ದಯವಿಟ್ಟು ನನಗೆ ಸಹಾಯ ಮಾಡಿ',
 
       },
 
@@ -526,6 +648,40 @@ class LanguageService {
 
         'test_voice': 'குரல் சோதனை',
 
+        'all': 'அனைத்தும்',
+
+        'menu': 'மெனு',
+
+        'say_hello_friend': 'நண்பரிடம் "வணக்கம்" சொல்லுங்கள்',
+
+        'ask_for_drink': 'பானம் கேளுங்கள்',
+
+        'express_emotion': 'உணர்வை வெளிப்படுத்துங்கள்',
+
+        'practice_name': 'என் பெயரைச் சொல்லப் பயிற்சி செய்யுங்கள்',
+
+        'access_app_features': 'ஆப்ஸ் அம்சங்கள் மற்றும் அமைப்புகளை அணுகவும்',
+
+        'configure_aac_settings': 'உங்கள் AAC ஆப்ஸ் அமைப்புகளை கட்டமைக்கவும்',
+
+        'error': 'பிழை',
+
+        'ok': 'சரி',
+
+        'please': 'தயவுசெய்து',
+
+        'thank_you': 'நன்றி',
+
+        'help_me': 'எனக்கு உதவுங்கள்',
+
+        'stop': 'நிறுத்து',
+
+        'more': 'மேலும்',
+
+        'more_please': 'மேலும் தயவுசெய்து',
+
+        'help_me_please': 'தயவுசெய்து எனக்கு உதவுங்கள்',
+
       },
 
       // Telugu translations
@@ -579,6 +735,40 @@ class LanguageService {
         'pitch': 'పిచ్',
 
         'test_voice': 'వాయిస్ పరీక్ష',
+
+        'all': 'అన్నీ',
+
+        'menu': 'మెనూ',
+
+        'say_hello_friend': 'స్నేహితుడికి "నమస్కారం" చెప్పండి',
+
+        'ask_for_drink': 'పానీయం అడగండి',
+
+        'express_emotion': 'భావనను వ్యక్తపరచండి',
+
+        'practice_name': 'నా పేరు చెప్పడం అభ్యసించండి',
+
+        'access_app_features': 'యాప్ ఫీచర్లు మరియు సెట్టింగ్‌లను యాక్సెస్ చేయండి',
+
+        'configure_aac_settings': 'మీ AAC యాప్ సెట్టింగ్‌లను కాన్ఫిగర్ చేయండి',
+
+        'error': 'దోషం',
+
+        'ok': 'సరే',
+
+        'please': 'దయచేసి',
+
+        'thank_you': 'ధన్యవాదాలు',
+
+        'help_me': 'నాకు సహాయం చేయండి',
+
+        'stop': 'ఆపండి',
+
+        'more': 'మరింత',
+
+        'more_please': 'మరింత దయచేసి',
+
+        'help_me_please': 'దయచేసి నాకు సహాయం చేయండి',
 
       },
 
@@ -634,6 +824,40 @@ class LanguageService {
 
         'test_voice': 'आवाज चाचणी',
 
+        'all': 'सर्व',
+
+        'menu': 'मेनू',
+
+        'say_hello_friend': 'मित्राला "नमस्कार" म्हणा',
+
+        'ask_for_drink': 'पेय मागा',
+
+        'express_emotion': 'भावना व्यक्त करा',
+
+        'practice_name': 'माझे नाव म्हणण्याचा सराव करा',
+
+        'access_app_features': 'अॅप वैशिष्ट्ये आणि सेटिंग्स अॅक्सेस करा',
+
+        'configure_aac_settings': 'तुमच्या AAC अॅप सेटिंग्स कॉन्फिगर करा',
+
+        'error': 'त्रुटी',
+
+        'ok': 'ठीक आहे',
+
+        'please': 'कृपया',
+
+        'thank_you': 'धन्यवाद',
+
+        'help_me': 'मला मदत करा',
+
+        'stop': 'थांबा',
+
+        'more': 'अधिक',
+
+        'more_please': 'अधिक कृपया',
+
+        'help_me_please': 'कृपया मला मदत करा',
+
       },
 
       // Gujarati translations
@@ -688,6 +912,40 @@ class LanguageService {
 
         'test_voice': 'અવાજ ટેસ્ટ',
 
+        'all': 'બધું',
+
+        'menu': 'મેનૂ',
+
+        'say_hello_friend': 'મિત્રને "નમસ્તે" કહો',
+
+        'ask_for_drink': 'પીણા માટે પૂછો',
+
+        'express_emotion': 'લાગણી વ્યક્ત કરો',
+
+        'practice_name': 'મારું નામ કહેવાની પ્રેક્ટિસ કરો',
+
+        'access_app_features': 'એપ્લિકેશન ફીચર્સ અને સેટિંગ્સ ઍક્સેસ કરો',
+
+        'configure_aac_settings': 'તમારી AAC એપ્લિકેશન સેટિંગ્સ કોન્ફિગર કરો',
+
+        'error': 'ભૂલ',
+
+        'ok': 'ઠીક છે',
+
+        'please': 'કૃપા કરીને',
+
+        'thank_you': 'આભાર',
+
+        'help_me': 'મને મદદ કરો',
+
+        'stop': 'અટકાવો',
+
+        'more': 'વધુ',
+
+        'more_please': 'વધુ કૃપા કરીને',
+
+        'help_me_please': 'કૃપા કરીને મને મદદ કરો',
+
       },
 
       'es-ES': {
@@ -740,6 +998,40 @@ class LanguageService {
 
         'test_voice': 'Probar Voz',
 
+        'all': 'Todo',
+
+        'menu': 'Menú',
+
+        'say_hello_friend': 'Dile "hola" a un amigo',
+
+        'ask_for_drink': 'Pedir una bebida',
+
+        'express_emotion': 'Expresar una emoción',
+
+        'practice_name': 'Practicar decir mi nombre',
+
+        'access_app_features': 'Acceder a funciones y configuración de la aplicación',
+
+        'configure_aac_settings': 'Configurar la configuración de tu aplicación AAC',
+
+        'error': 'Error',
+
+        'ok': 'Aceptar',
+
+        'please': 'Por favor',
+
+        'thank_you': 'Gracias',
+
+        'help_me': 'Ayúdame',
+
+        'stop': 'Parar',
+
+        'more': 'Más',
+
+        'more_please': 'Más por favor',
+
+        'help_me_please': 'Por favor ayúdame',
+
       },
 
     };
@@ -786,41 +1078,45 @@ class LanguageService {
 
     
 
-    final List<TTSVoice> ttsVoices = voices
-
-        .cast<Map<String, dynamic>>()
-
+    final ttsVoices = voices
         .where((voice) {
-
-          final locale = voice['locale']?.toString() ?? '';
-
-          // Support both exact match and partial match for Indian languages
-
-          return locale.startsWith(baseLanguage) || 
-
-                 locale.contains(_currentLanguage) ||
-
-                 locale.contains('IN') && locale.startsWith(baseLanguage);
-
+          try {
+            // Safely cast to Map<String, dynamic>
+            if (voice is! Map) return false;
+            final voiceMap = Map<String, dynamic>.from(voice as Map);
+            final locale = voiceMap['locale']?.toString() ?? '';
+            // Support both exact match and partial match for Indian languages
+            return locale.startsWith(baseLanguage) || 
+                   locale.contains(_currentLanguage) ||
+                   locale.contains('IN') && locale.startsWith(baseLanguage);
+          } catch (e) {
+            return false;
+          }
         })
-
-        .map((voice) => TTSVoice(
-
-          id: voice['name'] ?? '',
-
-          name: voice['name'] ?? 'Unknown',
-
-          language: voice['locale'] ?? _currentLanguage,
-
-          gender: _determineGender(voice['name'] ?? ''),
-
-        ))
-
-        .toList();
+        .map((voice) {
+          try {
+            final voiceMap = Map<String, dynamic>.from(voice as Map);
+            return TTSVoice(
+              id: voiceMap['name']?.toString() ?? '',
+              name: voiceMap['name']?.toString() ?? 'Unknown',
+              language: voiceMap['locale']?.toString() ?? _currentLanguage,
+              gender: _determineGender(voiceMap['name']?.toString() ?? ''),
+            );
+          } catch (e) {
+            return TTSVoice(
+              id: 'fallback',
+              name: 'Default Voice',
+              language: _currentLanguage,
+              gender: 'unknown',
+            );
+          }
+        })
+        .toList()
+        .cast<TTSVoice>();
 
     
 
-    return ttsVoices;
+    return ttsVoices.whereType<TTSVoice>().toList();
 
   }
 
@@ -850,13 +1146,31 @@ class LanguageService {
       await _flutterTts!.setSpeechRate(settings.speechRate);
       
       if (settings.voiceId.isNotEmpty) {
-        final voices = await _flutterTts!.getVoices;
-        final voice = voices?.firstWhere(
-          (v) => v['name'] == settings.voiceId,
-          orElse: () => null,
-        );
-        if (voice != null) {
-          await _flutterTts!.setVoice(voice);
+        try {
+          final voices = await _flutterTts!.getVoices;
+          final voice = voices?.firstWhere(
+            (v) {
+              try {
+                if (v is! Map) return false;
+                final voiceMap = Map<String, dynamic>.from(v as Map);
+                return voiceMap['name']?.toString() == settings.voiceId;
+              } catch (e) {
+                return false;
+              }
+            },
+            orElse: () => null,
+          );
+          if (voice != null) {
+            // Convert to Map<String, String> as expected by setVoice
+            final voiceData = Map<String, String>.from(
+              Map<String, dynamic>.from(voice as Map).map(
+                (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
+              ),
+            );
+            await _flutterTts!.setVoice(voiceData);
+          }
+        } catch (e) {
+          print('[TTS] Error setting voice: $e');
         }
       }
     }
