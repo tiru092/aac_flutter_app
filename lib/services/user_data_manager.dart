@@ -78,14 +78,14 @@ class UserDataManager {
   /// Open all Hive boxes for the user with UID-based naming
   Future<void> _openUserBoxes(String userId) async {
     try {
-      // Create user-specific box names using Firebase UID
-      final symbolsBoxName = 'symbols_$userId';
-      final categoriesBoxName = 'categories_$userId';
-      final favoritesBoxName = 'favorites_$userId';
-      final historyBoxName = 'history_$userId';
-      final settingsBoxName = 'settings_$userId';
-      final communicationHistoryBoxName = 'comm_history_$userId';
-      final phraseHistoryBoxName = 'phrase_history_$userId'; // New box name
+      // FIXED: Use consistent naming from FirebasePathRegistry
+      final symbolsBoxName = FirebasePathRegistry.hiveUserSymbolsBox(userId);
+      final categoriesBoxName = FirebasePathRegistry.hiveUserCategoriesBox(userId);
+      final favoritesBoxName = FirebasePathRegistry.hiveUserFavoritesBox(userId);
+      final historyBoxName = 'history_$userId'; // Keep this one as is since it's not in registry
+      final settingsBoxName = 'settings_$userId'; // Keep this one as is since it's not in registry
+      final communicationHistoryBoxName = 'comm_history_$userId'; // Keep this one as is
+      final phraseHistoryBoxName = 'phrase_history_$userId'; // Keep this one as is
 
       // Open boxes
       _userSymbolsBox = await Hive.openBox<Symbol>(symbolsBoxName);

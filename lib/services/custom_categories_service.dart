@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/symbol.dart'; // Category is defined in symbol.dart
 import '../utils/aac_logger.dart';
 import 'user_data_manager.dart';
@@ -28,9 +29,15 @@ class CustomCategoriesService {
 
   /// Initialize with Firebase UID and UserDataManager
   Future<void> initializeWithUid(String uid, UserDataManager userDataManager) async {
-    if (_isInitialized) {
+    if (_isInitialized && _currentUid == uid) {
       AACLogger.info('CustomCategoriesService: Already initialized for UID: $_currentUid', tag: 'CustomCategoriesService');
       return;
+    }
+
+    // CRITICAL FIX: Validate UID matches current Firebase user
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || currentUser.uid != uid) {
+      throw Exception('CustomCategoriesService: UID mismatch! Expected: ${currentUser?.uid}, Got: $uid');
     }
 
     try {
@@ -125,32 +132,59 @@ class CustomCategoriesService {
   }
 
   /// Perform background sync to merge any new Firebase data with local Hive data
+  /// IMPROVED: Better conflict resolution for timestamp-based updates
   Future<void> _performBackgroundSync(List<Category> firebaseCategories) async {
     try {
       bool hasChanges = false;
       
       // Check if Firebase has any categories not in local storage
       for (final fbCategory in firebaseCategories) {
-        if (!_customCategories.any((local) => local.id == fbCategory.id)) {
+        final localCategory = _customCategories.firstWhere((local) => local.id == fbCategory.id, 
+          orElse: () => Category(name: '', iconPath: '', colorCode: 0));
+        
+        if (localCategory.name.isEmpty) {
+          // New category from Firebase - add it
           _customCategories.add(fbCategory);
           hasChanges = true;
           AACLogger.info('CustomCategoriesService: Background sync - Added new category from Firebase: ${fbCategory.name}', tag: 'CustomCategoriesService');
+        } else {
+          // IMPROVED: Handle conflicts based on timestamps if available
+          final fbDate = fbCategory.dateCreated ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final localDate = localCategory.dateCreated ?? DateTime.fromMillisecondsSinceEpoch(0);
+          
+          if (fbDate.isAfter(localDate)) {
+            // Firebase version is newer - update local
+            final index = _customCategories.indexWhere((local) => local.id == fbCategory.id);
+            if (index != -1) {
+              _customCategories[index] = fbCategory;
+              hasChanges = true;
+              AACLogger.info('CustomCategoriesService: Background sync - Updated category from Firebase (newer): ${fbCategory.name}', tag: 'CustomCategoriesService');
+            }
+          }
         }
       }
       
-      // Check if local storage has categories not in Firebase (keep them)
-      // This ensures that local-only changes are preserved
+      // Check if local storage has categories not in Firebase (sync them up)
       final localOnlyCategories = _customCategories.where((local) => 
         !firebaseCategories.any((fb) => fb.id == local.id)).toList();
       
       if (localOnlyCategories.isNotEmpty) {
-        AACLogger.info('CustomCategoriesService: Found ${localOnlyCategories.length} local-only categories (preserving them)', tag: 'CustomCategoriesService');
+        AACLogger.info('CustomCategoriesService: Found ${localOnlyCategories.length} local-only categories (will sync to Firebase)', tag: 'CustomCategoriesService');
+        // IMPROVED: Sync local-only categories to Firebase to prevent data loss
+        for (final localCategory in localOnlyCategories) {
+          try {
+            await SharedResourceService.addUserCustomCategory(_currentUid!, localCategory);
+            AACLogger.info('CustomCategoriesService: Synced local category to Firebase: ${localCategory.name}', tag: 'CustomCategoriesService');
+          } catch (e) {
+            AACLogger.warning('CustomCategoriesService: Failed to sync local category to Firebase: ${localCategory.name}, error: $e', tag: 'CustomCategoriesService');
+          }
+        }
       }
       
       if (hasChanges) {
         await _saveToLocal(); // Save merged data
         _categoriesController.add(_customCategories); // Update UI
-        AACLogger.info('CustomCategoriesService: Background sync completed - merged data saved', tag: 'CustomCategoriesService');
+        AACLogger.info('CustomCategoriesService: Background sync completed with conflict resolution', tag: 'CustomCategoriesService');
       } else {
         AACLogger.info('CustomCategoriesService: Background sync - no changes needed', tag: 'CustomCategoriesService');
       }

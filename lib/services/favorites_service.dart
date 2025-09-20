@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/symbol.dart';
 import 'user_data_manager.dart';
 import '../utils/aac_logger.dart';
@@ -37,7 +38,13 @@ class FavoritesService extends ChangeNotifier {
   /// Initialize the service with a Firebase UID and a UserDataManager instance.
   /// This must be called by DataServicesInitializer.
   Future<void> initializeWithUid(String uid, UserDataManager userDataManager) async {
-    if (_isInitialized) return;
+    if (_isInitialized && _currentUid == uid) return;
+
+    // CRITICAL FIX: Validate UID matches current Firebase user  
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || currentUser.uid != uid) {
+      throw Exception('FavoritesService: UID mismatch! Expected: ${currentUser?.uid}, Got: $uid');
+    }
 
     try {
       AACLogger.info('FavoritesService: Initializing with UID: $uid', tag: 'FavoritesService');
