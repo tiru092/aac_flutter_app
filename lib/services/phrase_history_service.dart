@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/aac_logger.dart';
 import 'user_data_manager.dart';
 
@@ -70,6 +71,13 @@ class PhraseHistoryService extends ChangeNotifier {
       AACLogger.warning('PhraseHistoryService already initialized.', tag: 'PhraseHistoryService');
       return;
     }
+
+    // CRITICAL FIX: Validate UID matches current Firebase user
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || currentUser.uid != uid) {
+      throw Exception('PhraseHistoryService: UID mismatch! Expected: ${currentUser?.uid}, Got: $uid');
+    }
+
     AACLogger.info('Initializing PhraseHistoryService with UID: $uid', tag: 'PhraseHistoryService');
     _userDataManager = userDataManager;
 

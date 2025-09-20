@@ -718,57 +718,32 @@ class SharedResourceService {
   
 
   /// Migrate user custom categories from legacy path to canonical path in background
-
   static Future<void> _migrateUserCustomCategoriesInBackground(String userUid, List<Category> legacyCategories) async {
-
     try {
-
       AACLogger.info('Starting background migration of ${legacyCategories.length} categories for user $userUid', tag: 'SharedResourceService');
-
       
-
       final batch = _firestore.batch();
-
-      final canonicalCollection = _firestore.collection(FirebasePathRegistry.userCategories(userUid));
-
+      // FIXED: Use correct canonical path for custom categories
+      final canonicalCollection = _firestore.collection(FirebasePathRegistry.userCustomCategories(userUid));
       
-
       for (final category in legacyCategories) {
-
         if (category.id != null) {
-
           final docRef = canonicalCollection.doc(category.id);
-
           final categoryData = category.toJson();
-
           categoryData['migratedAt'] = FieldValue.serverTimestamp();
-
           batch.set(docRef, categoryData);
-
         }
-
       }
-
       
-
       await batch.commit();
-
       AACLogger.info('Successfully migrated ${legacyCategories.length} categories to canonical path', tag: 'SharedResourceService');
-
       
-
       // Optional: Clean up legacy data after successful migration
-
       // This would be done in a separate cleanup phase
-
       
-
     } catch (e) {
-
       AACLogger.error('Failed to migrate categories for user $userUid: $e', tag: 'SharedResourceService');
-
     }
-
   }
 
   

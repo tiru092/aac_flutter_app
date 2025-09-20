@@ -67,8 +67,17 @@ class DataServicesInitializer {
   /// It fetches the Firebase user and uses the UID to initialize all dependent services.
   Future<void> initialize() async {
     if (_isInitialized) {
-      AACLogger.info('Data services already initialized. Skipping.');
-      return;
+      AACLogger.info('Data services already initialized. Validating UID consistency...');
+      
+      // CRITICAL FIX: Validate UID consistency on re-initialization
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && user.uid != _currentUid) {
+        AACLogger.warning('UID mismatch detected! Current: $_currentUid, New: ${user.uid}. Reinitializing...');
+        await reset();
+        // Continue with initialization
+      } else {
+        return; // Already initialized with correct UID
+      }
     }
 
     AACLogger.info('🚀 Robust DataServicesInitializer starting...');
@@ -271,6 +280,20 @@ class DataServicesInitializer {
         }
       } else {
         AACLogger.warning('CustomCategoriesService not available for sync');
+      }
+
+      // IMPROVED: Sync custom symbols if service is available
+      if (hasCustomSymbolsService) {
+        try {
+          // Force refresh of custom symbols from Firebase for conflict resolution
+          await customSymbolsService!.resetServiceState();
+          await customSymbolsService!.initializeWithUid(_currentUid!, userDataManager);
+          AACLogger.info('✅ Custom symbols reinitialized and synced from cloud');
+        } catch (e) {
+          AACLogger.warning('⚠️ Custom symbols sync failed: $e');
+        }
+      } else {
+        AACLogger.warning('CustomSymbolsService not available for sync');
       }
 
       AACLogger.info('✅ User data sync completed (available services synced)');

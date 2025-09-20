@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/symbol.dart';
 import '../utils/aac_logger.dart';
 import 'user_data_manager.dart';
@@ -31,6 +32,12 @@ class CustomSymbolsService {
     if (_isInitialized && _currentUid == uid) {
       AACLogger.info('🔥 CustomSymbolsService: Already initialized for UID: $_currentUid', tag: 'CustomSymbolsService');
       return;
+    }
+
+    // CRITICAL FIX: Validate UID matches current Firebase user
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || currentUser.uid != uid) {
+      throw Exception('CustomSymbolsService: UID mismatch! Expected: ${currentUser?.uid}, Got: $uid');
     }
 
     try {
@@ -151,32 +158,54 @@ class CustomSymbolsService {
   }
 
   /// Perform background sync to merge any new Firebase data with local Hive data
+  /// IMPROVED: Better conflict resolution for timestamp-based updates
   Future<void> _performBackgroundSync(List<Symbol> firebaseSymbols) async {
     try {
       bool hasChanges = false;
       
       // Check if Firebase has any symbols not in local storage
       for (final fbSymbol in firebaseSymbols) {
-        if (!_customSymbols.any((local) => local.id == fbSymbol.id)) {
+        final localSymbol = _customSymbols.firstWhere((local) => local.id == fbSymbol.id, 
+          orElse: () => Symbol(label: '', imagePath: ''));
+        
+        if (localSymbol.label.isEmpty) {
+          // New symbol from Firebase - add it
           _customSymbols.add(fbSymbol);
           hasChanges = true;
           AACLogger.info('CustomSymbolsService: Background sync - Added new symbol from Firebase: ${fbSymbol.label}', tag: 'CustomSymbolsService');
+        } else {
+          // IMPROVED: Handle conflicts based on timestamps if available
+          final fbDate = fbSymbol.dateCreated ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final localDate = localSymbol.dateCreated ?? DateTime.fromMillisecondsSinceEpoch(0);
+          
+          if (fbDate.isAfter(localDate)) {
+            // Firebase version is newer - update local
+            final index = _customSymbols.indexWhere((local) => local.id == fbSymbol.id);
+            if (index != -1) {
+              _customSymbols[index] = fbSymbol;
+              hasChanges = true;
+              AACLogger.info('CustomSymbolsService: Background sync - Updated symbol from Firebase (newer): ${fbSymbol.label}', tag: 'CustomSymbolsService');
+            }
+          }
         }
       }
       
-      // Check if local storage has symbols not in Firebase (keep them)
-      // This ensures that local-only changes are preserved
+      // Check if local storage has symbols not in Firebase (sync them up)
       final localOnlySymbols = _customSymbols.where((local) => 
         !firebaseSymbols.any((fb) => fb.id == local.id)).toList();
       
       if (localOnlySymbols.isNotEmpty) {
-        AACLogger.info('CustomSymbolsService: Found ${localOnlySymbols.length} local-only symbols (preserving them)', tag: 'CustomSymbolsService');
+        AACLogger.info('CustomSymbolsService: Found ${localOnlySymbols.length} local-only symbols (will sync to Firebase)', tag: 'CustomSymbolsService');
+        // IMPROVED: Sync local-only symbols to Firebase to prevent data loss
+        for (final localSymbol in localOnlySymbols) {
+          _syncToFirebaseInBackground(localSymbol);
+        }
       }
       
       if (hasChanges) {
         await _saveToLocal(); // Update local storage
         _symbolsController.add(_customSymbols); // Update UI
-        AACLogger.info('CustomSymbolsService: Background sync completed - merged ${firebaseSymbols.length} Firebase symbols', tag: 'CustomSymbolsService');
+        AACLogger.info('CustomSymbolsService: Background sync completed with conflict resolution', tag: 'CustomSymbolsService');
       }
       
     } catch (e, stackTrace) {

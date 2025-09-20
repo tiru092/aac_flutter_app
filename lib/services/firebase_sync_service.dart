@@ -74,8 +74,9 @@ class FirebaseSyncService {
       if (categories.isEmpty) return;
 
       final WriteBatch batch = _firestore.batch();
+      // FIXED: Use correct path for custom categories
       final CollectionReference categoriesRef =
-          _firestore.collection(FirebasePathRegistry.userCategories(userId));
+          _firestore.collection(FirebasePathRegistry.userCustomCategories(userId));
 
       for (final category in categories) {
         final DocumentReference docRef = categoriesRef.doc(category.id);
@@ -96,7 +97,8 @@ class FirebaseSyncService {
 
   Future<List<Category>> getCategoriesFromCloud(String userId, {DateTime? lastSync}) async {
     try {
-      Query query = _firestore.collection(FirebasePathRegistry.userCategories(userId));
+      // FIXED: Use correct path for custom categories
+      Query query = _firestore.collection(FirebasePathRegistry.userCustomCategories(userId));
       if (lastSync != null) {
         query = query.where('lastModified', isGreaterThan: lastSync);
       }
@@ -118,7 +120,8 @@ class FirebaseSyncService {
 
   Future<void> deleteCategoryFromCloud(String userId, String categoryId) async {
     try {
-      await _firestore.doc(FirebasePathRegistry.userCategoryDocument(userId, categoryId)).delete();
+      // FIXED: Use correct path for custom categories
+      await _firestore.doc(FirebasePathRegistry.userCustomCategoryDocument(userId, categoryId)).delete();
     } on FirebaseException catch (e, s) {
       _crashReportingService.reportError(e, s,
           'Firebase error deleting category from cloud');

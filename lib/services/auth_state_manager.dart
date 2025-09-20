@@ -7,6 +7,7 @@ import '../services/user_profile_service.dart';
 import '../services/user_data_service.dart';
 import '../services/secure_logger.dart';
 import '../services/crash_reporting_service.dart';
+import '../services/data_services_initializer_robust.dart'; // FIXED: Use the single source of truth
 
 /// Enterprise-level Authentication State Manager
 /// 
@@ -178,23 +179,23 @@ class AuthStateManager {
     }
   }
   
-  /// Initialize user data after authentication
+  /// Initialize user data after authentication - FIXED: Use DataServicesInitializer as single source of truth
   Future<void> _initializeUserData(User user) async {
     try {
       _dataInitStatus = DataInitializationStatus.inProgress;
       SecureLogger.info('Initializing data for user: ${user.uid}');
       
-      // Create or load user profile
-      UserProfile userProfile = await _getOrCreateUserProfile(user);
-      _currentUserProfile = userProfile;
+      // FIXED: Use DataServicesInitializer as the single source of truth
+      // This ensures all services use the same Firebase UID consistently
+      await DataServicesInitializer.instance.initialize();
       
-      // Initialize local data storage with Firebase UID as single source of truth
-      await _localDataManager.initializeAfterLogin(userProfile);
+      // Get user profile from DataServicesInitializer's UserDataManager
+      _currentUserProfile = await DataServicesInitializer.instance.userDataManager.getUserProfile();
       
       _dataInitStatus = DataInitializationStatus.completed;
-      SecureLogger.info('✅ Local data initialized for user: ${user.uid}');
+      SecureLogger.info('✅ Data services initialized for user: ${user.uid}');
       
-      // Trigger cloud sync in background
+      // Trigger cloud sync through DataServicesInitializer
       _triggerCloudSync(user.uid);
       
     } catch (e, stackTrace) {
@@ -247,7 +248,7 @@ class AuthStateManager {
     }
   }
   
-  /// Trigger cloud synchronization
+  /// Trigger cloud synchronization - FIXED: Use DataServicesInitializer for unified sync
   void _triggerCloudSync(String userId) {
     // Run sync in background without blocking UI
     Future.microtask(() async {
@@ -255,7 +256,8 @@ class AuthStateManager {
         _syncStatus = SyncStatus.syncing;
         SecureLogger.info('Starting cloud sync for user: $userId');
         
-        await _cloudSyncService.syncAllData();
+        // FIXED: Use DataServicesInitializer's unified sync method
+        await DataServicesInitializer.instance.syncUserDataFromCloud();
         
         _syncStatus = SyncStatus.completed;
         SecureLogger.info('✅ Cloud sync completed for user: $userId');
@@ -268,13 +270,13 @@ class AuthStateManager {
     });
   }
   
-  /// Clean up previous user data
+  /// Clean up previous user data - FIXED: Use DataServicesInitializer for cleanup
   Future<void> _cleanupPreviousUserData(User previousUser) async {
     try {
       SecureLogger.info('Cleaning up data for previous user: ${previousUser.uid}');
       
-      // Clear user data from local storage
-      await _userDataService.clearUserDataOnLogout();
+      // FIXED: Use DataServicesInitializer's reset method for proper cleanup
+      await DataServicesInitializer.instance.reset();
       
       SecureLogger.info('✅ Previous user data cleaned up');
       
