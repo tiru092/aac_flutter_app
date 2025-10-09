@@ -4,7 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../services/unified_supabase_auth_service.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';  // For opening legal documents
@@ -145,6 +145,13 @@ class _HomeScreenState extends State<HomeScreen> {
     _customCategoriesService = services.customCategoriesService;
     _customSymbolsService = services.customSymbolsService;
     
+    // If services are not available yet, try again after a short delay
+    if (_favoritesService == null && mounted) {
+      Timer(const Duration(milliseconds: 1000), () {
+        if (mounted) _initializeServices();
+      });
+    }
+    
     // Debug CustomSymbolsService state
     if (_customSymbolsService != null) {
       debugPrint('🔥 CustomSymbolsService available - initialized: ${_customSymbolsService!.isInitialized}');
@@ -188,12 +195,35 @@ class _HomeScreenState extends State<HomeScreen> {
       _customSymbolsSubscription = _customSymbolsService!.symbolsStream.listen((symbols) {
         if (mounted) {
           setState(() {
-            // Combine default symbols with user's custom symbols
+            // Combine default symbols with user's custom symbols WITH DEDUPLICATION
             final defaultSymbols = SampleData.getSampleSymbols();
-            _allSymbols = [...defaultSymbols, ...symbols];
+            
+            // Use Map-based deduplication to prevent duplicate symbols by ID
+            final Map<String, Symbol> uniqueSymbols = {};
+            
+            // Add default symbols first
+            for (final symbol in defaultSymbols) {
+              uniqueSymbols[symbol.id ?? symbol.label] = symbol;
+            }
+            
+            // Add custom symbols (will override duplicates by ID)
+            for (final symbol in symbols) {
+              uniqueSymbols[symbol.id ?? symbol.label] = symbol;
+            }
+            
+            _allSymbols = uniqueSymbols.values.toList();
             _filteredSymbols = _allSymbols; // Update filtered symbols too
+            
+            // Log deduplication results with detailed info
+            final duplicatesRemoved = (defaultSymbols.length + symbols.length) - _allSymbols.length;
+            debugPrint('🔍 STREAM SYMBOL MERGE: Default (${defaultSymbols.length}) + Custom (${symbols.length}) = ${_allSymbols.length} unique symbols');
+            if (duplicatesRemoved > 0) {
+              debugPrint('🔧 STREAM DEDUPLICATION: Removed $duplicatesRemoved duplicate symbols');
+            } else {
+              debugPrint('✅ NO STREAM DUPLICATES: All symbols are unique');
+            }
           });
-          debugPrint('🔥 CustomSymbols updated via stream: ${symbols.length} custom symbols (${_allSymbols.length} total)');
+          debugPrint('🔥 CustomSymbols updated via stream: ${symbols.length} custom symbols (${_allSymbols.length} total unique)');
         }
       }, onError: (error) {
         debugPrint('🚫 CustomSymbols stream error: $error');
@@ -491,12 +521,32 @@ class _HomeScreenState extends State<HomeScreen> {
           final customSymbols = _customSymbolsService!.customSymbols;
           if (mounted) {
             setState(() {
-              // Combine default symbols with user's custom symbols
+              // Combine default symbols with user's custom symbols WITH DEDUPLICATION
               final defaultSymbols = SampleData.getSampleSymbols();
-              _allSymbols = [...defaultSymbols, ...customSymbols];
+              
+              // Use Map-based deduplication to prevent duplicate symbols by ID
+              final Map<String, Symbol> uniqueSymbols = {};
+              
+              // Add default symbols first
+              for (final symbol in defaultSymbols) {
+                uniqueSymbols[symbol.id ?? symbol.label] = symbol;
+              }
+              
+              // Add custom symbols (will override duplicates by ID)
+              for (final symbol in customSymbols) {
+                uniqueSymbols[symbol.id ?? symbol.label] = symbol;
+              }
+              
+              _allSymbols = uniqueSymbols.values.toList();
               _filteredSymbols = _allSymbols; // Update filtered symbols too
+              
+              // Log deduplication results
+              final duplicatesRemoved = (defaultSymbols.length + customSymbols.length) - _allSymbols.length;
+              if (duplicatesRemoved > 0) {
+                debugPrint('🔧 BACKGROUND DEDUPLICATION: Removed $duplicatesRemoved duplicate symbols');
+              }
             });
-            debugPrint('Loaded ${customSymbols.length} custom symbols from CustomSymbolsService (Firebase synced)');
+            debugPrint('Loaded ${customSymbols.length} custom symbols from CustomSymbolsService (${_allSymbols.length} total unique)');
           }
         } else {
           debugPrint('CustomSymbolsService not initialized - using default symbols only');
@@ -543,14 +593,14 @@ class _HomeScreenState extends State<HomeScreen> {
     
     try {
       // Check if user is authenticated for enterprise data
-      final user = FirebaseAuth.instance.currentUser;
+      final user = UnifiedSupabaseAuthService.currentUser;
       
       if (user != null) {
         AACLogger.info('Loading enterprise data for user: ${user.email}', tag: 'HomeScreen');
         
         // Load using enterprise SharedResourceService
-        final allSymbols = await SharedResourceService.getAllSymbolsForUser(user.uid);
-        final allCategories = await SharedResourceService.getAllCategoriesForUser(user.uid);
+        final allSymbols = await SharedResourceService.getAllSymbolsForUser(user.id);
+        final allCategories = await SharedResourceService.getAllCategoriesForUser(user.id);
         
         AACLogger.info('Loaded ${allSymbols.length} symbols and ${allCategories.length} categories from enterprise service', tag: 'HomeScreen');
         

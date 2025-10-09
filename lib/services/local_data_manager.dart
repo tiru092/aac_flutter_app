@@ -1,7 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/symbol.dart';
 import '../models/user_profile.dart';
 import '../utils/sample_data.dart';
@@ -27,12 +26,11 @@ class LocalDataManager {
     try {
       print('LocalDataManager: Initializing for user: ${userProfile.name}');
       
-      // CRITICAL: ALWAYS use Firebase UID as the single source of truth
-      final user = FirebaseAuth.instance.currentUser;
-      if (user?.uid == null) {
-        throw Exception('LocalDataManager: No Firebase UID available - user must be authenticated');
+      // CRITICAL: Use Supabase User ID as the single source of truth
+      final userId = userProfile.id; // Use Supabase User ID directly from profile
+      if (userId.isEmpty) {
+        throw Exception('LocalDataManager: No User ID available - user must be authenticated');
       }
-      final userId = user!.uid; // ALWAYS use Firebase UID, never fallback to profile.id
       
       final prefs = await SharedPreferences.getInstance();
       final userKey = '${_isLocalDataInitializedKey}_$userId';

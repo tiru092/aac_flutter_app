@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import '../services/unified_supabase_auth_service.dart';
 import 'user_data_manager.dart';
 import 'favorites_service.dart';
 import 'phrase_history_service.dart';
@@ -7,6 +7,8 @@ import 'custom_categories_service.dart';
 import 'custom_symbols_service.dart';
 import 'language_service.dart';
 import '../utils/aac_logger.dart';
+import 'supabase/supabase_config.dart';
+import 'simple_migration_service.dart';
 
 /// A robust, centralized initializer for all data-related services.
 /// This class ensures that all services are initialized correctly with a single,
@@ -66,45 +68,53 @@ class DataServicesInitializer {
   /// Initializes all data services. This is the single entry point.
   /// It fetches the Firebase user and uses the UID to initialize all dependent services.
   Future<void> initialize() async {
+    print('🔥 DIAGNOSTIC: DataServicesInitializer.initialize() called, _isInitialized=$_isInitialized');
     if (_isInitialized) {
+      print('🔥 DIAGNOSTIC: Skipping initialization because _isInitialized=true');
       AACLogger.info('Data services already initialized. Skipping.');
       return;
     }
 
+    print('🔥 DIAGNOSTIC: About to start AACLogger.info');
     AACLogger.info('🚀 Robust DataServicesInitializer starting...');
+    print('🔥 DIAGNOSTIC: AACLogger.info completed, entering try block');
 
     try {
-      // 1. Get the authenticated Firebase user. This is the source of truth.
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null || user.uid.isEmpty) {
-        _isInitialized = false;
-        AACLogger.warning('🚫 User not authenticated. Data services cannot be initialized.');
-        throw Exception('Firebase user not authenticated - cannot initialize data services');
+      print('🔥 DIAGNOSTIC: Inside try block, about to initialize Supabase');
+            // 1. Initialize Supabase if available
+      try {
+        await SupabaseConfig.initialize();
+        AACLogger.info('DataServicesInitializer: Supabase initialized successfully', tag: 'DataServicesInitializer');
+      } catch (e) {
+        AACLogger.warning('DataServicesInitializer: Supabase initialization failed: $e', tag: 'DataServicesInitializer');
       }
-      _currentUid = user.uid;
-      AACLogger.info('✅ Authenticated user found with Firebase UID: $_currentUid');
-
-      // 2. Initialize UserDataManager with the fetched UID - this is critical
-      if (_userDataManager == null) {
-        _userDataManager = UserDataManager();
-        await _userDataManager!.initializeWithUid(_currentUid!);
-        AACLogger.info('✅ UserDataManager initialized.');
-      } else {
-        AACLogger.info('✅ UserDataManager already initialized.');
+      
+      // 2. Get authenticated user ID and store it
+      final currentUserId = UnifiedSupabaseAuthService.currentUserId;
+      if (currentUserId == null) {
+        throw Exception('User not authenticated - cannot initialize data services');
       }
+      _currentUid = currentUserId; // CRITICAL FIX: Set _currentUid before using it
+      
+      // 3. Initialize core UserDataManager
+      _userDataManager = UserDataManager();
+      await _userDataManager!.initializeWithUid(_currentUid!);
+      AACLogger.info('DataServicesInitializer: UserDataManager initialized successfully with UID: $_currentUid', tag: 'DataServicesInitializer');
 
-      // 3. Initialize other services - continue even if individual services fail
+      // 4. Initialize other services - continue even if individual services fail
       if (_favoritesService == null) {
+        AACLogger.info('DataServicesInitializer: Creating FavoritesService instance...', tag: 'DataServicesInitializer');
         _favoritesService = FavoritesService();
         try {
+          AACLogger.info('DataServicesInitializer: Calling initializeWithUid on FavoritesService with UID: $_currentUid', tag: 'DataServicesInitializer');
           await _favoritesService!.initializeWithUid(_currentUid!, _userDataManager!);
-          AACLogger.info('✅ FavoritesService initialized.');
-        } catch (e) {
-          AACLogger.warning('⚠️ FavoritesService initialization failed (app will continue): $e');
+          AACLogger.info('✅ FavoritesService initialized successfully.', tag: 'DataServicesInitializer');
+        } catch (e, stackTrace) {
+          AACLogger.error('⚠️ FavoritesService initialization failed: $e', stackTrace: stackTrace, tag: 'DataServicesInitializer');
           _favoritesService = null; // Clear failed service
         }
       } else {
-        AACLogger.info('✅ FavoritesService already initialized.');
+        AACLogger.info('✅ FavoritesService already initialized.', tag: 'DataServicesInitializer');
       }
 
       if (_phraseHistoryService == null) {
@@ -179,6 +189,9 @@ class DataServicesInitializer {
         AACLogger.info('✅ LanguageService already initialized.');
       }
 
+      // Initialize Supabase sync for services (non-blocking)
+      await _initializeSupabaseSync();
+      
       _isInitialized = true;
       AACLogger.info('🎉 All data services successfully initialized with single source of truth UID.');
       logServiceStatus();
@@ -280,10 +293,58 @@ class DataServicesInitializer {
     }
   }
 
+  /// Initialize Supabase sync for all services (non-blocking)
+  Future<void> _initializeSupabaseSync() async {
+    try {
+      // Check if migration is needed
+      final migrationNeeded = await SimpleMigrationService.isMigrationNeeded();
+      
+      if (migrationNeeded) {
+        AACLogger.info('DataServicesInitializer: Starting Supabase migration...', tag: 'DataServicesInitializer');
+        
+        // Perform quick setup for new user
+        final user = UnifiedSupabaseAuthService.currentUser;
+        if (user != null) {
+          final displayName = UnifiedSupabaseAuthService.currentUserDisplayName;
+          final email = UnifiedSupabaseAuthService.currentUserEmail;
+          final setupResult = await SimpleMigrationService.quickSetupNewUser(
+            displayName ?? email ?? 'AAC User'
+          );
+          
+          if (setupResult) {
+            AACLogger.info('DataServicesInitializer: Supabase user setup completed', tag: 'DataServicesInitializer');
+          }
+        }
+      }
+      
+      // Trigger background sync for services (non-blocking)
+      Future.microtask(() async {
+        try {
+          if (_favoritesService != null) {
+            await _favoritesService!.syncFromSupabase();
+          }
+          
+          if (_phraseHistoryService != null) {
+            await _phraseHistoryService!.syncFromSupabase();
+          }
+          
+          AACLogger.info('DataServicesInitializer: Supabase background sync completed', tag: 'DataServicesInitializer');
+        } catch (e) {
+          AACLogger.warning('DataServicesInitializer: Supabase background sync failed: $e', tag: 'DataServicesInitializer');
+        }
+      });
+      
+    } catch (e) {
+      AACLogger.warning('DataServicesInitializer: Supabase sync initialization failed: $e', tag: 'DataServicesInitializer');
+    }
+  }
+
   void logServiceStatus() {
     AACLogger.info('================ Data Services Status ================');
     AACLogger.info('Initializer Status: ${_isInitialized ? "✅ INITIALIZED" : "❌ NOT INITIALIZED"}');
-    AACLogger.info('Firebase UID: ${_currentUid ?? "N/A"}');
+    AACLogger.info('Supabase UID: ${_currentUid ?? "N/A"}');
+    AACLogger.info('Supabase Auth: ${UnifiedSupabaseAuthService.isAuthenticated ? "✅" : "❌"}');
+    AACLogger.info('Supabase Available: ${SupabaseConfig.isInitialized ? "✅" : "❌"}');
     if (_isInitialized) {
       AACLogger.info('  - UserDataManager: ${_userDataManager?.isInitialized == true ? "✅" : "❌"}');
       AACLogger.info('  - FavoritesService: ${_favoritesService?.isInitialized == true ? "✅" : "❌"}');

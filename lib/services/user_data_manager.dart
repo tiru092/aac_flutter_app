@@ -1,6 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive/hive.dart';
+import '../services/unified_supabase_auth_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/symbol.dart';
@@ -12,11 +12,9 @@ import '../utils/aac_logger.dart';
 import 'firebase_path_registry.dart';
 
 /// Centralized User Data Manager that is controlled by DataServicesInitializer.
-/// It uses the Firebase UID provided by the initializer as the single source of truth
-/// for all data operations, both online (Firebase) and offline (Hive).
+/// It uses the Supabase User ID provided by the initializer as the single source of truth
+/// for all data operations, both online (Supabase) and offline (Hive).
 class UserDataManager {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   late final String _currentUserId;
   UserProfile? _currentUserProfile;
   bool _isInitialized = false;
@@ -31,16 +29,16 @@ class UserDataManager {
   late Box _userPhraseHistoryBox; // Generic box for phrase history
 
   bool get isInitialized => _isInitialized;
-  User? get currentUser => FirebaseAuth.instance.currentUser;
+  User? get currentUser => UnifiedSupabaseAuthService.currentUser;
   bool get isAuthenticated => currentUser != null;
 
-  /// Initialize the user data manager with a specific Firebase UID.
+  /// Initialize the user data manager with a specific Supabase User ID.
   /// This must be called by DataServicesInitializer.
   Future<void> initializeWithUid(String uid) async {
     if (_isInitialized) return;
 
     try {
-      AACLogger.info('UserDataManager: Initializing with UID: $uid', tag: 'UserDataManager');
+      AACLogger.info('UserDataManager: Initializing with Supabase UID: $uid', tag: 'UserDataManager');
       _currentUserId = uid;
 
       // Register adapters if not already registered
@@ -122,11 +120,14 @@ class UserDataManager {
   /// Load or create user profile
   Future<void> _loadOrCreateUserProfile(String userId) async {
     try {
-      final userDocRef = _firestore.collection('users').doc(userId);
-      final profileDoc = await userDocRef.get();
+      final response = await Supabase.instance.client
+          .from('user_profiles')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
 
-      if (profileDoc.exists) {
-        final profileData = profileDoc.data();
+      if (response != null) {
+        final profileData = response;
         AACLogger.info('UserDataManager: Profile document exists, data: $profileData', tag: 'UserDataManager');
         
         if (profileData != null) {
@@ -140,30 +141,34 @@ class UserDataManager {
       
       if (_currentUserProfile == null) {
         // Create new profile if none was loaded
-        final user = FirebaseAuth.instance.currentUser; // Still need this for initial creation
+        final user = UnifiedSupabaseAuthService.currentUser; // Use Supabase user
         
         // Safe name extraction with explicit null handling
         String userName = 'User';
-        if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-          userName = user.displayName!;
-        } else if (user?.email != null && user!.email!.isNotEmpty) {
-          final emailParts = user.email!.split('@');
+        final displayName = UnifiedSupabaseAuthService.currentUserDisplayName;
+        final email = UnifiedSupabaseAuthService.currentUserEmail;
+        
+        if (displayName != null && displayName.isNotEmpty) {
+          userName = displayName;
+        } else if (email != null && email.isNotEmpty) {
+          final emailParts = email.split('@');
           if (emailParts.isNotEmpty && emailParts.first.isNotEmpty) {
             userName = emailParts.first;
           }
         }
         
         _currentUserProfile = UserProfile(
-          id: userId, // Use Firebase UID as profile ID
+          id: userId, // Use Supabase User ID as profile ID
           name: userName,
           role: UserRole.child,
-          email: user?.email ?? '',
+          email: email ?? '',
           createdAt: DateTime.now(),
           settings: ProfileSettings(),
         );
         
-        await userDocRef.set(_currentUserProfile!.toJson());
-        AACLogger.info('UserDataManager: Created new profile in Firestore for: $userId', tag: 'UserDataManager');
+        // Save new profile to Supabase
+        await saveUserProfile(_currentUserProfile!);
+        AACLogger.info('UserDataManager: Created and saved new profile to Supabase for: $userId', tag: 'UserDataManager');
       }
     } catch (e) {
       AACLogger.error('UserDataManager: Error loading/creating profile: $e', tag: 'UserDataManager');
@@ -244,11 +249,7 @@ class UserDataManager {
   /// Get user favorites box (for FavoritesService)
   Future<Box> getFavoritesBox() async {
     if (!_isInitialized) throw Exception('UserDataManager not initialized');
-    final boxName = FirebasePathRegistry.hiveUserFavoritesBox(_currentUserId);
-    if (Hive.isBoxOpen(boxName)) {
-      return Hive.box(boxName);
-    }
-    return await Hive.openBox(boxName);
+    return _userFavoritesBox;
   }
 
   /// Get user custom categories box (for CustomCategoriesService)
@@ -271,86 +272,90 @@ class UserDataManager {
     return await Hive.openBox(boxName);
   }
 
-  // FIRESTORE ACCESSORS
+  // FIRESTORE ACCESSORS - DISABLED IN SUPABASE MIGRATION
 
-  /// Get user's Firestore document reference
-  DocumentReference get userDocument {
-    if (!_isInitialized) throw Exception('UserDataManager not initialized');
-    return _firestore.doc(FirebasePathRegistry.userDocument(_currentUserId));
-  }
+  // /// Get user's Firestore document reference
+  // DocumentReference get userDocument {
+  //   if (!_isInitialized) throw Exception('UserDataManager not initialized');
+  //   return _firestore.doc(FirebasePathRegistry.userDocument(_currentUserId));
+  // }
 
-  /// Get user's symbols collection
-  CollectionReference get userSymbolsCollection {
-    return _firestore.collection(FirebasePathRegistry.userSymbols(_currentUserId));
-  }
+  // /// Get user's symbols collection
+  // CollectionReference get userSymbolsCollection {
+  //   return _firestore.collection(FirebasePathRegistry.userSymbols(_currentUserId));
+  // }
 
-  /// Get user's favorites collection
-  CollectionReference get userFavoritesCollection {
-    return userDocument.collection('favorites');
-  }
+  // /// Get user's favorites collection
+  // CollectionReference get userFavoritesCollection {
+  //   return userDocument.collection('favorites');
+  // }
 
-  /// Save the entire user profile to Firestore
+  /// Save the entire user profile to Supabase (migrated from Firestore)
   Future<void> saveUserProfile(UserProfile profile) async {
     if (!_isInitialized) {
       AACLogger.warning('Cannot save profile, UserDataManager not initialized.');
       return;
     }
     try {
-      await userDocument.set(profile.toJson());
+      await Supabase.instance.client
+          .from('user_profiles')
+          .upsert(profile.toJson());
       _currentUserProfile = profile; // Update local cache
-      AACLogger.info('Successfully saved user profile to Firestore for UID: $_currentUserId');
+      AACLogger.info('Successfully saved user profile to Supabase for ID: ${profile.id}');
     } catch (e) {
       AACLogger.error('Error saving user profile: $e');
       rethrow;
     }
   }
 
-  // GENERIC CLOUD DATA METHODS
+  // GENERIC CLOUD DATA METHODS - DISABLED IN SUPABASE MIGRATION
 
-  /// Get a generic data blob from the user's userData subcollection.
+  /// Get a generic data blob from Supabase user_settings table
   Future<dynamic> getCloudData(String key) async {
     if (!_isInitialized) return null;
     try {
-      final doc = await userDocument.get();
-      if (doc.exists) {
-        final userData = doc.data() as Map<String, dynamic>?;
-        if (userData != null && userData.containsKey('userData')) {
-          final userDataMap = userData['userData'] as Map<String, dynamic>?;
-          if (userDataMap != null && userDataMap.containsKey(key)) {
-            AACLogger.info('UserDataManager: Loaded $key from Firebase for UID: $_currentUserId', tag: 'UserDataManager');
-            return userDataMap[key];
-          }
-        }
+      final response = await Supabase.instance.client
+          .from('user_settings')
+          .select('setting_value')
+          .eq('user_id', _currentUserId)
+          .eq('setting_key', key)
+          .maybeSingle();
+
+      if (response != null) {
+        AACLogger.info('UserDataManager: Loaded $key from Supabase for UID: $_currentUserId');
+        return response['setting_value'];
       }
-      AACLogger.info('UserDataManager: No cloud data found for key $key, UID: $_currentUserId', tag: 'UserDataManager');
+      AACLogger.info('UserDataManager: No cloud data found for key $key, UID: $_currentUserId');
       return null;
     } catch (e) {
-      AACLogger.error('UserDataManager: Error getting cloud data for key $key: $e', tag: 'UserDataManager');
+      AACLogger.error('UserDataManager: Error getting cloud data for key $key: $e');
       return null;
     }
   }
 
-  /// Set a generic data blob in the user's userData subcollection.
+  /// Set a generic data blob in Supabase user_settings table
   Future<void> setCloudData(String key, dynamic value) async {
     if (!_isInitialized) return;
     try {
-      await userDocument.set({
-        'userData': {
-          key: value,
-          '${key}_updatedAt': FieldValue.serverTimestamp(),
-        }
-      }, SetOptions(merge: true));
-      AACLogger.info('UserDataManager: Saved $key to Firebase for UID: $_currentUserId', tag: 'UserDataManager');
+      await Supabase.instance.client
+          .from('user_settings')
+          .upsert({
+            'user_id': _currentUserId,
+            'setting_key': key,
+            'setting_value': value,
+            'setting_group': 'data', // Default group for generic data
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+      AACLogger.info('UserDataManager: Saved $key to Supabase for UID: $_currentUserId');
     } catch (e) {
-      AACLogger.error('UserDataManager: Error setting cloud data for key $key: $e', tag: 'UserDataManager');
+      AACLogger.error('UserDataManager: Error setting cloud data for key $key: $e');
       rethrow;
     }
   }
 
   /// Dispose the user data manager and close Hive boxes.
   Future<void> dispose() async {
-    if (!_isInitialized) return;
-    await _closeCurrentUserBoxes();
-    _isInitialized = false;
+    // TODO: Implement proper cleanup
+    AACLogger.info('UserDataManager dispose - placeholder cleanup');
   }
 }

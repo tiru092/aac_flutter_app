@@ -1,16 +1,18 @@
 import 'package:flutter/foundation.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/unified_supabase_auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../services/auth_service.dart' as auth;
 import '../models/user_profile.dart';
-import '../services/auth_service.dart';
 import '../services/user_profile_service.dart';
 import '../services/cloud_sync_service.dart';
 import '../services/local_data_manager.dart';  // NEW: Add local data manager
 import '../services/user_data_service.dart';  // NEW: Add user data service
+import 'data_services_initializer_robust.dart';  // NEW: Add data services initializer
 
 /// Comprehensive authentication wrapper that handles:
-/// - Firebase authentication
+/// - Supabase authentication
 /// - Local user profile management
 /// - Multi-user support
 /// - Offline functionality
@@ -20,7 +22,7 @@ class AuthWrapperService {
   factory AuthWrapperService() => _instance;
   AuthWrapperService._internal();
 
-  final AuthService _authService = AuthService();
+  final auth.AuthService _authService = auth.AuthService();
   final CloudSyncService _cloudSyncService = CloudSyncService();
   
   // Local storage keys
@@ -31,15 +33,15 @@ class AuthWrapperService {
   static const String _hasVerifiedEmailKey = 'has_verified_email_ever';
   
   // Current state
-  User? _currentFirebaseUser;
+  User? _currentSupabaseUser;
   UserProfile? _currentProfile;
   bool _isOfflineMode = false;
   bool _isInitialized = false;
 
   // Getters
-  User? get currentFirebaseUser => _currentFirebaseUser;
+  User? get currentSupabaseUser => _currentSupabaseUser;
   UserProfile? get currentProfile => _currentProfile;
-  bool get isSignedIn => _currentFirebaseUser != null;
+  bool get isSignedIn => _currentSupabaseUser != null;
   bool get hasLocalProfile => _currentProfile != null;
   bool get isOfflineMode => _isOfflineMode;
   bool get isInitialized => _isInitialized;
@@ -57,10 +59,10 @@ class AuthWrapperService {
       debugPrint('AuthWrapperService: First launch: $isFirstLaunch, Offline mode: $_isOfflineMode');
       
       // Get current Firebase user
-      _currentFirebaseUser = _authService.currentUser;
+      _currentSupabaseUser = _authService.currentUser;
       
-      if (_currentFirebaseUser != null) {
-        debugPrint('AuthWrapperService: Found Firebase user: ${_currentFirebaseUser!.email}');
+      if (_currentSupabaseUser != null) {
+        debugPrint('AuthWrapperService: Found Supabase user: ${_currentSupabaseUser!.email}');
         
         // Try to load or create profile for signed-in user
         await _handleSignedInUser();
@@ -87,25 +89,26 @@ class AuthWrapperService {
   /// Handle signed-in Firebase user
   Future<void> _handleSignedInUser() async {
     try {
-      final user = _currentFirebaseUser!;
+      final user = _currentSupabaseUser!;
       
       // Try to load existing profile for this user
-      UserProfile? profile = await _loadProfileForUser(user.uid);
+      UserProfile? profile = await _loadProfileForUser(user.id);
       
       if (profile == null) {
-        // Create new profile for this user using Firebase displayName
+        // Create new profile for this user using Supabase displayName
         profile = await UserProfileService.createProfile(
-          name: user.displayName ?? user.email?.split('@').first ?? 'User',
+          name: user.userMetadata?['display_name'] ?? user.email?.split('@').first ?? 'User',
           email: user.email,
         );
         
         // Link profile with Firebase user
-        await _linkProfileWithUser(profile, user.uid);
+        await _linkProfileWithUser(profile, user.id);
         debugPrint('AuthWrapperService: Created new profile for user: ${profile.name}');
       } else {
-        // Update existing profile with latest Firebase displayName if available
-        if (user.displayName != null && user.displayName!.isNotEmpty && user.displayName != profile.name) {
-          profile = profile.copyWith(name: user.displayName!);
+        // Update existing profile with latest Supabase displayName if available
+        final displayName = user.userMetadata?['display_name'];
+        if (displayName != null && displayName.isNotEmpty && displayName != profile.name) {
+          profile = profile.copyWith(name: displayName);
           await UserProfileService.saveUserProfile(profile);
           debugPrint('AuthWrapperService: Updated existing profile name to: ${profile.name}');
         }
@@ -124,6 +127,16 @@ class AuthWrapperService {
       } catch (e) {
         debugPrint('AuthWrapperService: Error initializing local data: $e');
         // Continue without local data initialization
+      }
+      
+      // Initialize data services (favorites, history, etc.) for this user
+      try {
+        debugPrint('AuthWrapperService: Initializing data services for user: ${profile.name}');
+        await DataServicesInitializer.instance.initialize();
+        debugPrint('AuthWrapperService: Data services initialization completed');
+      } catch (e) {
+        debugPrint('AuthWrapperService: Error initializing data services: $e');
+        // Continue without data services - user can still use basic functionality
       }
       
       // Sync with cloud if available
@@ -237,7 +250,7 @@ class AuthWrapperService {
         name: name,
       );
       
-      _currentFirebaseUser = userCredential.user;
+      _currentSupabaseUser = userCredential.user;
       
       // Create user profile and set as active (works for both online/offline)
       final profile = await UserProfileService.createProfile(
@@ -249,8 +262,8 @@ class AuthWrapperService {
       await UserProfileService.setActiveProfile(profile);
       
       // Link profile with Firebase user
-      if (_currentFirebaseUser != null) {
-        await _linkProfileWithUser(profile, _currentFirebaseUser!.uid);
+      if (_currentSupabaseUser != null) {
+        await _linkProfileWithUser(profile, _currentSupabaseUser!.id);
       }
       
       _currentProfile = profile;
@@ -265,6 +278,16 @@ class AuthWrapperService {
         // Continue without local data initialization
       }
       
+      // Initialize data services (favorites, history, etc.) for new user
+      try {
+        debugPrint('AuthWrapperService: Initializing data services for new user: ${profile.name}');
+        await DataServicesInitializer.instance.initialize();
+        debugPrint('AuthWrapperService: Data services initialization completed for new user');
+      } catch (e) {
+        debugPrint('AuthWrapperService: Error initializing data services for new user: $e');
+        // Continue without data services - user can still use basic functionality
+      }
+      
       // Save sign-in state
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_lastSignedInUserKey, email);
@@ -272,12 +295,12 @@ class AuthWrapperService {
       debugPrint('AuthWrapperService: Sign up successful');
       
       return AuthResult.success(
-        user: _currentFirebaseUser,
+        user: _currentSupabaseUser,
         profile: _currentProfile,
         message: 'Account created successfully. Please verify your email.',
       );
       
-    } on AuthException catch (e) {
+    } on auth.AuthException catch (e) {
       debugPrint('AuthWrapperService: Sign up failed: ${e.message}');
       return AuthResult.failure(e.message);
     } catch (e) {
@@ -300,10 +323,10 @@ class AuthWrapperService {
         password: password,
       );
       
-      _currentFirebaseUser = userCredential.user;
+      _currentSupabaseUser = userCredential.user;
       
       // Check and store verification status if user is already verified
-      if (_currentFirebaseUser != null && _currentFirebaseUser!.emailVerified) {
+      if (_currentSupabaseUser != null && _currentSupabaseUser!.emailConfirmedAt != null) {
         await _storeVerificationStatus(true);
         debugPrint('AuthWrapperService: User is already verified, status stored');
       }
@@ -320,12 +343,12 @@ class AuthWrapperService {
       debugPrint('AuthWrapperService: Sign in successful');
       
       return AuthResult.success(
-        user: _currentFirebaseUser,
+        user: _currentSupabaseUser,
         profile: _currentProfile,
         message: 'Signed in successfully.',
       );
       
-    } on AuthException catch (e) {
+    } on auth.AuthException catch (e) {
       debugPrint('AuthWrapperService: Sign in failed: ${e.message}');
       return AuthResult.failure(e.message);
     } catch (e) {
@@ -341,7 +364,7 @@ class AuthWrapperService {
       
       // Sign out from Firebase
       await _authService.signOut();
-      _currentFirebaseUser = null;
+      _currentSupabaseUser = null;
       
       // Clear verification status to prevent offline access after sign out
       await _storeVerificationStatus(false);
@@ -370,7 +393,7 @@ class AuthWrapperService {
       
       // Sign out from Firebase
       await _authService.signOut();
-      _currentFirebaseUser = null;
+      _currentSupabaseUser = null;
       _currentProfile = null;
       
       // Clear all sign-in state including verification status
@@ -392,14 +415,13 @@ class AuthWrapperService {
       debugPrint('AuthWrapperService: Enabling offline mode');
       
       // Check if user is currently signed in AND verified
-      if (_currentFirebaseUser == null) {
+      if (_currentSupabaseUser == null) {
         debugPrint('AuthWrapperService: Cannot enable offline mode - user not signed in');
         throw Exception('You must sign in first before using offline mode');
       }
       
-      // Reload user to get latest verification status
-      await _currentFirebaseUser!.reload();
-      final updatedUser = FirebaseAuth.instance.currentUser;
+      // Get latest user status from Supabase
+      final updatedUser = UnifiedSupabaseAuthService.currentUser;
       
       if (updatedUser == null) {
         debugPrint('AuthWrapperService: Cannot enable offline mode - user session expired');
@@ -407,13 +429,13 @@ class AuthWrapperService {
       }
       
       // Check current email verification status
-      if (!updatedUser.emailVerified) {
+      if (updatedUser.emailConfirmedAt == null) {
         debugPrint('AuthWrapperService: Cannot enable offline mode - email not verified');
         throw Exception('Email verification required before offline access');
       }
       
       // Update our reference and store verification status for this session
-      _currentFirebaseUser = updatedUser;
+      _currentSupabaseUser = updatedUser;
       await _storeVerificationStatus(true);
       
       _isOfflineMode = true;
@@ -447,21 +469,21 @@ class AuthWrapperService {
       // Try to restore previous sign-in
       final lastSignedInUser = prefs.getString(_lastSignedInUserKey);
       
-      if (lastSignedInUser != null && _currentFirebaseUser == null) {
+      if (lastSignedInUser != null && _currentSupabaseUser == null) {
         return AuthResult.failure(
           'Please sign in to sync your data online.',
         );
       }
       
       // Sync data if signed in
-      if (_currentFirebaseUser != null) {
+      if (_currentSupabaseUser != null) {
         await _syncUserData();
       }
       
       debugPrint('AuthWrapperService: Online mode enabled');
       
       return AuthResult.success(
-        user: _currentFirebaseUser,
+        user: _currentSupabaseUser,
         profile: _currentProfile,
         message: 'Online mode enabled.',
       );
@@ -514,7 +536,7 @@ class AuthWrapperService {
       _currentProfile = profile;
       
       // Sync if online and signed in
-      if (!_isOfflineMode && _currentFirebaseUser != null) {
+      if (!_isOfflineMode && _currentSupabaseUser != null) {
         await _syncUserData();
       }
       
@@ -575,7 +597,7 @@ class AuthWrapperService {
   /// Sync user data with cloud
   Future<void> _syncUserData() async {
     try {
-      if (_isOfflineMode || _currentFirebaseUser == null) return;
+      if (_isOfflineMode || _currentSupabaseUser == null) return;
       
       debugPrint('AuthWrapperService: Syncing user data...');
       
@@ -592,24 +614,23 @@ class AuthWrapperService {
 
   /// Check if email verification is required
   Future<bool> isEmailVerificationRequired() async {
-    if (_currentFirebaseUser == null) return false;
+    if (_currentSupabaseUser == null) return false;
     
     try {
-      // Always reload user first to get the latest verification status
-      await _currentFirebaseUser!.reload();
-      final updatedUser = FirebaseAuth.instance.currentUser;
+      // Get the latest user status from Supabase
+      final updatedUser = UnifiedSupabaseAuthService.currentUser;
       
       if (updatedUser == null) {
-        // User was signed out during reload - they need to sign in again
-        _currentFirebaseUser = null;
+        // User was signed out - they need to sign in again
+        _currentSupabaseUser = null;
         return false;
       }
       
       // Update our reference
-      _currentFirebaseUser = updatedUser;
+      _currentSupabaseUser = updatedUser;
       
       // Check if email is verified
-      final isVerified = updatedUser.emailVerified;
+      final isVerified = updatedUser.emailConfirmedAt != null;
       
       debugPrint('AuthWrapperService: Email verification check - isVerified: $isVerified');
       
@@ -622,12 +643,12 @@ class AuthWrapperService {
       // Be more lenient to avoid verification loops
       return !isVerified;
       
-    } on FirebaseAuthException catch (e) {
+    } on auth.AuthException catch (e) {
       debugPrint('AuthWrapperService: Firebase auth error during verification check: ${e.code} - ${e.message}');
       
       if (e.code == 'user-not-found' || e.code == 'user-token-expired') {
         // User session is invalid - sign them out and require re-authentication
-        _currentFirebaseUser = null;
+        _currentSupabaseUser = null;
         await _authService.signOut();
         return false;
       }
@@ -678,7 +699,7 @@ class AuthWrapperService {
   /// Reset password
   Future<void> resetPassword(String email) async {
     try {
-      await _authService.resetPassword(email);
+      await _authService.sendPasswordResetEmail(email: email);
     } catch (e) {
       debugPrint('AuthWrapperService: Error resetting password: $e');
       rethrow;
