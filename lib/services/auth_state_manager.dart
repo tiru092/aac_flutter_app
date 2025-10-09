@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/unified_supabase_auth_service.dart';
 import '../models/user_profile.dart';
 import '../services/local_data_manager.dart';
 import '../services/cloud_sync_service.dart';
@@ -18,7 +19,7 @@ import '../services/crash_reporting_service.dart';
 /// - Production-ready logging and monitoring
 /// 
 /// This service ensures that:
-/// 1. Firebase UID is always used as the single source of truth
+/// 1. Supabase user ID is always used as the single source of truth
 /// 2. Local data is properly initialized after successful authentication
 /// 3. Cloud sync is triggered appropriately
 /// 4. All state changes are properly handled
@@ -29,15 +30,14 @@ class AuthStateManager {
   AuthStateManager._internal();
   
   // Services
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final LocalDataManager _localDataManager = LocalDataManager();
   final CloudSyncService _cloudSyncService = CloudSyncService();
   final UserDataService _userDataService = UserDataService();
   final CrashReportingService _crashReportingService = CrashReportingService();
   
   // State management
-  StreamSubscription<User?>? _authStateSubscription;
-  User? _currentUser;
+  StreamSubscription? _authStateSubscription;
+  dynamic _currentUser;
   UserProfile? _currentUserProfile;
   bool _isInitialized = false;
   bool _isProcessingStateChange = false;
@@ -48,7 +48,7 @@ class AuthStateManager {
   SyncStatus _syncStatus = SyncStatus.idle;
   
   // Getters
-  User? get currentUser => _currentUser;
+  dynamic get currentUser => _currentUser;
   UserProfile? get currentUserProfile => _currentUserProfile;
   bool get isAuthenticated => _currentUser != null;
   bool get isInitialized => _isInitialized;
@@ -68,11 +68,11 @@ class AuthStateManager {
       SecureLogger.info('AuthStateManager: Initializing...');
       
       // Set initial state
-      _currentUser = _firebaseAuth.currentUser;
+      _currentUser = UnifiedSupabaseAuthService.currentUser;
       _updateAuthState();
       
       // Set up auth state listener
-      _authStateSubscription = _firebaseAuth.authStateChanges().listen(
+      _authStateSubscription = UnifiedSupabaseAuthService.userChanges.listen(
         _handleAuthStateChange,
         onError: (error) {
           SecureLogger.error('Auth state stream error', error);
@@ -99,7 +99,7 @@ class AuthStateManager {
   }
   
   /// Handle authentication state changes
-  Future<void> _handleAuthStateChange(User? user) async {
+  Future<void> _handleAuthStateChange(dynamic user) async {
     // Prevent concurrent state processing
     if (_isProcessingStateChange) {
       SecureLogger.info('AuthStateManager: State change already in progress, skipping');
@@ -113,9 +113,9 @@ class AuthStateManager {
       _currentUser = user;
       
       SecureLogger.authEvent('Auth state changed', 
-        userId: user?.uid);
+        userId: user?.id);
       
-      if (user != null && (previousUser?.uid != user.uid)) {
+      if (user != null && (previousUser?.id != user.id)) {
         // User signed in or switched users
         await _handleUserSignIn(user, previousUser);
       } else if (user == null && previousUser != null) {
@@ -135,7 +135,7 @@ class AuthStateManager {
   }
   
   /// Handle user sign-in
-  Future<void> _handleUserSignIn(User user, User? previousUser) async {
+  Future<void> _handleUserSignIn(dynamic user, dynamic previousUser) async {
     try {
       SecureLogger.authEvent('Processing user sign-in', userId: user.uid);
       
@@ -159,7 +159,7 @@ class AuthStateManager {
   /// Handle user sign-out
   Future<void> _handleUserSignOut(User previousUser) async {
     try {
-      SecureLogger.authEvent('Processing user sign-out', userId: previousUser.uid);
+      SecureLogger.authEvent('Processing user sign-out', userId: previousUser.id);
       
       // Clean up user data
       await _cleanupPreviousUserData(previousUser);
@@ -169,7 +169,7 @@ class AuthStateManager {
       _dataInitStatus = DataInitializationStatus.notStarted;
       _syncStatus = SyncStatus.idle;
       
-      SecureLogger.authEvent('User sign-out processing completed', userId: previousUser.uid);
+      SecureLogger.authEvent('User sign-out processing completed', userId: previousUser.id);
       
     } catch (e, stackTrace) {
       SecureLogger.error('Error handling user sign-out', e);
@@ -182,7 +182,7 @@ class AuthStateManager {
   Future<void> _initializeUserData(User user) async {
     try {
       _dataInitStatus = DataInitializationStatus.inProgress;
-      SecureLogger.info('Initializing data for user: ${user.uid}');
+      SecureLogger.info('Initializing data for user: ${user.id}');
       
       // Create or load user profile
       UserProfile userProfile = await _getOrCreateUserProfile(user);
@@ -192,10 +192,10 @@ class AuthStateManager {
       await _localDataManager.initializeAfterLogin(userProfile);
       
       _dataInitStatus = DataInitializationStatus.completed;
-      SecureLogger.info('✅ Local data initialized for user: ${user.uid}');
+      SecureLogger.info('✅ Local data initialized for user: ${user.id}');
       
       // Trigger cloud sync in background
-      _triggerCloudSync(user.uid);
+      _triggerCloudSync(user.id);
       
     } catch (e, stackTrace) {
       _dataInitStatus = DataInitializationStatus.failed;
@@ -214,16 +214,16 @@ class AuthStateManager {
       UserProfile? existingProfile = await UserProfileService.getActiveProfile();
       
       // If active profile exists and matches current user, use it
-      if (existingProfile != null && existingProfile.id == user.uid) {
+      if (existingProfile != null && existingProfile.id == user.id) {
         SecureLogger.info('Loaded existing active user profile');
         return existingProfile;
       }
       
       // Create new profile with Firebase UID as ID
       final newProfile = await UserProfileService.createProfile(
-        name: user.displayName ?? user.email?.split('@').first ?? 'User',
+        name: user.userMetadata?['display_name'] ?? user.email?.split('@').first ?? 'User',
         email: user.email,
-        id: user.uid, // Use Firebase UID as profile ID
+        id: user.id, // Use Supabase UID as profile ID
       );
       
       SecureLogger.info('Created new user profile');
@@ -235,8 +235,8 @@ class AuthStateManager {
       
       // Create emergency profile to prevent app crash
       return UserProfile(
-        id: user.uid,
-        name: user.displayName ?? 'User',
+        id: user.id,
+        name: user.userMetadata?['display_name'] ?? 'User',
         email: user.email ?? '',
         role: UserRole.child,
         createdAt: DateTime.now(),
@@ -271,7 +271,7 @@ class AuthStateManager {
   /// Clean up previous user data
   Future<void> _cleanupPreviousUserData(User previousUser) async {
     try {
-      SecureLogger.info('Cleaning up data for previous user: ${previousUser.uid}');
+      SecureLogger.info('Cleaning up data for previous user: ${previousUser.id}');
       
       // Clear user data from local storage
       await _userDataService.clearUserDataOnLogout();
@@ -290,7 +290,7 @@ class AuthStateManager {
     
     if (_currentUser == null) {
       _currentAuthState = AuthState.signedOut;
-    } else if (_currentUser!.emailVerified) {
+    } else if (_currentUser!.emailConfirmedAt != null) {
       _currentAuthState = AuthState.signedInVerified;
     } else {
       _currentAuthState = AuthState.signedInUnverified;
@@ -298,7 +298,7 @@ class AuthStateManager {
     
     if (previousState != _currentAuthState) {
       SecureLogger.authEvent('Auth state updated', 
-        userId: _currentUser?.uid);
+        userId: _currentUser?.id);
     }
   }
   
@@ -310,7 +310,7 @@ class AuthStateManager {
     
     try {
       SecureLogger.info('Manual sync triggered');
-      _triggerCloudSync(_currentUser!.uid);
+      _triggerCloudSync(_currentUser!.id);
     } catch (e) {
       throw AuthStateException('Manual sync failed: $e');
     }
@@ -320,9 +320,9 @@ class AuthStateManager {
   AuthStatusSummary getAuthStatusSummary() {
     return AuthStatusSummary(
       isAuthenticated: isAuthenticated,
-      userId: _currentUser?.uid,
+      userId: _currentUser?.id,
       email: _currentUser?.email,
-      isEmailVerified: _currentUser?.emailVerified ?? false,
+      isEmailVerified: _currentUser?.emailConfirmedAt != null,
       authState: _currentAuthState,
       dataInitStatus: _dataInitStatus,
       syncStatus: _syncStatus,

@@ -17,6 +17,8 @@ import 'services/hive_corruption_fix.dart';  // EMERGENCY: Fix Hive corruption
 import 'services/auth_state_manager.dart';  // ENTERPRISE: Auth state management
 import 'services/aac_localizations.dart';  // Custom localization delegate
 import 'services/locale_notifier.dart';  // Locale change notifier
+import 'deploy_supabase.dart';  // NEW: Supabase deployment helper
+import 'services/hybrid_icon_service.dart';  // NEW: Local-first + Supabase hybrid icons
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,6 +58,24 @@ void main() async {
   } catch (e) {
     SecureLogger.error('Firebase initialization error', e);
     firebaseAvailable = false;
+  }
+  
+  // NEW: Initialize Supabase deployment (hybrid mode)
+  try {
+    await SupabaseDeployment.initializeDeployment();
+    SecureLogger.info('Supabase deployment initialized successfully');
+  } catch (e) {
+    SecureLogger.error('Supabase deployment initialization error', e);
+    // Continue with Firebase-only mode if Supabase fails
+  }
+  
+  // Initialize Hybrid Icon Service (local-first + Supabase sync)
+  try {
+    await HybridIconService.initialize();
+    SecureLogger.info('Hybrid Icon Service initialized successfully');
+  } catch (e) {
+    SecureLogger.error('Hybrid Icon Service initialization error', e);
+    // Continue - local icons still work without service
   }
   
   // Only do essential initialization here to avoid blocking UI
@@ -191,7 +211,7 @@ class AACApp extends StatelessWidget {
           supportedLocales: LocaleNotifier.instance.getSupportedLocales(),
           // NEW: Wrap with security wrapper for enhanced protection
           home: SecurityWrapper(
-            child: AuthWrapper(firebaseAvailable: firebaseAvailable),
+            child: AuthWrapper(),
           ),
         );
       },

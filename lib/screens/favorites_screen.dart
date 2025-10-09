@@ -55,23 +55,11 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         return;
       }
       
-      // Load initial data first
-      final initialFavorites = _favoritesService!.favoriteSymbols;
-      final initialHistory = _favoritesService!.usageHistory;
-      
-      // Update state with initial data immediately
-      if (mounted) {
-        setState(() {
-          _favorites = initialFavorites;
-          _history = initialHistory;
-        });
-      }
-      
-      // Set up real-time streams
+      // Set up real-time streams for favorites
       _favoritesSubscription = _favoritesService!.favoritesStream.listen((favorites) {
         if (mounted) {
           setState(() {
-            _favorites = favorites;
+            _favorites = List<Symbol>.from(favorites);
           });
         }
       });
@@ -79,10 +67,25 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       _historySubscription = _favoritesService!.historyStream.listen((history) {
         if (mounted) {
           setState(() {
-            _history = history;
+            _history = List<HistoryItem>.from(history);
           });
         }
       });
+      
+      // Get initial data from service 
+      if (_favoritesService!.isInitialized) {
+        debugPrint('✅ FAVORITES: Service initialized, loading initial data');
+        // Load initial data from service with mutable copies
+        final initialFavorites = List<Symbol>.from(_favoritesService!.favoriteSymbols);
+        final initialHistory = List<HistoryItem>.from(_favoritesService!.usageHistory);
+        
+        if (mounted) {
+          setState(() {
+            _favorites = initialFavorites;
+            _history = initialHistory;
+          });
+        }
+      }
       
     } catch (e) {
       debugPrint('FavoritesScreen: Initialization error: $e');
@@ -309,50 +312,68 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   Widget _buildFavoritesTab() {
-    if (_favorites.isEmpty) {
-      return _buildEmptyState(
-        icon: CupertinoIcons.heart,
-        title: 'No Favorites Yet',
-        message: 'Add symbols to favorites by tapping the heart icon when using them.',
-      );
-    }
+    return StreamBuilder<List<Symbol>>(
+      stream: _favoritesService?.favoritesStream,
+      initialData: _favorites,
+      builder: (context, snapshot) {
+        // Use state variable as fallback
+        final favorites = snapshot.data ?? _favorites;
+        
+        if (favorites.isEmpty) {
+          return _buildEmptyState(
+            icon: CupertinoIcons.heart,
+            title: 'No Favorites Yet',
+            message: 'Add symbols to favorites by tapping the heart icon when using them.',
+          );
+        }
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.0,
-        ),
-        itemCount: _favorites.length,
-        itemBuilder: (context, index) {
-          final symbol = _favorites[index];
-          return _buildSymbolCard(symbol);
-        },
-      ),
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.0,
+            ),
+            itemCount: favorites.length,
+            itemBuilder: (context, index) {
+              final symbol = favorites[index];
+              return _buildSymbolCard(symbol);
+            },
+          ),
+        );
+      },
     );
   }
 
   Widget _buildHistoryTab() {
-    if (_history.isEmpty) {
-      return _buildEmptyState(
-        icon: CupertinoIcons.clock,
-        title: 'No History Yet',
-        message: 'Start using symbols and they will appear here in your history.',
-      );
-    }
+    return StreamBuilder<List<HistoryItem>>(
+      stream: _favoritesService?.historyStream,
+      initialData: _history,
+      builder: (context, snapshot) {
+        // Use state variable as fallback
+        final history = snapshot.data ?? _history;
+        
+        if (history.isEmpty) {
+          return _buildEmptyState(
+            icon: CupertinoIcons.clock,
+            title: 'No History Yet',
+            message: 'Start using symbols and they will appear here in your history.',
+          );
+        }
 
-    // Group history by date like Avaz app
-    final groupedHistory = _groupHistoryByDate(_history);
-    
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: groupedHistory.length,
-      itemBuilder: (context, index) {
-        final dateGroup = groupedHistory[index];
-        return _buildDateGroup(dateGroup);
+        // Group history by date like Avaz app
+        final groupedHistory = _groupHistoryByDate(history);
+        
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: groupedHistory.length,
+          itemBuilder: (context, index) {
+            final dateGroup = groupedHistory[index];
+            return _buildDateGroup(dateGroup);
+          },
+        );
       },
     );
   }
@@ -924,15 +945,24 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       await AACHelper.accessibleHapticFeedback();
       
       // Record usage (don't speak here - it will be spoken in the maximized view)
+      // Handle database errors gracefully - don't let them prevent the UI from working
       if (_favoritesService != null) {
-        await _favoritesService!.recordUsage(symbol, action: 'played');
+        try {
+          await _favoritesService!.recordUsage(symbol, action: 'played');
+        } catch (dbError) {
+          // Log the database error but continue with the UI functionality
+          debugPrint('Database error recording usage (continuing anyway): $dbError');
+        }
       }
       
-      // Show maximized view like the main page
+      // Show maximized view like the main page (always show, regardless of database errors)
       _showSymbolPopup(symbol);
       
     } catch (e) {
-      debugPrint('Error playing symbol: $e');
+      // This should only catch non-database errors now
+      debugPrint('Error in symbol tap: $e');
+      // Even if there's an error, still try to show the popup
+      _showSymbolPopup(symbol);
     }
   }
 
@@ -1217,6 +1247,7 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
     with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  Timer? _autoMinimizeTimer;
 
   @override
   void initState() {
@@ -1239,6 +1270,13 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
     
     // Speak the symbol immediately when maximized
     AACHelper.speak(widget.symbol.label);
+    
+    // Auto-minimize after 4 seconds
+    _autoMinimizeTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    });
   }
 
   @override
@@ -1283,8 +1321,8 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
               width: double.infinity,
               padding: EdgeInsets.symmetric(
                 vertical: isLandscape 
-                  ? MediaQuery.of(context).size.height * 0.012
-                  : MediaQuery.of(context).size.height * 0.015,
+                  ? MediaQuery.of(context).size.height * 0.01   // Reduced by 20% for horizontal view (0.012 * 0.8 = 0.0096 ≈ 0.01)
+                  : MediaQuery.of(context).size.height * 0.015, // Keep original for vertical view
               ),
               decoration: BoxDecoration(
                 color: categoryColor,
@@ -1487,6 +1525,7 @@ class _SymbolMaximizedViewState extends State<_SymbolMaximizedView>
 
   @override
   void dispose() {
+    _autoMinimizeTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }

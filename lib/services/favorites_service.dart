@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/symbol.dart';
 import 'user_data_manager.dart';
 import '../utils/aac_logger.dart';
+import 'supabase_aac_service_compatible.dart';
 
 /// Production-ready Favorites Service that is controlled by DataServicesInitializer.
 /// It uses the Firebase UID provided by the initializer as the single source of truth.
@@ -37,19 +38,35 @@ class FavoritesService extends ChangeNotifier {
   /// Initialize the service with a Firebase UID and a UserDataManager instance.
   /// This must be called by DataServicesInitializer.
   Future<void> initializeWithUid(String uid, UserDataManager userDataManager) async {
-    if (_isInitialized) return;
+    print('🔥 FavoritesService: initializeWithUid called - _isInitialized: $_isInitialized, uid: $uid');
+    if (_isInitialized) {
+      print('🔥 FavoritesService: Already initialized, checking current UID: $_currentUid vs new UID: $uid');
+      if (_currentUid == uid) {
+        print('🔥 FavoritesService: Same UID, skipping re-initialization');
+        return;
+      } else {
+        print('🔥 FavoritesService: Different UID, forcing re-initialization');
+        _isInitialized = false; // Force re-initialization with new UID
+      }
+    }
 
     try {
+      print('🔥 FavoritesService: Starting initialization with UID: $uid');
       AACLogger.info('FavoritesService: Initializing with UID: $uid', tag: 'FavoritesService');
       _currentUid = uid;
       _userDataManager = userDataManager;
 
+      print('🔥 FavoritesService: About to load favorites...');
       await _loadFavorites();
+      print('🔥 FavoritesService: Favorites loaded, about to load history...');
       await _loadHistory();
+      print('🔥 FavoritesService: History loaded, setting initialized flag...');
 
       _isInitialized = true;
+      print('🔥 FavoritesService: ✅ Initialization completed successfully for UID: $uid');
       AACLogger.info('FavoritesService: Initialized successfully for UID: $uid', tag: 'FavoritesService');
     } catch (e, stacktrace) {
+      print('🔥 FavoritesService: ❌ Initialization failed: $e');
       AACLogger.error('FavoritesService: Initialization failed: $e', stackTrace: stacktrace, tag: 'FavoritesService');
       _favoriteSymbols = [];
       _usageHistory = [];
@@ -97,25 +114,93 @@ class FavoritesService extends ChangeNotifier {
 
   /// Load history from storage.
   Future<void> _loadHistory() async {
+    print('🔥 FavoritesService._loadHistory: Starting...');
+    AACLogger.info('FavoritesService: Starting to load history...', tag: 'FavoritesService');
     try {
+      // Try cloud first
+      print('🔥 FavoritesService._loadHistory: Checking cloud data...');
+      AACLogger.info('FavoritesService: Attempting to load history from cloud...', tag: 'FavoritesService');
       final cloudHistory = await _userDataManager.getCloudData(_historyKey);
       if (cloudHistory != null && cloudHistory is List) {
-        _usageHistory = cloudHistory.map((data) => HistoryItem.fromJson(Map<String, dynamic>.from(data))).toList();
+        print('🔥 FavoritesService._loadHistory: Found ${cloudHistory.length} items in cloud');
+        AACLogger.info('FavoritesService: Found ${cloudHistory.length} history items in cloud', tag: 'FavoritesService');
+        _usageHistory = cloudHistory.map((data) {
+          // Handle various data formats safely
+          Map<String, dynamic> itemMap;
+          if (data is Map<String, dynamic>) {
+            itemMap = data;
+          } else if (data is Map) {
+            itemMap = Map<String, dynamic>.from(data);
+          } else {
+            throw Exception('Invalid history item format: ${data.runtimeType}');
+          }
+          return HistoryItem.fromJson(itemMap);
+        }).toList();
         await _saveHistoryToLocal();
-        AACLogger.info('FavoritesService: Loaded ${_usageHistory.length} history items from cloud.', tag: 'FavoritesService');
+        AACLogger.info('FavoritesService: Successfully loaded ${_usageHistory.length} history items from cloud.', tag: 'FavoritesService');
       } else {
+        // Fallback to local storage
+        print('🔥 FavoritesService._loadHistory: No cloud data, checking local storage...');
+        AACLogger.info('🔥 FavoritesService: No cloud history data found, trying local storage...', tag: 'FavoritesService');
         final localBox = await _userDataManager.getFavoritesBox();
+        print('🔥 FavoritesService._loadHistory: Got box - name: ${localBox.name}');
+        AACLogger.info('🔥 FavoritesService: Got local box for history - name: ${localBox.name}, path: ${localBox.path}', tag: 'FavoritesService');
+        AACLogger.info('🔥 FavoritesService: Box keys: ${localBox.keys.toList()}', tag: 'FavoritesService');
+        print('🔥 FavoritesService._loadHistory: Box keys: ${localBox.keys.toList()}');
+        AACLogger.info('🔥 FavoritesService: Looking for key: $_historyKey', tag: 'FavoritesService');
         final localData = localBox.get(_historyKey);
         if (localData != null) {
-          _usageHistory = (localData as List<dynamic>).map((data) => HistoryItem.fromJson(Map<String, dynamic>.from(data))).toList();
-          AACLogger.info('FavoritesService: Loaded ${_usageHistory.length} history items from local Hive.', tag: 'FavoritesService');
+          print('🔥 FavoritesService._loadHistory: Found local data, length: ${localData is List ? localData.length : 'N/A'}');
+          print('🔥 FavoritesService._loadHistory: Local data type: ${localData.runtimeType}');
+          AACLogger.info('🔥 FavoritesService: Found local history data of type: ${localData.runtimeType}, length: ${localData is List ? localData.length : 'N/A'}', tag: 'FavoritesService');
+          
+          if (localData is List) {
+            print('🔥 FavoritesService._loadHistory: Processing ${localData.length} items...');
+            List<HistoryItem> historyItems = [];
+            for (int i = 0; i < localData.length; i++) {
+              final item = localData[i];
+              print('🔥 FavoritesService._loadHistory: Item $i type: ${item.runtimeType}');
+              try {
+                Map<String, dynamic> itemMap;
+                if (item is Map<String, dynamic>) {
+                  itemMap = item;
+                  print('🔥 FavoritesService._loadHistory: Item $i is already Map<String, dynamic>');
+                } else if (item is Map) {
+                  itemMap = Map<String, dynamic>.from(item);
+                  print('🔥 FavoritesService._loadHistory: Item $i converted from Map to Map<String, dynamic>');
+                } else {
+                  print('🔥 FavoritesService._loadHistory: Item $i invalid format: ${item.runtimeType}, value: $item');
+                  throw Exception('Invalid history item format: ${item.runtimeType}');
+                }
+                final historyItem = HistoryItem.fromJson(itemMap);
+                historyItems.add(historyItem);
+                print('🔥 FavoritesService._loadHistory: Item $i processed successfully');
+              } catch (e) {
+                print('🔥 FavoritesService._loadHistory: Error processing item $i: $e');
+                continue; // Skip invalid items
+              }
+            }
+            _usageHistory = historyItems;
+          } else {
+            print('🔥 FavoritesService._loadHistory: Local data is not a List: ${localData.runtimeType}');
+            _usageHistory = [];
+          }
+          print('🔥 FavoritesService._loadHistory: ✅ Loaded ${_usageHistory.length} history items from local');
+          AACLogger.info('🔥 FavoritesService: ✅ Successfully loaded ${_usageHistory.length} history items from local Hive', tag: 'FavoritesService');
+        } else {
+          print('🔥 FavoritesService._loadHistory: ❌ No local data found for key: $_historyKey');
+          AACLogger.info('🔥 FavoritesService: ❌ No local history data found for key: $_historyKey', tag: 'FavoritesService');
+          _usageHistory = [];
         }
       }
     } catch (e) {
+      print('🔥 FavoritesService._loadHistory: ❌ Error: $e');
       AACLogger.error('FavoritesService: Error loading history: $e', tag: 'FavoritesService');
       _usageHistory = [];
     } finally {
       _usageHistory.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      print('🔥 FavoritesService._loadHistory: Broadcasting ${_usageHistory.length} items to stream');
+      AACLogger.info('FavoritesService: Broadcasting ${_usageHistory.length} history items to stream', tag: 'FavoritesService');
       _historyController.add(_usageHistory);
     }
   }
@@ -131,6 +216,10 @@ class FavoritesService extends ChangeNotifier {
       if (!isFavorite(symbol)) {
         _favoriteSymbols.add(symbol);
         await _saveFavorites();
+        
+        // Sync to Supabase (non-blocking)
+        _syncToSupabase(symbol.id ?? symbol.label, isAdd: true);
+        
         // Notify only about this specific symbol change
         _symbolChangedController.add(symbol);
         AACLogger.info('Added ${symbol.label} to favorites.', tag: 'FavoritesService');
@@ -156,6 +245,10 @@ class FavoritesService extends ChangeNotifier {
       
       if (wasRemoved) {
         await _saveFavorites();
+        
+        // Sync removal to Supabase (non-blocking)
+        _syncToSupabase(symbol.id ?? symbol.label, isAdd: false);
+        
         // Notify only about this specific symbol change
         _symbolChangedController.add(symbol);
         AACLogger.info('Removed ${symbol.label} from favorites.', tag: 'FavoritesService');
@@ -176,21 +269,31 @@ class FavoritesService extends ChangeNotifier {
 
   /// Add an item to the usage history, now with a required action.
   Future<void> recordUsage(Symbol symbol, {required String action}) async {
+    print('🔥 FavoritesService.recordUsage: Called for ${symbol.label} with action: $action, initialized: $_isInitialized');
+    AACLogger.info('🔥 FavoritesService.recordUsage called - initialized: $_isInitialized, symbol: ${symbol.label}, action: $action', tag: 'FavoritesService');
     if (!_isInitialized) {
+      print('🔥 FavoritesService.recordUsage: ❌ Service not initialized!');
       AACLogger.warning('FavoritesService not initialized, cannot record usage.', tag: 'FavoritesService');
       return;
     }
     try {
       final historyItem = HistoryItem(symbol: symbol, timestamp: DateTime.now(), action: action);
       _usageHistory.insert(0, historyItem);
+      print('🔥 FavoritesService.recordUsage: Added item, total count: ${_usageHistory.length}');
+      AACLogger.info('🔥 FavoritesService: Added history item, total count: ${_usageHistory.length}', tag: 'FavoritesService');
+      
       // Keep history trimmed to 50 items
       if (_usageHistory.length > 50) {
         _usageHistory = _usageHistory.sublist(0, 50);
       }
+      print('🔥 FavoritesService.recordUsage: About to save history...');
       await _saveHistory();
-      AACLogger.info('Recorded usage of ${symbol.label} with action: $action.', tag: 'FavoritesService');
+      print('🔥 FavoritesService.recordUsage: ✅ Successfully saved history');
+      AACLogger.info('🔥 FavoritesService: Successfully recorded and saved usage of ${symbol.label} with action: $action', tag: 'FavoritesService');
     } catch (e) {
-      AACLogger.error('Error recording usage: $e', tag: 'FavoritesService');
+      print('🔥 FavoritesService.recordUsage: ❌ Error: $e');
+      AACLogger.error('🔥 FavoritesService: Error recording usage: $e', tag: 'FavoritesService');
+      rethrow;
     }
   }
 
@@ -238,8 +341,21 @@ class FavoritesService extends ChangeNotifier {
   }
 
   Future<void> _saveHistoryToLocal() async {
-    final box = await _userDataManager.getFavoritesBox();
-    await box.put(_historyKey, _usageHistory.map((h) => h.toJson()).toList());
+    try {
+      final box = await _userDataManager.getFavoritesBox();
+      final dataToSave = _usageHistory.map((h) => h.toJson()).toList();
+      AACLogger.info('🔥 FavoritesService: About to save ${_usageHistory.length} history items with key: $_historyKey', tag: 'FavoritesService');
+      AACLogger.info('🔥 FavoritesService: Box name: ${box.name}, Box path: ${box.path}', tag: 'FavoritesService');
+      await box.put(_historyKey, dataToSave);
+      AACLogger.info('🔥 FavoritesService: ✅ Successfully saved ${_usageHistory.length} history items to local storage', tag: 'FavoritesService');
+      
+      // Verify the save by immediately reading back
+      final readBack = box.get(_historyKey);
+      AACLogger.info('🔥 FavoritesService: Verification - Read back data type: ${readBack?.runtimeType}, length: ${readBack is List ? readBack.length : 'N/A'}', tag: 'FavoritesService');
+    } catch (e) {
+      AACLogger.error('🔥 FavoritesService: Error saving history to local storage: $e', tag: 'FavoritesService');
+      rethrow;
+    }
   }
 
   /// Sync from cloud to local (useful after login or when data changes elsewhere)
@@ -252,6 +368,40 @@ class FavoritesService extends ChangeNotifier {
       AACLogger.info('FavoritesService: Synced from cloud.', tag: 'FavoritesService');
     } catch (e) {
       AACLogger.error('FavoritesService: Error syncing from cloud: $e', tag: 'FavoritesService');
+    }
+  }
+
+  /// Sync favorites to Supabase (non-blocking background operation)
+  void _syncToSupabase(String symbolId, {required bool isAdd}) {
+    // Run in background without blocking local operations
+    Future.microtask(() async {
+      try {
+        if (isAdd) {
+          await SupabaseAACService.addToFavorites(symbolId);
+          AACLogger.info('FavoritesService: Synced favorite add to Supabase: $symbolId', tag: 'FavoritesService');
+        } else {
+          await SupabaseAACService.removeFromFavorites(symbolId);
+          AACLogger.info('FavoritesService: Synced favorite removal to Supabase: $symbolId', tag: 'FavoritesService');
+        }
+      } catch (e) {
+        AACLogger.warning('FavoritesService: Supabase sync failed for $symbolId: $e', tag: 'FavoritesService');
+        // Don't rethrow - local operation should continue working
+      }
+    });
+  }
+
+  /// Load favorites from Supabase and merge with local (call during initialization)
+  Future<void> syncFromSupabase() async {
+    if (!_isInitialized) return;
+    
+    try {
+      final supabaseFavorites = await SupabaseAACService.getUserFavorites();
+      AACLogger.info('FavoritesService: Loaded ${supabaseFavorites.length} favorites from Supabase', tag: 'FavoritesService');
+      
+      // TODO: Merge logic can be implemented here based on timestamps
+      // For now, local storage remains the source of truth
+    } catch (e) {
+      AACLogger.warning('FavoritesService: Failed to load from Supabase: $e', tag: 'FavoritesService');
     }
   }
 
@@ -286,8 +436,19 @@ class HistoryItem {
   }
   
   factory HistoryItem.fromJson(Map<String, dynamic> json) {
+    // Handle nested dynamic maps by converting them safely
+    var symbolData = json['symbol'];
+    Map<String, dynamic> symbolMap;
+    if (symbolData is Map<String, dynamic>) {
+      symbolMap = symbolData;
+    } else if (symbolData is Map) {
+      symbolMap = Map<String, dynamic>.from(symbolData);
+    } else {
+      throw Exception('Invalid symbol data format in HistoryItem: ${symbolData.runtimeType}');
+    }
+    
     return HistoryItem(
-      symbol: Symbol.fromJson(json['symbol']),
+      symbol: Symbol.fromJson(symbolMap),
       timestamp: DateTime.parse(json['timestamp']),
       action: json['action'] ?? 'played',
     );

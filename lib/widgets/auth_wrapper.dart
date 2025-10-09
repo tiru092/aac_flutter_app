@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/unified_supabase_auth_service.dart';
 import '../services/data_services_initializer_robust.dart';
 import '../services/aac_localizations.dart';
 import '../services/secure_logger.dart';
@@ -9,9 +10,9 @@ import '../screens/home_screen.dart';
 
 /// Widget that manages the authentication state and navigation
 class AuthWrapper extends StatefulWidget {
-  final bool firebaseAvailable;
+  final bool supabaseAvailable;
   
-  const AuthWrapper({super.key, this.firebaseAvailable = false});
+  const AuthWrapper({super.key, this.supabaseAvailable = true});
 
   @override
   State<AuthWrapper> createState() => _AuthWrapperState();
@@ -23,9 +24,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    if (widget.firebaseAvailable) {
-      _authStream = FirebaseAuth.instance.authStateChanges();
-    }
+    // Initialize Supabase auth service and stream
+    UnifiedSupabaseAuthService.initialize();
+    _authStream = UnifiedSupabaseAuthService.userChanges;
   }
 
   /// Simple initialization - load local data first, sync in background
@@ -33,17 +34,61 @@ class _AuthWrapperState extends State<AuthWrapper> {
     try {
       SecureLogger.info('Simple initialization: Loading local data first...');
       
-      // Check if already initialized - just return if so
+      // Check if already initialized
       if (DataServicesInitializer.instance.isInitialized) {
-        SecureLogger.info('Data services already initialized, proceeding to app');
+        print('🔥 DIAGNOSTIC: AuthWrapper - DataServices already initialized, running DIRECT FIX anyway...');
+        SecureLogger.info('Data services already initialized, running direct FavoritesService fix');
+        
+        // DIRECT FIX: Ensure FavoritesService is properly initialized with Supabase UID
+        print('🔥 DIRECT FIX: Checking FavoritesService initialization...');
+        final favoritesService = DataServicesInitializer.instance.favoritesService;
+        if (favoritesService != null) {
+          print('🔥 DIRECT FIX: FavoritesService exists, checking if initialized...');
+          // Get current Supabase user UID
+          final currentUser = Supabase.instance.client.auth.currentUser;
+          if (currentUser != null) {
+            print('🔥 DIRECT FIX: Getting UserDataManager...');
+            final userDataManager = DataServicesInitializer.instance.userDataManager;
+            print('🔥 DIRECT FIX: Calling initializeWithUid with Supabase UID: ${currentUser.id}');
+            await favoritesService.initializeWithUid(currentUser.id, userDataManager);
+            print('🔥 DIRECT FIX: ✅ FavoritesService initialized successfully with Supabase!');
+          } else {
+            print('🔥 DIRECT FIX: ❌ No Supabase user found');
+          }
+        } else {
+          print('🔥 DIRECT FIX: ❌ FavoritesService is null');
+        }
+        
         // Start background sync without waiting
         _startBackgroundSync();
         return;
       }
       
+      print('🔥 DIAGNOSTIC: AuthWrapper - About to call DataServicesInitializer.initialize()');
+      
       // Initialize with local data only - this should be fast
       await DataServicesInitializer.instance.initialize();
       SecureLogger.info('Local data initialization completed');
+      
+      // DIRECT FIX: Ensure FavoritesService is properly initialized with Supabase UID
+      print('🔥 DIRECT FIX: Checking FavoritesService initialization...');
+      final favoritesService = DataServicesInitializer.instance.favoritesService;
+      if (favoritesService != null) {
+        print('🔥 DIRECT FIX: FavoritesService exists, checking if initialized...');
+        // Get current Supabase user UID
+        final currentUser = Supabase.instance.client.auth.currentUser;
+        if (currentUser != null) {
+          print('🔥 DIRECT FIX: Getting UserDataManager...');
+          final userDataManager = DataServicesInitializer.instance.userDataManager;
+          print('🔥 DIRECT FIX: Calling initializeWithUid with Supabase UID: ${currentUser.id}');
+          await favoritesService.initializeWithUid(currentUser.id, userDataManager);
+          print('🔥 DIRECT FIX: ✅ FavoritesService initialized successfully with Supabase!');
+        } else {
+          print('🔥 DIRECT FIX: ❌ No Supabase user found');
+        }
+      } else {
+        print('🔥 DIRECT FIX: ❌ FavoritesService is null');
+      }
       
       // Start background sync without blocking UI
       _startBackgroundSync();
@@ -69,12 +114,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.firebaseAvailable) {
-      SecureLogger.info('AuthWrapper: Firebase not available, running in offline mode.');
-      return const HomeScreen();
-    }
-
-    SecureLogger.info('AuthWrapper: Firebase is available, building auth flow.');
+    // Using Supabase Auth - always available
+    SecureLogger.info('AuthWrapper: Building auth flow with Supabase.');
     return StreamBuilder<User?>(
       stream: _authStream,
       builder: (context, snapshot) {
