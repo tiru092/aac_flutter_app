@@ -15,6 +15,7 @@ class FavoritesService extends ChangeNotifier {
   // Storage keys
   static const String _favoritesKey = 'favorites';
   static const String _historyKey = 'favorites_history';
+  static const String _historyLastSyncKey = 'history_last_sync';
 
   // Data
   List<Symbol> _favoriteSymbols = [];
@@ -65,6 +66,11 @@ class FavoritesService extends ChangeNotifier {
       _isInitialized = true;
       print('🔥 FavoritesService: ✅ Initialization completed successfully for UID: $uid');
       AACLogger.info('FavoritesService: Initialized successfully for UID: $uid', tag: 'FavoritesService');
+      
+      // Force sync existing local data to Supabase (one-time migration)
+      print('🔥 FavoritesService: Starting force sync of existing local data...');
+      await forceSyncLocalDataToSupabase();
+      print('🔥 FavoritesService: Force sync completed');
     } catch (e, stacktrace) {
       print('🔥 FavoritesService: ❌ Initialization failed: $e');
       AACLogger.error('FavoritesService: Initialization failed: $e', stackTrace: stacktrace, tag: 'FavoritesService');
@@ -112,90 +118,123 @@ class FavoritesService extends ChangeNotifier {
     }
   }
 
-  /// Load history from storage.
+  /// Load history from storage with incremental sync support.
   Future<void> _loadHistory() async {
-    print('🔥 FavoritesService._loadHistory: Starting...');
-    AACLogger.info('FavoritesService: Starting to load history...', tag: 'FavoritesService');
+    print('🔥 FavoritesService._loadHistory: Starting incremental sync...');
+    AACLogger.info('FavoritesService: Starting incremental history sync...', tag: 'FavoritesService');
+    
     try {
-      // Try cloud first
-      print('🔥 FavoritesService._loadHistory: Checking cloud data...');
-      AACLogger.info('FavoritesService: Attempting to load history from cloud...', tag: 'FavoritesService');
-      final cloudHistory = await _userDataManager.getCloudData(_historyKey);
-      if (cloudHistory != null && cloudHistory is List) {
-        print('🔥 FavoritesService._loadHistory: Found ${cloudHistory.length} items in cloud');
-        AACLogger.info('FavoritesService: Found ${cloudHistory.length} history items in cloud', tag: 'FavoritesService');
-        _usageHistory = cloudHistory.map((data) {
-          // Handle various data formats safely
-          Map<String, dynamic> itemMap;
-          if (data is Map<String, dynamic>) {
-            itemMap = data;
-          } else if (data is Map) {
-            itemMap = Map<String, dynamic>.from(data);
-          } else {
-            throw Exception('Invalid history item format: ${data.runtimeType}');
-          }
-          return HistoryItem.fromJson(itemMap);
-        }).toList();
-        await _saveHistoryToLocal();
-        AACLogger.info('FavoritesService: Successfully loaded ${_usageHistory.length} history items from cloud.', tag: 'FavoritesService');
-      } else {
-        // Fallback to local storage
-        print('🔥 FavoritesService._loadHistory: No cloud data, checking local storage...');
-        AACLogger.info('🔥 FavoritesService: No cloud history data found, trying local storage...', tag: 'FavoritesService');
-        final localBox = await _userDataManager.getFavoritesBox();
-        print('🔥 FavoritesService._loadHistory: Got box - name: ${localBox.name}');
-        AACLogger.info('🔥 FavoritesService: Got local box for history - name: ${localBox.name}, path: ${localBox.path}', tag: 'FavoritesService');
-        AACLogger.info('🔥 FavoritesService: Box keys: ${localBox.keys.toList()}', tag: 'FavoritesService');
-        print('🔥 FavoritesService._loadHistory: Box keys: ${localBox.keys.toList()}');
-        AACLogger.info('🔥 FavoritesService: Looking for key: $_historyKey', tag: 'FavoritesService');
-        final localData = localBox.get(_historyKey);
-        if (localData != null) {
-          print('🔥 FavoritesService._loadHistory: Found local data, length: ${localData is List ? localData.length : 'N/A'}');
-          print('🔥 FavoritesService._loadHistory: Local data type: ${localData.runtimeType}');
-          AACLogger.info('🔥 FavoritesService: Found local history data of type: ${localData.runtimeType}, length: ${localData is List ? localData.length : 'N/A'}', tag: 'FavoritesService');
-          
-          if (localData is List) {
-            print('🔥 FavoritesService._loadHistory: Processing ${localData.length} items...');
-            List<HistoryItem> historyItems = [];
-            for (int i = 0; i < localData.length; i++) {
-              final item = localData[i];
-              print('🔥 FavoritesService._loadHistory: Item $i type: ${item.runtimeType}');
-              try {
-                Map<String, dynamic> itemMap;
-                if (item is Map<String, dynamic>) {
-                  itemMap = item;
-                  print('🔥 FavoritesService._loadHistory: Item $i is already Map<String, dynamic>');
-                } else if (item is Map) {
-                  itemMap = Map<String, dynamic>.from(item);
-                  print('🔥 FavoritesService._loadHistory: Item $i converted from Map to Map<String, dynamic>');
-                } else {
-                  print('🔥 FavoritesService._loadHistory: Item $i invalid format: ${item.runtimeType}, value: $item');
-                  throw Exception('Invalid history item format: ${item.runtimeType}');
-                }
-                final historyItem = HistoryItem.fromJson(itemMap);
-                historyItems.add(historyItem);
-                print('🔥 FavoritesService._loadHistory: Item $i processed successfully');
-              } catch (e) {
-                print('🔥 FavoritesService._loadHistory: Error processing item $i: $e');
-                continue; // Skip invalid items
-              }
+      // First, load existing local data
+      final localBox = await _userDataManager.getFavoritesBox();
+      List<HistoryItem> existingHistory = [];
+      DateTime? lastSyncTime;
+      
+      // Load existing local history
+      final localData = localBox.get(_historyKey);
+      if (localData != null && localData is List) {
+        print('🔥 FavoritesService._loadHistory: Found ${localData.length} existing local items');
+        for (int i = 0; i < localData.length; i++) {
+          final item = localData[i];
+          try {
+            Map<String, dynamic> itemMap;
+            if (item is Map<String, dynamic>) {
+              itemMap = item;
+            } else if (item is Map) {
+              itemMap = Map<String, dynamic>.from(item);
+            } else {
+              continue; // Skip invalid items
             }
-            _usageHistory = historyItems;
-          } else {
-            print('🔥 FavoritesService._loadHistory: Local data is not a List: ${localData.runtimeType}');
-            _usageHistory = [];
+            existingHistory.add(HistoryItem.fromJson(itemMap));
+          } catch (e) {
+            print('🔥 FavoritesService._loadHistory: Error processing local item $i: $e');
+            continue; // Skip invalid items
           }
-          print('🔥 FavoritesService._loadHistory: ✅ Loaded ${_usageHistory.length} history items from local');
-          AACLogger.info('🔥 FavoritesService: ✅ Successfully loaded ${_usageHistory.length} history items from local Hive', tag: 'FavoritesService');
-        } else {
-          print('🔥 FavoritesService._loadHistory: ❌ No local data found for key: $_historyKey');
-          AACLogger.info('🔥 FavoritesService: ❌ No local history data found for key: $_historyKey', tag: 'FavoritesService');
-          _usageHistory = [];
+        }
+        AACLogger.info('FavoritesService: Loaded ${existingHistory.length} existing history items from local', tag: 'FavoritesService');
+      }
+      
+      // Get last sync timestamp
+      final lastSyncData = localBox.get(_historyLastSyncKey);
+      if (lastSyncData is String) {
+        try {
+          lastSyncTime = DateTime.parse(lastSyncData);
+          print('🔥 FavoritesService._loadHistory: Last sync time: ${lastSyncTime.toIso8601String()}');
+        } catch (e) {
+          print('🔥 FavoritesService._loadHistory: Invalid last sync time format, doing full sync');
+          lastSyncTime = null;
         }
       }
+      
+      // Fetch only new items from cloud since last sync
+      print('🔥 FavoritesService._loadHistory: Fetching new items from cloud...');
+      final newCloudHistory = await _userDataManager.getCloudData(_historyKey, lastSyncTime: lastSyncTime);
+      List<HistoryItem> newItems = [];
+      
+      if (newCloudHistory != null && newCloudHistory is List && newCloudHistory.isNotEmpty) {
+        print('🔥 FavoritesService._loadHistory: Found ${newCloudHistory.length} NEW items in cloud');
+        AACLogger.info('� INCREMENTAL SYNC: Found ${newCloudHistory.length} NEW history items from cloud', tag: 'FavoritesService');
+        
+        for (final data in newCloudHistory) {
+          try {
+            Map<String, dynamic> itemMap;
+            if (data is Map<String, dynamic>) {
+              itemMap = data;
+            } else if (data is Map) {
+              itemMap = Map<String, dynamic>.from(data);
+            } else {
+              continue; // Skip invalid items
+            }
+            newItems.add(HistoryItem.fromJson(itemMap));
+          } catch (e) {
+            print('🔥 FavoritesService._loadHistory: Error processing new cloud item: $e');
+            continue; // Skip invalid items
+          }
+        }
+        
+        // Merge new items with existing (avoid duplicates by timestamp + symbol)
+        final Set<String> existingKeys = existingHistory
+            .map((item) => '${item.timestamp.millisecondsSinceEpoch}_${item.symbol.id ?? item.symbol.label}')
+            .toSet();
+            
+        final List<HistoryItem> trulyNewItems = newItems.where((item) {
+          final key = '${item.timestamp.millisecondsSinceEpoch}_${item.symbol.id ?? item.symbol.label}';
+          return !existingKeys.contains(key);
+        }).toList();
+        
+        if (trulyNewItems.isNotEmpty) {
+          print('📤 INCREMENTAL SYNC: Added ${trulyNewItems.length} NEW history items (skipped ${newItems.length - trulyNewItems.length} existing)');
+          AACLogger.info('📤 INCREMENTAL SYNC: Added ${trulyNewItems.length} NEW history items (skipped ${newItems.length - trulyNewItems.length} existing)', tag: 'FavoritesService');
+          existingHistory.addAll(trulyNewItems);
+        } else {
+          print('✅ SYNC STATUS: All ${newItems.length} cloud items already exist locally');
+          AACLogger.info('✅ SYNC STATUS: All ${newItems.length} cloud items already exist locally', tag: 'FavoritesService');
+        }
+        
+        // Update last sync time to now
+        await localBox.put(_historyLastSyncKey, DateTime.now().toIso8601String());
+      } else {
+        print('✅ SYNC STATUS: No new history items found in cloud');
+        AACLogger.info('✅ SYNC STATUS: No new history items found since last sync', tag: 'FavoritesService');
+      }
+      
+      // Set the final history list
+      _usageHistory = existingHistory;
+      
+      // Keep history trimmed to reasonable size (100 items)
+      if (_usageHistory.length > 100) {
+        _usageHistory.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        _usageHistory = _usageHistory.sublist(0, 100);
+      }
+      
+      // Save updated history to local
+      await _saveHistoryToLocal();
+      
+      print('🔥 FavoritesService._loadHistory: ✅ Incremental sync completed with ${_usageHistory.length} total items');
+      AACLogger.info('FavoritesService: ✅ Incremental sync completed with ${_usageHistory.length} total history items', tag: 'FavoritesService');
+      
     } catch (e) {
       print('🔥 FavoritesService._loadHistory: ❌ Error: $e');
-      AACLogger.error('FavoritesService: Error loading history: $e', tag: 'FavoritesService');
+      AACLogger.error('FavoritesService: Error in incremental history sync: $e', tag: 'FavoritesService');
       _usageHistory = [];
     } finally {
       _usageHistory.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -217,8 +256,8 @@ class FavoritesService extends ChangeNotifier {
         _favoriteSymbols.add(symbol);
         await _saveFavorites();
         
-        // Sync to Supabase (non-blocking)
-        _syncToSupabase(symbol.id ?? symbol.label, isAdd: true);
+        // Sync to Supabase user_favorites table (non-blocking)
+        _syncToSupabase(symbol.id ?? symbol.label, isAdd: true, symbol: symbol);
         
         // Notify only about this specific symbol change
         _symbolChangedController.add(symbol);
@@ -246,7 +285,7 @@ class FavoritesService extends ChangeNotifier {
       if (wasRemoved) {
         await _saveFavorites();
         
-        // Sync removal to Supabase (non-blocking)
+        // Sync removal from Supabase user_favorites table (non-blocking)
         _syncToSupabase(symbol.id ?? symbol.label, isAdd: false);
         
         // Notify only about this specific symbol change
@@ -282,13 +321,23 @@ class FavoritesService extends ChangeNotifier {
       print('🔥 FavoritesService.recordUsage: Added item, total count: ${_usageHistory.length}');
       AACLogger.info('🔥 FavoritesService: Added history item, total count: ${_usageHistory.length}', tag: 'FavoritesService');
       
-      // Keep history trimmed to 50 items
-      if (_usageHistory.length > 50) {
-        _usageHistory = _usageHistory.sublist(0, 50);
+      // Keep history trimmed to 100 items (increased for better user experience)
+      if (_usageHistory.length > 100) {
+        _usageHistory = _usageHistory.sublist(0, 100);
       }
       print('🔥 FavoritesService.recordUsage: About to save history...');
       await _saveHistory();
       print('🔥 FavoritesService.recordUsage: ✅ Successfully saved history');
+      
+      // Update last sync time since we added new local data
+      try {
+        final localBox = await _userDataManager.getFavoritesBox();
+        await localBox.put(_historyLastSyncKey, DateTime.now().toIso8601String());
+        print('🔥 FavoritesService.recordUsage: Updated last sync timestamp');
+      } catch (e) {
+        print('🔥 FavoritesService.recordUsage: Warning - could not update last sync time: $e');
+      }
+      
       AACLogger.info('🔥 FavoritesService: Successfully recorded and saved usage of ${symbol.label} with action: $action', tag: 'FavoritesService');
     } catch (e) {
       print('🔥 FavoritesService.recordUsage: ❌ Error: $e');
@@ -371,39 +420,131 @@ class FavoritesService extends ChangeNotifier {
     }
   }
 
-  /// Sync favorites to Supabase (non-blocking background operation)
-  void _syncToSupabase(String symbolId, {required bool isAdd}) {
+  /// Sync favorites to Supabase user_favorites table (non-blocking background operation)
+  void _syncToSupabase(String symbolId, {required bool isAdd, Symbol? symbol}) {
     // Run in background without blocking local operations
     Future.microtask(() async {
       try {
-        if (isAdd) {
-          await SupabaseAACService.addToFavorites(symbolId);
-          AACLogger.info('FavoritesService: Synced favorite add to Supabase: $symbolId', tag: 'FavoritesService');
+        if (isAdd && symbol != null) {
+          await SupabaseAACService.addToFavorites(
+            symbolId,
+            symbolLabel: symbol.label,
+            symbolData: symbol.toJson(),
+            isCustom: symbol.isDefault != true,
+          );
+          AACLogger.info('FavoritesService: Synced favorite add to user_favorites: $symbolId', tag: 'FavoritesService');
         } else {
           await SupabaseAACService.removeFromFavorites(symbolId);
-          AACLogger.info('FavoritesService: Synced favorite removal to Supabase: $symbolId', tag: 'FavoritesService');
+          AACLogger.info('FavoritesService: Synced favorite removal from user_favorites: $symbolId', tag: 'FavoritesService');
         }
       } catch (e) {
-        AACLogger.warning('FavoritesService: Supabase sync failed for $symbolId: $e', tag: 'FavoritesService');
+        AACLogger.warning('FavoritesService: user_favorites sync failed for $symbolId: $e', tag: 'FavoritesService');
         // Don't rethrow - local operation should continue working
       }
     });
   }
 
-  /// Load favorites from Supabase and merge with local (call during initialization)
+  /// Load favorites from Supabase and merge with local (bidirectional sync)
   Future<void> syncFromSupabase() async {
     if (!_isInitialized) return;
     
     try {
+      print('📥 BIDIRECTIONAL SYNC: Loading favorites from enhanced user_favorites table');
       final supabaseFavorites = await SupabaseAACService.getUserFavorites();
-      AACLogger.info('FavoritesService: Loaded ${supabaseFavorites.length} favorites from Supabase', tag: 'FavoritesService');
+      AACLogger.info('FavoritesService: 📥 MERGE: Loaded ${supabaseFavorites.length} favorites from user_favorites table', tag: 'FavoritesService');
       
-      // TODO: Merge logic can be implemented here based on timestamps
-      // For now, local storage remains the source of truth
+      if (supabaseFavorites.isNotEmpty) {
+        final localSymbolIds = _favoriteSymbols.map((s) => s.id).toSet();
+        int addedCount = 0;
+        
+        // Add Supabase favorites that aren't in local storage
+        for (final favData in supabaseFavorites) {
+          final symbolId = favData['symbol_id'] as String;
+          
+          if (!localSymbolIds.contains(symbolId)) {
+            try {
+              // Reconstruct Symbol from enhanced schema data
+              Map<String, dynamic> symbolData;
+              
+              if (favData['symbol_data'] != null) {
+                // Use complete symbol data from JSONB column
+                symbolData = Map<String, dynamic>.from(favData['symbol_data']);
+              } else {
+                // Fallback: construct from individual columns
+                symbolData = {
+                  'id': favData['symbol_id'],
+                  'label': favData['symbol_label'] ?? favData['symbol_id'],
+                  'isDefault': !favData['is_custom'],
+                };
+              }
+              
+              // Create Symbol object and add to local favorites
+              final symbol = Symbol.fromJson(symbolData);
+              _favoriteSymbols.add(symbol);
+              addedCount++;
+              
+              print('✅ MERGE: Added Supabase favorite "${symbol.label}" to local storage');
+              
+            } catch (e) {
+              AACLogger.warning('FavoritesService: Failed to process Supabase favorite $symbolId: $e', tag: 'FavoritesService');
+            }
+          }
+        }
+        
+        if (addedCount > 0) {
+          // Save merged favorites to local storage
+          await _saveFavorites();
+          _favoritesController.add(List.from(_favoriteSymbols));
+          
+          print('🔄 MERGE SUCCESS: Added $addedCount favorites from Supabase to local storage');
+          AACLogger.info('FavoritesService: 🔄 MERGE COMPLETE: Added $addedCount new favorites from Supabase', tag: 'FavoritesService');
+        } else {
+          print('✅ SYNC STATUS: Local and Supabase favorites are in sync');
+        }
+      }
+      
     } catch (e) {
-      AACLogger.warning('FavoritesService: Failed to load from Supabase: $e', tag: 'FavoritesService');
+      AACLogger.warning('FavoritesService: ❌ BIDIRECTIONAL SYNC: Failed to load from Supabase: $e', tag: 'FavoritesService');
+      print('❌ MERGE ERROR: Failed to sync from Supabase: $e');
     }
   }
+
+  /// Force sync existing local data to Supabase (one-time migration)
+  Future<void> forceSyncLocalDataToSupabase() async {
+    if (!_isInitialized) {
+      AACLogger.warning('FavoritesService: Cannot sync - service not initialized', tag: 'FavoritesService');
+      return;
+    }
+
+    try {
+      AACLogger.info('🔄 FavoritesService: Starting forced sync of existing local data to Supabase', tag: 'FavoritesService');
+      
+      // Force sync favorites if we have any
+      if (_favoriteSymbols.isNotEmpty) {
+        AACLogger.info('🔄 Syncing ${_favoriteSymbols.length} favorites to Supabase', tag: 'FavoritesService');
+        await _userDataManager.setCloudData(_favoritesKey, _favoriteSymbols.map((s) => s.toJson()).toList());
+        AACLogger.info('✅ Favorites synced to Supabase', tag: 'FavoritesService');
+      } else {
+        AACLogger.info('ℹ️  No favorites to sync', tag: 'FavoritesService');
+      }
+      
+      // Force sync history if we have any
+      if (_usageHistory.isNotEmpty) {
+        AACLogger.info('🔄 Syncing ${_usageHistory.length} history items to Supabase', tag: 'FavoritesService');
+        await _userDataManager.setCloudData(_historyKey, _usageHistory.map((h) => h.toJson()).toList());
+        AACLogger.info('✅ History synced to Supabase', tag: 'FavoritesService');
+      } else {
+        AACLogger.info('ℹ️  No history to sync', tag: 'FavoritesService');
+      }
+      
+      AACLogger.info('🎉 FavoritesService: Forced sync completed successfully!', tag: 'FavoritesService');
+      
+    } catch (e, stackTrace) {
+      AACLogger.error('❌ FavoritesService: Forced sync failed: $e', stackTrace: stackTrace, tag: 'FavoritesService');
+    }
+  }
+
+
 
   /// Dispose the service and close streams.
   void dispose() {

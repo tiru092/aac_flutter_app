@@ -22,12 +22,21 @@ class UserDataService {
     return true;
   }
 
+  /// Get authenticated user ID, throwing if not available
+  String _getAuthenticatedUserId() {
+    final userDataManager = DataServicesInitializer.instance.userDataManager;
+    final firebaseUid = userDataManager.currentUserId;
+    if (firebaseUid == null) {
+      throw Exception('User not authenticated - operation not allowed');
+    }
+    return firebaseUid;
+  }
+
   /// Add a new symbol created by the user
   Future<bool> addUserSymbol(Symbol symbol) async {
     try {
       if (!await _ensureInitialized()) return false;
-      final userDataManager = DataServicesInitializer.instance.userDataManager;
-      final firebaseUid = userDataManager.currentUserId;
+      final firebaseUid = _getAuthenticatedUserId();
       
       // Add to local storage immediately using Firebase UID
       await LocalDataManager().addUserData(
@@ -50,8 +59,7 @@ class UserDataService {
   Future<bool> addUserCategory(Category category) async {
     try {
       if (!await _ensureInitialized()) return false;
-      final userDataManager = DataServicesInitializer.instance.userDataManager;
-      final firebaseUid = userDataManager.currentUserId;
+      final firebaseUid = _getAuthenticatedUserId();
 
       // Add to local storage immediately using Firebase UID
       await LocalDataManager().addUserData(
@@ -74,8 +82,7 @@ class UserDataService {
   Future<bool> addToFavorites(String symbolId) async {
     try {
       if (!await _ensureInitialized()) return false;
-      final userDataManager = DataServicesInitializer.instance.userDataManager;
-      final firebaseUid = userDataManager.currentUserId;
+      final firebaseUid = _getAuthenticatedUserId();
       
       // Add to local storage immediately using Firebase UID
       await LocalDataManager().addUserData(
@@ -99,8 +106,7 @@ class UserDataService {
   }) async {
     try {
       if (!await _ensureInitialized()) return false;
-      final userDataManager = DataServicesInitializer.instance.userDataManager;
-      final firebaseUid = userDataManager.currentUserId;
+      final firebaseUid = _getAuthenticatedUserId();
       
       // Create history entry
       final historyEntry = {
@@ -130,8 +136,7 @@ class UserDataService {
   Future<bool> updateUserSymbol(Symbol symbol) async {
     try {
       if (!await _ensureInitialized()) return false;
-      final userDataManager = DataServicesInitializer.instance.userDataManager;
-      final firebaseUid = userDataManager.currentUserId;
+      final firebaseUid = _getAuthenticatedUserId();
 
       await LocalDataManager().updateUserData(
         userId: firebaseUid,
@@ -152,8 +157,7 @@ class UserDataService {
   Future<bool> updateUserCategory(Category category) async {
     try {
       if (!await _ensureInitialized()) return false;
-      final userDataManager = DataServicesInitializer.instance.userDataManager;
-      final firebaseUid = userDataManager.currentUserId;
+      final firebaseUid = _getAuthenticatedUserId();
 
       await LocalDataManager().updateUserData(
         userId: firebaseUid,
@@ -174,8 +178,7 @@ class UserDataService {
   Future<bool> deleteUserSymbol(String symbolId) async {
     try {
       if (!await _ensureInitialized()) return false;
-      final userDataManager = DataServicesInitializer.instance.userDataManager;
-      final firebaseUid = userDataManager.currentUserId;
+      final firebaseUid = _getAuthenticatedUserId();
 
       await LocalDataManager().deleteUserData(
         userId: firebaseUid,
@@ -196,8 +199,7 @@ class UserDataService {
   Future<bool> deleteUserCategory(String categoryId) async {
     try {
       if (!await _ensureInitialized()) return false;
-      final userDataManager = DataServicesInitializer.instance.userDataManager;
-      final firebaseUid = userDataManager.currentUserId;
+      final firebaseUid = _getAuthenticatedUserId();
 
       await LocalDataManager().deleteUserData(
         userId: firebaseUid,
@@ -223,8 +225,7 @@ class UserDataService {
         'favorites': 0,
         'history': 0,
       };
-      final userDataManager = DataServicesInitializer.instance.userDataManager;
-      final firebaseUid = userDataManager.currentUserId;
+      final firebaseUid = _getAuthenticatedUserId();
       
       // Get summary from local data manager using Firebase UID
       return await LocalDataManager().getUserDataSummary(firebaseUid);
@@ -249,8 +250,10 @@ class UserDataService {
       final userDataManager = DataServicesInitializer.instance.userDataManager;
       if (userDataManager.isAuthenticated) {
         final firebaseUid = userDataManager.currentUserId;
-        await LocalDataManager().clearUserData(firebaseUid);
-        print('UserDataService: User data cleared for UID: $firebaseUid');
+        if (firebaseUid != null) {
+          await LocalDataManager().clearUserData(firebaseUid);
+          print('UserDataService: User data cleared for UID: $firebaseUid');
+        }
       } else {
         print('UserDataService: No authenticated user for clearing data');
       }
