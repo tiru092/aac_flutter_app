@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive/hive.dart';
 import '../services/unified_supabase_auth_service.dart';
@@ -513,6 +514,9 @@ class UserDataManager {
     // Route to specific tables based on key
     if (key == 'favorites_history') {
       await _syncHistoryToSupabase(value);
+    } else if (key == 'single_history_item') {
+      // FIXED: Handle single item sync to prevent duplicates
+      await _syncSingleHistoryItem(value);
     } else if (key == 'favorites') {
       await _syncFavoritesToSupabase(value);
     } else if (key == 'custom_categories') {
@@ -584,6 +588,45 @@ class UserDataManager {
       } catch (e) {
         AACLogger.warning('UserDataManager: ⚠️  Incremental history sync failed: $e', tag: 'UserDataManager');
         print('❌ SYNC ERROR: History incremental sync failed: $e');
+      }
+    });
+  }
+
+  /// Sync a single new history item to prevent duplicates
+  Future<void> _syncSingleHistoryItem(dynamic singleItemData) async {
+    if (singleItemData == null || singleItemData is! List || singleItemData.isEmpty) return;
+    
+    Future.microtask(() async {
+      try {
+        final item = singleItemData[0];
+        if (item is Map<String, dynamic>) {
+          final symbolData = item['symbol'] as Map<String, dynamic>?;
+          if (symbolData != null) {
+            final timestamp = item['timestamp'] ?? DateTime.now().toIso8601String();
+            final messageText = symbolData['label'] ?? 'Unknown';
+            
+            // Create unique record for single item
+            final newRecord = {
+              'user_id': _currentUserId,
+              'message_text': messageText,
+              'symbols_used': [symbolData],
+              'communication_type': item['action'] == 'phrase' ? 'phrase' : 'word',
+              'context_info': {'action': item['action']},
+              'created_at': timestamp,
+            };
+            
+            // Insert single item without duplicate checking (assumes FavoritesService manages uniqueness)
+            await Supabase.instance.client
+                .from('communication_history')
+                .insert(newRecord);
+            
+            print('📤 SINGLE ITEM SYNC: Added 1 new history item: $messageText');
+            AACLogger.info('UserDataManager: 📤 SINGLE: Added new history item "$messageText" to communication_history', tag: 'UserDataManager');
+          }
+        }
+      } catch (e) {
+        AACLogger.warning('UserDataManager: ⚠️  Single history item sync failed: $e', tag: 'UserDataManager');
+        print('❌ SYNC ERROR: Single history item sync failed: $e');
       }
     });
   }
@@ -944,6 +987,176 @@ class UserDataManager {
            '4${combined.substring(13, 16)}-'
            'a${combined.substring(17, 20)}-'
            '${combined.substring(20, 32)}';
+  }
+
+  /// LOCAL-FIRST CUSTOM CATEGORIES METHODS
+  
+  /// Add a custom category to local storage immediately
+  Future<void> addCustomCategory(Category category) async {
+    if (!_isInitialized) throw Exception('UserDataManager not initialized');
+    
+    try {
+      // Save to local Hive box
+      final key = category.id ?? _generateUniqueId();
+      if (category.id == null) {
+        category.id = key;
+      }
+      
+      await _userCategoriesBox.put(key, category);
+      AACLogger.info('UserDataManager: Added custom category "${category.name}" to local storage', tag: 'UserDataManager');
+      
+      // Queue for Supabase sync in background
+      await _queueCategoryForSync(category);
+    } catch (e) {
+      AACLogger.error('UserDataManager: Failed to add custom category: $e', tag: 'UserDataManager');
+      rethrow;
+    }
+  }
+  
+  /// Get all custom categories from local storage
+  Future<List<Category>> getCustomCategories() async {
+    if (!_isInitialized) throw Exception('UserDataManager not initialized');
+    
+    try {
+      final categories = _userCategoriesBox.values.where((cat) => !cat.isDefault).toList();
+      AACLogger.info('UserDataManager: Retrieved ${categories.length} custom categories from local storage', tag: 'UserDataManager');
+      return categories;
+    } catch (e) {
+      AACLogger.error('UserDataManager: Failed to get custom categories: $e', tag: 'UserDataManager');
+      return [];
+    }
+  }
+  
+  /// Remove a custom category from local storage
+  Future<void> removeCustomCategory(String categoryId) async {
+    if (!_isInitialized) throw Exception('UserDataManager not initialized');
+    
+    try {
+      await _userCategoriesBox.delete(categoryId);
+      AACLogger.info('UserDataManager: Removed custom category $categoryId from local storage', tag: 'UserDataManager');
+      
+      // Queue for Supabase delete in background
+      await _queueCategoryForDeletion(categoryId);
+    } catch (e) {
+      AACLogger.error('UserDataManager: Failed to remove custom category: $e', tag: 'UserDataManager');
+      rethrow;
+    }
+  }
+  
+  /// Queue category for background sync to Supabase
+  Future<void> _queueCategoryForSync(Category category) async {
+    try {
+      await setCloudData('custom_categories_queue', {
+        'action': 'add',
+        'category': category.toJson(),
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      AACLogger.info('UserDataManager: Queued category "${category.name}" for Supabase sync', tag: 'UserDataManager');
+    } catch (e) {
+      AACLogger.warning('UserDataManager: Failed to queue category for sync: $e', tag: 'UserDataManager');
+    }
+  }
+  
+  /// Queue category for background deletion from Supabase
+  Future<void> _queueCategoryForDeletion(String categoryId) async {
+    try {
+      await setCloudData('custom_categories_queue', {
+        'action': 'delete',
+        'categoryId': categoryId,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      AACLogger.info('UserDataManager: Queued category $categoryId for Supabase deletion', tag: 'UserDataManager');
+    } catch (e) {
+      AACLogger.warning('UserDataManager: Failed to queue category for deletion: $e', tag: 'UserDataManager');
+    }
+  }
+  
+  /// LOCAL-FIRST CUSTOM SYMBOLS METHODS
+  
+  /// Add a custom symbol to local storage immediately  
+  Future<void> addCustomSymbol(Symbol symbol) async {
+    if (!_isInitialized) throw Exception('UserDataManager not initialized');
+    
+    try {
+      // Save to local Hive box
+      final key = symbol.id ?? _generateUniqueId();
+      if (symbol.id == null) {
+        symbol.id = key;
+      }
+      
+      await _userSymbolsBox.put(key, symbol);
+      AACLogger.info('UserDataManager: Added custom symbol "${symbol.label}" to local storage', tag: 'UserDataManager');
+      
+      // Queue for Supabase sync in background
+      await _queueSymbolForSync(symbol);
+    } catch (e) {
+      AACLogger.error('UserDataManager: Failed to add custom symbol: $e', tag: 'UserDataManager');
+      rethrow;
+    }
+  }
+  
+  /// Get all custom symbols from local storage
+  Future<List<Symbol>> getCustomSymbols() async {
+    if (!_isInitialized) throw Exception('UserDataManager not initialized');
+    
+    try {
+      final symbols = _userSymbolsBox.values.where((sym) => !sym.isDefault).toList();
+      AACLogger.info('UserDataManager: Retrieved ${symbols.length} custom symbols from local storage', tag: 'UserDataManager');
+      return symbols;
+    } catch (e) {
+      AACLogger.error('UserDataManager: Failed to get custom symbols: $e', tag: 'UserDataManager');
+      return [];
+    }
+  }
+  
+  /// Remove a custom symbol from local storage
+  Future<void> removeCustomSymbol(String symbolId) async {
+    if (!_isInitialized) throw Exception('UserDataManager not initialized');
+    
+    try {
+      await _userSymbolsBox.delete(symbolId);
+      AACLogger.info('UserDataManager: Removed custom symbol $symbolId from local storage', tag: 'UserDataManager');
+      
+      // Queue for Supabase delete in background
+      await _queueSymbolForDeletion(symbolId);
+    } catch (e) {
+      AACLogger.error('UserDataManager: Failed to remove custom symbol: $e', tag: 'UserDataManager');
+      rethrow;
+    }
+  }
+  
+  /// Queue symbol for background sync to Supabase
+  Future<void> _queueSymbolForSync(Symbol symbol) async {
+    try {
+      await setCloudData('custom_symbols_queue', {
+        'action': 'add',
+        'symbol': symbol.toJson(),
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      AACLogger.info('UserDataManager: Queued symbol "${symbol.label}" for Supabase sync', tag: 'UserDataManager');
+    } catch (e) {
+      AACLogger.warning('UserDataManager: Failed to queue symbol for sync: $e', tag: 'UserDataManager');
+    }
+  }
+  
+  /// Queue symbol for background deletion from Supabase
+  Future<void> _queueSymbolForDeletion(String symbolId) async {
+    try {
+      await setCloudData('custom_symbols_queue', {
+        'action': 'delete',
+        'symbolId': symbolId,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      AACLogger.info('UserDataManager: Queued symbol $symbolId for Supabase deletion', tag: 'UserDataManager');
+    } catch (e) {
+      AACLogger.warning('UserDataManager: Failed to queue symbol for deletion: $e', tag: 'UserDataManager');
+    }
+  }
+
+  /// Generate unique ID for custom categories and symbols
+  String _generateUniqueId() {
+    return DateTime.now().millisecondsSinceEpoch.toString() + 
+           (Random().nextInt(1000).toString().padLeft(3, '0'));
   }
 
   /// Dispose the user data manager and close Hive boxes.

@@ -86,25 +86,16 @@ class CustomSymbolsService {
         // Continue with normal loading process
       }
       
-      // STEP 1: Always load from local Hive storage first (faster, works offline)
-      AACLogger.info('CustomSymbolsService: Loading symbols from local Hive storage...', tag: 'CustomSymbolsService');
-      final localBox = await _userDataManager!.getCustomSymbolsBox();
-      final localData = localBox.get(_customSymbolsKey);
-      
-      if (localData != null && localData is List && localData.isNotEmpty) {
-        try {
-          hiveSymbols = localData.map((data) => Symbol.fromJson(Map<String, dynamic>.from(data))).toList();
-          hiveDataExists = true;
-          AACLogger.info('CustomSymbolsService: Found ${hiveSymbols.length} symbols in local Hive storage.', tag: 'CustomSymbolsService');
-        } catch (parseError) {
-          AACLogger.error('CustomSymbolsService: Error parsing Hive data (corrupted?): $parseError - Clearing corrupted data', tag: 'CustomSymbolsService');
-          // Clear corrupted data
-          await localBox.delete(_customSymbolsKey);
-          hiveSymbols = [];
-          hiveDataExists = false;
-        }
-      } else {
-        AACLogger.info('CustomSymbolsService: No local data found in Hive.', tag: 'CustomSymbolsService');
+      // STEP 1: Use UserDataManager's local-first getCustomSymbols method 
+      AACLogger.info('CustomSymbolsService: Loading symbols using UserDataManager.getCustomSymbols()...', tag: 'CustomSymbolsService');
+      try {
+        hiveSymbols = await _userDataManager!.getCustomSymbols();
+        hiveDataExists = hiveSymbols.isNotEmpty;
+        AACLogger.info('CustomSymbolsService: Found ${hiveSymbols.length} symbols from UserDataManager.', tag: 'CustomSymbolsService');
+      } catch (localError) {
+        AACLogger.error('CustomSymbolsService: Error loading from UserDataManager: $localError', tag: 'CustomSymbolsService');
+        hiveSymbols = [];
+        hiveDataExists = false;
       }
       
       // STEP 2: Try to load from Firebase (for validation/sync)
@@ -184,7 +175,7 @@ class CustomSymbolsService {
     }
   }
 
-  /// Add a new custom symbol
+  /// Add a new custom symbol - LOCAL FIRST APPROACH
   Future<bool> addCustomSymbol(Symbol symbol) async {
     if (!_isInitialized) {
       AACLogger.warning('CustomSymbolsService: Cannot add symbol - service not initialized', tag: 'CustomSymbolsService');
@@ -192,21 +183,26 @@ class CustomSymbolsService {
     }
 
     try {
-      AACLogger.info('CustomSymbolsService: Adding custom symbol: ${symbol.label}', tag: 'CustomSymbolsService');
+      // Check for duplicates
+      if (_customSymbols.any((s) => s.id == symbol.id || s.label == symbol.label)) {
+        AACLogger.warning('🔥⚠️ CustomSymbolsService: Symbol "${symbol.label}" already exists, skipping add', tag: 'CustomSymbolsService');
+        return false;
+      }
       
-      // STEP 1: Add to local Hive storage immediately (instant UI update)
+      AACLogger.info('🔥 CustomSymbolsService: Adding custom symbol: ${symbol.label}', tag: 'CustomSymbolsService');
+      
+      // LOCAL FIRST: Use UserDataManager for immediate local storage + background sync
+      await _userDataManager!.addCustomSymbol(symbol);
+      
+      // Update in-memory list and notify listeners immediately
       _customSymbols.add(symbol);
-      await _saveToLocal();
       _symbolsController.add(_customSymbols);
       
-      // STEP 2: Sync to Firebase in background (don't block UI)
-      _syncToFirebaseInBackground(symbol);
-      
-      AACLogger.info('CustomSymbolsService: ✅ Added symbol locally: ${symbol.label}', tag: 'CustomSymbolsService');
+      AACLogger.info('🔥✅ CustomSymbolsService: Successfully added symbol "${symbol.label}" using local-first approach', tag: 'CustomSymbolsService');
       return true;
       
     } catch (e, stackTrace) {
-      AACLogger.error('CustomSymbolsService: Failed to add symbol: $e', stackTrace: stackTrace, tag: 'CustomSymbolsService');
+      AACLogger.error('🔥❌ CustomSymbolsService: Failed to add symbol: $e', stackTrace: stackTrace, tag: 'CustomSymbolsService');
       return false;
     }
   }

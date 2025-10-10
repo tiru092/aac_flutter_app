@@ -21,6 +21,9 @@ class FavoritesService extends ChangeNotifier {
   List<Symbol> _favoriteSymbols = [];
   List<HistoryItem> _usageHistory = [];
 
+  // Duplicate prevention - track recent items
+  final Set<String> _recentlyProcessed = <String>{};
+
   // Streams for real-time updates
   final StreamController<List<Symbol>> _favoritesController = StreamController<List<Symbol>>.broadcast();
   final StreamController<List<HistoryItem>> _historyController = StreamController<List<HistoryItem>>.broadcast();
@@ -316,7 +319,32 @@ class FavoritesService extends ChangeNotifier {
       return;
     }
     try {
-      final historyItem = HistoryItem(symbol: symbol, timestamp: DateTime.now(), action: action);
+      final now = DateTime.now();
+      final historyItem = HistoryItem(symbol: symbol, timestamp: now, action: action);
+      
+      // DUPLICATE PREVENTION: Create unique key for recent processing
+      final itemKey = '${symbol.label}_${action}_${now.millisecondsSinceEpoch ~/ 1000}'; // Round to seconds
+      
+      if (_recentlyProcessed.contains(itemKey)) {
+        print('🔥 FavoritesService.recordUsage: ⚠️  Skipping duplicate item: $itemKey');
+        AACLogger.warning('FavoritesService: Skipping duplicate item within same second: $itemKey', tag: 'FavoritesService');
+        return;
+      }
+      
+      // Add to recent processing set
+      _recentlyProcessed.add(itemKey);
+      
+      // Clean up old entries (keep only last 10 seconds)
+      final cutoffTime = now.millisecondsSinceEpoch ~/ 1000 - 10;
+      _recentlyProcessed.removeWhere((key) {
+        final parts = key.split('_');
+        if (parts.length >= 3) {
+          final timestamp = int.tryParse(parts.last) ?? 0;
+          return timestamp < cutoffTime;
+        }
+        return false;
+      });
+      
       _usageHistory.insert(0, historyItem);
       print('🔥 FavoritesService.recordUsage: Added item, total count: ${_usageHistory.length}');
       AACLogger.info('🔥 FavoritesService: Added history item, total count: ${_usageHistory.length}', tag: 'FavoritesService');
@@ -326,8 +354,10 @@ class FavoritesService extends ChangeNotifier {
         _usageHistory = _usageHistory.sublist(0, 100);
       }
       print('🔥 FavoritesService.recordUsage: About to save history...');
-      await _saveHistory();
-      print('🔥 FavoritesService.recordUsage: ✅ Successfully saved history');
+      
+      // FIXED: Only sync the new item to avoid re-processing entire history
+      await _saveNewHistoryItem(historyItem);
+      print('🔥 FavoritesService.recordUsage: ✅ Successfully saved new history item');
       
       // Update last sync time since we added new local data
       try {
@@ -387,6 +417,18 @@ class FavoritesService extends ChangeNotifier {
     _historyController.add(_usageHistory);
     await _saveHistoryToLocal();
     await _userDataManager.setCloudData(_historyKey, _usageHistory.map((h) => h.toJson()).toList());
+  }
+
+  /// Save only a new history item (prevents re-processing entire history)
+  Future<void> _saveNewHistoryItem(HistoryItem newItem) async {
+    // Update UI stream with full history
+    _historyController.add(_usageHistory);
+    
+    // Save all history to local storage
+    await _saveHistoryToLocal();
+    
+    // FIXED: Only sync the new item to Supabase to prevent duplicates
+    await _userDataManager.setCloudData('single_history_item', [newItem.toJson()]);
   }
 
   Future<void> _saveHistoryToLocal() async {

@@ -219,8 +219,18 @@ class _HomeScreenState extends State<HomeScreen> {
             debugPrint('🔍 STREAM SYMBOL MERGE: Default (${defaultSymbols.length}) + Custom (${symbols.length}) = ${_allSymbols.length} unique symbols');
             if (duplicatesRemoved > 0) {
               debugPrint('🔧 STREAM DEDUPLICATION: Removed $duplicatesRemoved duplicate symbols');
+              // Log which symbols were deduplicated for debugging
+              final allSymbolIds = [...defaultSymbols.map((s) => s.id ?? s.label), ...symbols.map((s) => s.id ?? s.label)];
+              final uniqueIds = _allSymbols.map((s) => s.id ?? s.label).toSet();
+              debugPrint('🔍 DUPLICATE ANALYSIS: Input IDs: ${allSymbolIds.length}, Unique IDs: ${uniqueIds.length}');
             } else {
               debugPrint('✅ NO STREAM DUPLICATES: All symbols are unique');
+            }
+            
+            // Additional debug for new symbol additions
+            if (symbols.isNotEmpty) {
+              final newSymbolLabels = symbols.map((s) => s.label).join(', ');
+              debugPrint('🆕 CUSTOM SYMBOLS UPDATED: ${symbols.length} custom symbols - [$newSymbolLabels]');
             }
           });
           debugPrint('🔥 CustomSymbols updated via stream: ${symbols.length} custom symbols (${_allSymbols.length} total unique)');
@@ -484,8 +494,8 @@ class _HomeScreenState extends State<HomeScreen> {
       await Future.delayed(Duration(milliseconds: 10)); // Yield to UI
       _loadSpeechSettings();
       
-      // Load database data in background without blocking UI
-      _loadDatabaseDataInBackground();
+      // Note: Background symbol loading removed - stream listeners handle all symbol updates
+      // _loadDatabaseDataInBackground(); // DISABLED: Stream-only architecture prevents duplicates
       
     } catch (e) {
       debugPrint('Error in _loadDataAsync: $e');
@@ -739,11 +749,11 @@ class _HomeScreenState extends State<HomeScreen> {
       // Try to speak in background, don't wait for it
       _trySpeak(symbol.label);
       
-      // Record usage in favorites (non-blocking)
+      // Record usage in favorites (non-blocking) - This already handles communication_history
       _recordSymbolUsage(symbol);
       
-      // Record in user's communication history (non-blocking)
-      _recordCommunicationHistory(symbol);
+      // REMOVED: _recordCommunicationHistory(symbol) - Duplicate recording fixed!
+      // FavoritesService.recordUsage() already records to communication_history via setCloudData
     } catch (e) {
       AACLogger.error('Error in symbol tap: $e', tag: 'HomeScreen');
       // Even if setState fails, don't block UI
@@ -765,21 +775,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }();
   }
 
-  // Record communication history in local storage (non-blocking background operation)
-  void _recordCommunicationHistory(Symbol symbol) {
-    // Don't await this - let it run in background
-    () async {
-      try {
-        await UserDataService().addCommunicationHistory(
-          symbolLabels: [symbol.label],
-          spokenText: symbol.label,
-        );
-      } catch (e) {
-        // Ignore errors - don't block UI
-        AACLogger.warning('Communication history recording failed (ignored): $e', tag: 'HomeScreen');
-      }
-    }();
-  }
+  // REMOVED: _recordCommunicationHistory() method - was causing duplicate entries
+  // FavoritesService.recordUsage() now handles all communication history recording
 
   // Record full sentence in communication history (non-blocking background operation)
   void _recordSentenceHistory(List<Symbol> symbols, String sentence) {
