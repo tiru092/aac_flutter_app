@@ -175,6 +175,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // Set up CustomCategoriesService stream listener
     if (_customCategoriesService != null) {
       debugPrint('🎯 Setting up CustomCategoriesService stream listener...');
+      
+      // Set up stream listener for future updates
       _customCategoriesSubscription = _customCategoriesService!.categoriesStream.listen((categories) {
         if (mounted) {
           setState(() {
@@ -185,6 +187,20 @@ class _HomeScreenState extends State<HomeScreen> {
       }, onError: (error) {
         debugPrint('🚫 CustomCategories stream error: $error');
       });
+      
+      // CRITICAL FIX: If service is already initialized, get current categories immediately
+      // This prevents missing categories when UI subscribes after service initialization
+      if (_customCategoriesService!.isInitialized) {
+        final currentCategories = _customCategoriesService!.customCategories;
+        debugPrint('🎯 CATEGORIES SERVICE ALREADY INITIALIZED: Loading ${currentCategories.length} existing custom categories immediately');
+        if (mounted) {
+          setState(() {
+            _customCategories = currentCategories;
+          });
+        }
+      } else {
+        debugPrint('🎯 Categories service not yet initialized - will wait for stream updates');
+      }
     } else {
       debugPrint('🚫 CustomCategoriesService not available for stream setup');
     }
@@ -192,7 +208,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // Set up CustomSymbolsService stream listener
     if (_customSymbolsService != null) {
       debugPrint('🔥 Setting up CustomSymbolsService stream listener...');
-      _customSymbolsSubscription = _customSymbolsService!.symbolsStream.listen((symbols) {
+      
+      // Helper function to merge symbols with deduplication
+      void _mergeCustomSymbols(List<Symbol> symbols) {
         if (mounted) {
           setState(() {
             // Combine default symbols with user's custom symbols WITH DEDUPLICATION
@@ -216,28 +234,39 @@ class _HomeScreenState extends State<HomeScreen> {
             
             // Log deduplication results with detailed info
             final duplicatesRemoved = (defaultSymbols.length + symbols.length) - _allSymbols.length;
-            debugPrint('🔍 STREAM SYMBOL MERGE: Default (${defaultSymbols.length}) + Custom (${symbols.length}) = ${_allSymbols.length} unique symbols');
+            debugPrint('🔍 SYMBOL MERGE: Default (${defaultSymbols.length}) + Custom (${symbols.length}) = ${_allSymbols.length} unique symbols');
             if (duplicatesRemoved > 0) {
-              debugPrint('🔧 STREAM DEDUPLICATION: Removed $duplicatesRemoved duplicate symbols');
-              // Log which symbols were deduplicated for debugging
-              final allSymbolIds = [...defaultSymbols.map((s) => s.id ?? s.label), ...symbols.map((s) => s.id ?? s.label)];
-              final uniqueIds = _allSymbols.map((s) => s.id ?? s.label).toSet();
-              debugPrint('🔍 DUPLICATE ANALYSIS: Input IDs: ${allSymbolIds.length}, Unique IDs: ${uniqueIds.length}');
+              debugPrint('🔧 DEDUPLICATION: Removed $duplicatesRemoved duplicate symbols');
             } else {
-              debugPrint('✅ NO STREAM DUPLICATES: All symbols are unique');
+              debugPrint('✅ NO DUPLICATES: All symbols are unique');
             }
             
-            // Additional debug for new symbol additions
+            // Additional debug for custom symbol additions
             if (symbols.isNotEmpty) {
               final newSymbolLabels = symbols.map((s) => s.label).join(', ');
-              debugPrint('🆕 CUSTOM SYMBOLS UPDATED: ${symbols.length} custom symbols - [$newSymbolLabels]');
+              debugPrint('🆕 CUSTOM SYMBOLS: ${symbols.length} custom symbols - [$newSymbolLabels]');
             }
           });
-          debugPrint('🔥 CustomSymbols updated via stream: ${symbols.length} custom symbols (${_allSymbols.length} total unique)');
+          debugPrint('🔥 CustomSymbols updated: ${symbols.length} custom symbols (${_allSymbols.length} total unique)');
         }
+      }
+      
+      // Set up stream listener for future updates
+      _customSymbolsSubscription = _customSymbolsService!.symbolsStream.listen((symbols) {
+        _mergeCustomSymbols(symbols);
       }, onError: (error) {
         debugPrint('🚫 CustomSymbols stream error: $error');
       });
+      
+      // CRITICAL FIX: If service is already initialized, get current symbols immediately
+      // This prevents missing symbols when UI subscribes after service initialization
+      if (_customSymbolsService!.isInitialized) {
+        final currentSymbols = _customSymbolsService!.customSymbols;
+        debugPrint('🔥 SERVICE ALREADY INITIALIZED: Loading ${currentSymbols.length} existing custom symbols immediately');
+        _mergeCustomSymbols(currentSymbols);
+      } else {
+        debugPrint('🔥 Service not yet initialized - will wait for stream updates');
+      }
     } else {
       debugPrint('🚫 CustomSymbolsService not available for stream setup');
     }
