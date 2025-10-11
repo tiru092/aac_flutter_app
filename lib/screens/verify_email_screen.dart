@@ -2,8 +2,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../services/auth_service.dart';
+import '../services/unified_supabase_auth_service.dart';
 import '../services/subscription_service.dart';
 import '../screens/login_screen.dart';
 import 'home_screen.dart';
@@ -16,7 +15,6 @@ class VerifyEmailScreen extends StatefulWidget {
 }
 
 class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
-  final _authService = AuthService();
   bool _isVerifying = false;
   String? _errorMessage;
   int _countdown = 30;
@@ -29,8 +27,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     
     // Debug: Check user status on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = FirebaseAuth.instance.currentUser;
-      debugPrint('VerifyEmailScreen: Init - User: ${user?.email}, Verified: ${user?.emailVerified}');
+      final user = UnifiedSupabaseAuthService.currentUser;
+      debugPrint('VerifyEmailScreen: Init - User: ${user?.email}, Verified: ${user?.emailConfirmedAt != null}');
     });
   }
 
@@ -60,7 +58,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
     try {
       // First check if user is still signed in
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = UnifiedSupabaseAuthService.currentUser;
       if (currentUser == null) {
         setState(() {
           _errorMessage = 'Your session has expired. Please sign in again to verify your email.';
@@ -69,9 +67,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         return;
       }
 
-      // Reload user to get latest verification status
-      await currentUser.reload();
-      final refreshedUser = FirebaseAuth.instance.currentUser;
+      // Get fresh user data from Supabase
+      final refreshedUser = UnifiedSupabaseAuthService.currentUser;
       
       if (refreshedUser == null) {
         setState(() {
@@ -81,7 +78,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         return;
       }
 
-      final isVerified = refreshedUser.emailVerified;
+      final isVerified = refreshedUser.emailConfirmedAt != null;
       debugPrint('VerifyEmailScreen: Email verification status: $isVerified');
       
       if (isVerified) {
@@ -142,25 +139,11 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           _isVerifying = false;
         });
       }
-    } on FirebaseAuthException catch (e) {
-      debugPrint('VerifyEmailScreen: Firebase error: $e');
+    } on Exception catch (e) {
+      debugPrint('VerifyEmailScreen: Auth error: $e');
       setState(() {
-        switch (e.code) {
-          case 'user-not-found':
-            _errorMessage = 'Your account was not found. Please sign up again or contact support.';
-            break;
-          case 'network-request-failed':
-            _errorMessage = 'Network error. Please check your internet connection and try again.';
-            break;
-          case 'too-many-requests':
-            _errorMessage = 'Too many attempts. Please wait a moment and try again.';
-            break;
-          case 'user-token-expired':
-            _errorMessage = 'Your session has expired. Please sign in again.';
-            break;
-          default:
-            _errorMessage = 'Firebase error: ${e.message ?? "Unknown error"}. Please try again.';
-        }
+        // Handle auth errors generically since we're using Supabase
+        _errorMessage = 'Authentication error occurred. Please try again or contact support.';
         _isVerifying = false;
       });
     } catch (e) {
@@ -181,7 +164,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     });
 
     try {
-      await _authService.sendVerificationEmail();
+      await UnifiedSupabaseAuthService.sendVerificationEmail();
       setState(() {
         _errorMessage = 'Verification email sent successfully! Please check your inbox (and spam folder).';
         _isVerifying = false;
@@ -204,9 +187,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
           ),
         );
       }
-    } on FirebaseAuthException catch (e) {
+    } on Exception catch (e) {
       setState(() {
-        _errorMessage = 'Firebase error: ${e.message}. Please try again.';
+        _errorMessage = 'Auth error: $e. Please try again.';
         _isVerifying = false;
         _startCountdown();
       });
@@ -221,7 +204,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   Future<void> _signOut() async {
     try {
-      await _authService.signOut();
+      await UnifiedSupabaseAuthService.signOut();
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,

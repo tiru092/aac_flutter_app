@@ -48,8 +48,8 @@ class _AACLearningGoalsScreenState extends State<AACLearningGoalsScreen>
     try {
       final progress = await GoalProgressService.getAllGoalProgress();
       setState(() {
-        _goalProgress = progress;
-        _completedGoals = progress.map((key, value) => MapEntry(key, value >= 100));
+        _goalProgress = progress.map((key, value) => MapEntry(key, (value as num?)?.toInt() ?? 0));
+        _completedGoals = progress.map((key, value) => MapEntry(key, ((value as num?)?.toInt() ?? 0) >= 100));
       });
     } catch (e) {
       debugPrint('Error loading goal progress: $e');

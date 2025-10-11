@@ -49,7 +49,7 @@ class ProfileSharingService {
         sharedWithUserEmail: sharedWithEmail,
         permission: permission,
         sharedAt: DateTime.now(),
-        sharedByUserId: currentUser.uid,
+        sharedByUserId: currentUser.id,
         message: message,
       );
 

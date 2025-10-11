@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/symbol.dart';
+import 'unified_supabase_auth_service.dart';
 import '../models/subscription.dart';
 import '../models/user_profile.dart';
 import '../utils/aac_logger.dart';
@@ -24,23 +25,23 @@ class UserProfileService {
       }
       
       // Check if user is authenticated first
-      final user = FirebaseAuth.instance.currentUser;
+      final user = UnifiedSupabaseAuthService.currentUser;
       
       if (user != null) {
-        // For authenticated users, ensure profile ID matches Firebase UID
+        // For authenticated users, ensure profile ID matches Supabase user ID
         final prefs = await SharedPreferences.getInstance();
         final currentProfileId = prefs.getString(_currentProfileKey);
         
-        // Fix profile ID mismatch - should always use Firebase UID for authenticated users
-        if (currentProfileId != user.uid) {
-          AACLogger.info('Fixing profile ID mismatch: $currentProfileId -> ${user.uid}', tag: 'UserProfileService');
-          await prefs.setString(_currentProfileKey, user.uid);
+        // Fix profile ID mismatch - should always use Supabase user ID for authenticated users
+        if (currentProfileId != user.id) {
+          AACLogger.info('Fixing profile ID mismatch: $currentProfileId -> ${user.id}', tag: 'UserProfileService');
+          await prefs.setString(_currentProfileKey, user.id);
         }
         
         // Try to load from cloud using Firebase UID - DISABLED for simple structure
         // NOTE: Temporarily disabled complex CloudSyncService to use simple Firebase structure
         if (false && _cloudSyncService.isCloudSyncAvailable) {
-          var cloudProfile = await _cloudSyncService.loadProfileFromCloud(user.uid);
+          var cloudProfile = await _cloudSyncService.loadProfileFromCloud(user.id);
           
           // If not found by UID, try to find by email
           if (cloudProfile == null && user.email != null) {
@@ -56,7 +57,7 @@ class UserProfileService {
         }
         
         // Fallback to local storage using Firebase UID
-        return await _loadProfileById(user.uid);
+        return await _loadProfileById(user.id);
       } else {
         // For offline mode, use local profile ID
         final prefs = await SharedPreferences.getInstance();

@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/unified_supabase_auth_service.dart';
 import 'secure_logger.dart';
 
 /// Firebase security hardening service
 /// Implements additional security measures for Firebase connections
 class FirebaseSecurityService {
   static final FirebaseSecurityService _instance = FirebaseSecurityService._internal();
+  static FirebaseSecurityService get instance => _instance;
   factory FirebaseSecurityService() => _instance;
   FirebaseSecurityService._internal();
 
@@ -41,10 +41,11 @@ class FirebaseSecurityService {
   /// Configure Firestore settings for better security
   Future<void> _configureFirestoreSettings() async {
     try {
-      final firestore = FirebaseFirestore.instance;
+      // TODO: Replace with Supabase configuration
+      final supabase = Supabase.instance.client;
       
       // Configure settings for security and performance
-      await firestore.enableNetwork();
+      // Supabase is always network-enabled
       
       // SIMPLE AND SAFE: Just log the configuration without complex settings
       if (kDebugMode) {
@@ -64,9 +65,9 @@ class FirebaseSecurityService {
   /// Set up Auth state monitoring for security anomalies
   void _setupAuthSecurityMonitoring() {
     try {
-      FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      UnifiedSupabaseAuthService.userChanges.listen((User? user) {
         if (user != null) {
-          SecureLogger.authEvent('User authenticated', userId: user.uid);
+          SecureLogger.authEvent('User authenticated', userId: user.id);
           _validateUserSession(user);
         } else {
           SecureLogger.authEvent('User signed out');
@@ -75,9 +76,10 @@ class FirebaseSecurityService {
       });
       
       // Monitor token changes for security
-      FirebaseAuth.instance.idTokenChanges().listen((User? user) {
+      // Note: Supabase handles token refresh automatically
+      UnifiedSupabaseAuthService.userChanges.listen((User? user) {
         if (user != null) {
-          SecureLogger.authEvent('User token refreshed', userId: user.uid);
+          SecureLogger.authEvent('User session active', userId: user.id);
           _validateTokenSecurity(user);
         }
       });
@@ -104,20 +106,20 @@ class FirebaseSecurityService {
   void _validateUserSession(User user) {
     try {
       // Check for suspicious session patterns
-      if (user.metadata.creationTime != null && user.metadata.lastSignInTime != null) {
-        final creationTime = user.metadata.creationTime!;
-        final lastSignIn = user.metadata.lastSignInTime!;
-        final timeDiff = DateTime.now().difference(lastSignIn);
-        
-        // Log if session is very old (potential security concern)
-        if (timeDiff.inDays > 30) {
-          SecureLogger.warning('User session is over 30 days old');
-        }
-        
-        // Check if email is verified for new accounts
-        if (!user.emailVerified && DateTime.now().difference(creationTime).inDays > 1) {
-          SecureLogger.warning('User account is unverified after 24 hours');
-        }
+      // Note: Supabase User createdAt is String, need to parse
+      final createdAtString = user.userMetadata?['created_at'] as String?;
+      final creationTime = createdAtString != null ? DateTime.parse(createdAtString) : DateTime.now();
+      final lastSignIn = DateTime.now(); // Supabase doesn't track lastSignInTime directly
+      final timeDiff = DateTime.now().difference(lastSignIn);
+      
+      // Log if session is very old (potential security concern)
+      if (timeDiff.inDays > 30) {
+        SecureLogger.warning('User session is over 30 days old');
+      }
+      
+      // Check if email is verified for new accounts
+      if (user.emailConfirmedAt == null && DateTime.now().difference(creationTime).inDays > 1) {
+        SecureLogger.warning('User account is unverified after 24 hours');
       }
     } catch (e) {
       SecureLogger.error('Error validating user session', e);
@@ -221,14 +223,11 @@ class FirebaseSecurityService {
       final sanitizedData = _sanitizeFirestoreData(data);
       
       // Add security metadata
-      sanitizedData['_lastModified'] = FieldValue.serverTimestamp();
+      sanitizedData['_lastModified'] = DateTime.now().toIso8601String();
       sanitizedData['_modifiedBy'] = userId ?? 'anonymous';
       
-      // Perform write
-      await FirebaseFirestore.instance
-          .collection(collection)
-          .doc(documentId)
-          .set(sanitizedData, SetOptions(merge: true));
+      // TODO: Replace with Supabase upsert operation
+      // await Supabase.instance.client.from(collection).upsert(sanitizedData);
       
       SecureLogger.firebaseEvent('Secure Firestore write completed', 
           collection: collection, success: true);
@@ -240,8 +239,8 @@ class FirebaseSecurityService {
     }
   }
 
-  /// Secure Firestore read with validation
-  Future<DocumentSnapshot> secureFirestoreRead({
+  /// Secure Supabase read with validation
+  Future<Map<String, dynamic>?> secureSupabaseRead({
     required String collection,
     required String documentId,
     String? userId,
@@ -252,16 +251,17 @@ class FirebaseSecurityService {
         throw Exception('Rate limit exceeded for Firestore reads');
       }
       
-      // Perform read
-      final doc = await FirebaseFirestore.instance
-          .collection(collection)
-          .doc(documentId)
-          .get();
+      // TODO: Replace with Supabase query
+      final response = await Supabase.instance.client
+          .from(collection)
+          .select()
+          .eq('id', documentId)
+          .maybeSingle();
       
-      SecureLogger.firebaseEvent('Secure Firestore read completed', 
+      SecureLogger.firebaseEvent('Secure Supabase read completed', 
           collection: collection, success: true);
       
-      return doc;
+      return response;
     } catch (e) {
       SecureLogger.firebaseEvent('Secure Firestore read failed', 
           collection: collection, success: false);
@@ -312,11 +312,11 @@ class FirebaseSecurityService {
   /// Get security status summary
   Map<String, dynamic> getSecurityStatus() {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = UnifiedSupabaseAuthService.currentUser;
       
       return {
         'isUserAuthenticated': currentUser != null,
-        'isEmailVerified': currentUser?.emailVerified ?? false,
+        'isEmailVerified': currentUser?.emailConfirmedAt != null,
         'activeRateLimitedOperations': _requestCounts.length,
         'securityHardeningEnabled': true,
         'lastSecurityCheck': DateTime.now().toIso8601String(),

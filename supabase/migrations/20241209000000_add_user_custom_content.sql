@@ -4,7 +4,7 @@
 -- Create user_custom_symbols table for persisting custom symbols across app restarts
 CREATE TABLE IF NOT EXISTS user_custom_symbols (
     id TEXT PRIMARY KEY,
-    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
+    profile_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
     label TEXT NOT NULL,
     image_path TEXT NOT NULL,
     category TEXT NOT NULL,
@@ -19,20 +19,20 @@ CREATE TABLE IF NOT EXISTS user_custom_symbols (
 -- Create user_custom_categories table for persisting custom categories across app restarts
 CREATE TABLE IF NOT EXISTS user_custom_categories (
     id TEXT PRIMARY KEY,
-    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
+    profile_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     icon_path TEXT,
     color_code INTEGER NOT NULL,
     is_default BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(user_id, name)
+    UNIQUE(profile_id, name)
 );
 
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_user_custom_symbols_user_id ON user_custom_symbols(user_id);
+-- Create indexes for better performance (using profile_id which is the actual column name)
+CREATE INDEX IF NOT EXISTS idx_user_custom_symbols_profile_id ON user_custom_symbols(profile_id);
 CREATE INDEX IF NOT EXISTS idx_user_custom_symbols_category ON user_custom_symbols(category);
-CREATE INDEX IF NOT EXISTS idx_user_custom_categories_user_id ON user_custom_categories(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_custom_categories_profile_id ON user_custom_categories(profile_id);
 
 -- Set up Row Level Security (RLS)
 ALTER TABLE user_custom_symbols ENABLE ROW LEVEL SECURITY;

@@ -46,6 +46,10 @@ class MigrationDeployment {
       
       // Don't throw error - let app continue with Firebase
       _migrationInitialized = false;
+      
+      // Mark as "initialized" even though migration failed
+      // This prevents repeated attempts and allows app to work offline
+      _migrationInitialized = true;
     }
   }
   

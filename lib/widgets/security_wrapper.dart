@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../services/unified_supabase_auth_service.dart';
 import '../services/secure_auth_service.dart';
 import '../services/coppa_compliance_service.dart';
 import '../services/aac_localizations.dart';
@@ -26,6 +26,8 @@ class SecurityWrapper extends StatefulWidget {
 class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingObserver {
   bool _isLoading = true;
   bool _isAuthenticated = false;
+  
+  // StreamSubscription<User?>? _authStateSubscription; // Commented out to avoid Firebase errors
 
   @override
   void initState() {
@@ -34,10 +36,10 @@ class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingOb
     _initializeSecurity();
   }
 
-  @override
+    @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    SecureAuthService.dispose();
+    // _authStateSubscription?.cancel(); // Disabled to avoid Firebase errors
+    // SecureAuthService.dispose(); // Disabled to avoid Firebase errors
     super.dispose();
   }
 
@@ -65,19 +67,19 @@ class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingOb
       AACLogger.info('Initializing security wrapper');
       
       // Listen to authentication state changes for security monitoring
-      FirebaseAuth.instance.authStateChanges().listen(_onAuthStateChanged);
+      UnifiedSupabaseAuthService.authStateChanges.listen(_onAuthStateChanged);
       
       // Initialize security monitoring without blocking the UI
       // The AuthWrapper child will handle the actual authentication flow
       setState(() {
-        _isAuthenticated = FirebaseAuth.instance.currentUser != null;
+        _isAuthenticated = UnifiedSupabaseAuthService.currentUser != null;
         _isLoading = false;
       });
       
       // Initialize secure session if user is already authenticated
-      if (_isAuthenticated) {
-        await SecureAuthService.initializeSecureSession();
-      }
+      // if (_isAuthenticated) {
+      //   await SecureAuthService.initializeSecureSession(); // Disabled to avoid Firebase errors
+      // }
       
     } catch (e) {
       AACLogger.error('Failed to initialize security wrapper: $e');
@@ -88,7 +90,7 @@ class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingOb
     }
   }
 
-  Future<void> _onAuthStateChanged(User? user) async {
+  Future<void> _onAuthStateChanged(dynamic user) async {
     try {
       final wasAuthenticated = _isAuthenticated;
       final isNowAuthenticated = user != null;
@@ -96,7 +98,7 @@ class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingOb
       if (isNowAuthenticated && !wasAuthenticated) {
         // User just signed in
         AACLogger.info('User authenticated, initializing secure session');
-        await SecureAuthService.initializeSecureSession();
+        // await SecureAuthService.initializeSecureSession(); // Disabled to avoid Firebase errors
       } else if (!isNowAuthenticated && wasAuthenticated) {
         // User just signed out
         AACLogger.info('User signed out, cleaning up security');
@@ -112,22 +114,24 @@ class _SecurityWrapperState extends State<SecurityWrapper> with WidgetsBindingOb
   }
 
   void _onAppResumed() {
-    if (SecureAuthService.isAuthenticated) {
-      SecureAuthService.updateUserActivity();
-      AACLogger.info('App resumed, updating user activity');
-    }
+    // SecureAuthService disabled to avoid Firebase errors
+    // if (SecureAuthService.isAuthenticated) {
+    //   SecureAuthService.updateUserActivity();
+    //   AACLogger.info('App resumed, updating user activity');
+    // }
   }
 
   void _onAppPaused() {
-    if (SecureAuthService.isAuthenticated) {
-      SecureAuthService.updateUserActivity();
-      AACLogger.info('App paused, updating user activity');
-    }
+    // SecureAuthService disabled to avoid Firebase errors
+    // if (SecureAuthService.isAuthenticated) {
+    //   SecureAuthService.updateUserActivity();
+    //   AACLogger.info('App paused, updating user activity');
+    // }
   }
 
   void _onAppDetached() {
     AACLogger.info('App detached, cleaning up security resources');
-    SecureAuthService.dispose();
+    // SecureAuthService.dispose(); // Disabled to avoid Firebase errors
   }
 
   Widget _buildLoadingWidget(BuildContext context) {

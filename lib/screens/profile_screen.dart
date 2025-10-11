@@ -52,8 +52,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _currentUserEmail = currentUser.email;
         _emailController.text = currentUser.email ?? '';
-        // Always use displayName if available, else use a default
-        String displayName = currentUser.displayName ?? '';
+        // Get display name from user metadata or email
+        String displayName = '';
+        if (currentUser.userMetadata != null && currentUser.userMetadata!['name'] != null) {
+          displayName = currentUser.userMetadata!['name'].toString();
+        }
         if (displayName.isEmpty) {
           displayName = 'User'; // Simple fallback instead of 'AAC User'
         }
@@ -874,12 +877,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         settings: _currentProfile.settings,
       );
 
-      // Update Firebase user displayName if user is signed in (online mode)
+      // Update Supabase user displayName if user is signed in (online mode)
       final currentUser = _authService.currentUser;
       if (currentUser != null && _nameController.text.trim().isNotEmpty) {
         try {
-          await _authService.updateUserProfile(name: _nameController.text.trim());
-          debugPrint('Firebase displayName updated successfully');
+          await _authService.updateUserProfile(displayName: _nameController.text.trim());
+          debugPrint('Supabase displayName updated successfully');
         } catch (e) {
           debugPrint('Warning: Failed to update Firebase displayName: $e');
           // Continue with local save even if Firebase update fails

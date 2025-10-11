@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
@@ -70,7 +71,10 @@ class MemoryManagementService {
   Future<void> clearImageCache() async {
     try {
       PaintingBinding.instance.imageCache.clear();
-      CachedNetworkImage.evictAll();
+      // `CachedNetworkImage.evictAll()` was removed in some package versions.
+      // Evicting all cached network images isn't available reliably across versions,
+      // so only clear the Flutter image cache here. Individual image eviction
+      // can still be performed via `evictImageFromCache`.
       print('Image cache cleared');
     } catch (e) {
       print('Error clearing image cache: $e');
@@ -174,11 +178,15 @@ class MemoryManagementService {
       final cachedImagesBytes = imageCache.currentSizeBytes;
       final maxCacheSize = imageCache.maximumSize;
       final maxCacheSizeBytes = imageCache.maximumSizeBytes;
-      
       // Get tracked resource usage
       final trackedResourcesCount = _trackedResources.length;
       final trackedResourcesSize = _resourceUsage.values.fold(0, (a, b) => a + b);
-      
+
+      // Recent Flutter versions don't expose hit/miss counters on ImageCache.
+      // Provide safe fallbacks here for compatibility.
+      final hitCount = 0;
+      final missCount = 0;
+
       return MemoryUsageReport(
         timestamp: DateTime.now(),
         imageCache: ImageCacheStats(
@@ -186,8 +194,8 @@ class MemoryManagementService {
           currentSizeBytes: cachedImagesBytes,
           maximumSize: maxCacheSize,
           maximumSizeBytes: maxCacheSizeBytes,
-          hitCount: imageCache.hitCount,
-          missCount: imageCache.missCount,
+          hitCount: hitCount,
+          missCount: missCount,
         ),
         trackedResources: TrackedResourcesStats(
           count: trackedResourcesCount,
@@ -262,8 +270,8 @@ class MemoryManagementService {
   
   void _startPeriodicCleanup() {
     try {
-      // Periodically perform cleanup
-      Future.periodic(_cleanupInterval, (timer) async {
+      // Periodically perform cleanup using a Timer
+      Timer.periodic(_cleanupInterval, (timer) async {
         await performCleanup();
       });
     } catch (e) {
@@ -424,3 +432,6 @@ class MemoryOptimizationSuggestion {
   @override
   String toString() => 'MemoryOptimizationSuggestion($type, $severity): $message - $recommendation';
 }
+
+/// Severity levels for optimization suggestions
+enum Severity { low, medium, high }

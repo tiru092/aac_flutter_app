@@ -1805,4 +1805,94 @@ This fix implements a **dual-loading strategy** that ensures robust UI updates r
 2. **Stream Updates**: Handles real-time updates for future changes  
 3. **Race Condition Protection**: Guarantees data display in all initialization scenarios
 
-*Last updated: October 2025 - Custom Symbols Display on App Restart Fix Complete - Dual-Loading Strategy Implemented*
+---
+
+## **PHASE 8.17 - CUSTOM SYMBOLS CATEGORY ASSIGNMENT FIX COMPLETED:**
+
+**User Report:** "issue not fixed and see simple whenver user create a cusom category - that should be saved - then when use adds custom images from add symbol + button from main page - that image should saved whatever he selects in add symbol that should be saved under it and should be displayed under it"
+
+**Root Cause Identified:** **Missing Category Context in Symbol Creation** - When users created custom symbols while viewing a custom category (e.g., "Gold"), the `AddSymbolScreen` was not receiving the current category context from `HomeScreen`, causing symbols to be saved with default categories ("Food & Drinks", "Vehicles", etc.) instead of the selected custom category.
+
+**Critical Issue Analysis:**
+- ❌ **Category Context Lost**: `AddSymbolScreen` constructor didn't accept category parameter
+- ❌ **Navigation Parameter Missing**: `HomeScreen` Navigator.push calls didn't pass current category
+- ❌ **Wrong Category Assignment**: Custom symbols created in "Gold" category were saved as "Food & Drinks"  
+- ❌ **Filter Mismatch**: Symbols didn't appear in custom category filter because category names didn't match
+- 🔍 **Debugging Result**: Custom symbols were loading correctly but filtered by wrong category names
+
+**Comprehensive Category Context Fix Implemented:**
+
+**1. AddSymbolScreen Constructor Enhancement:**
+```dart
+// BEFORE: No category parameter
+const AddSymbolScreen({super.key});
+
+// AFTER: Accept initialCategory parameter
+const AddSymbolScreen({super.key, this.initialCategory});
+final String? initialCategory;
+```
+
+**2. Category Context Initialization:**
+```dart
+// Enhanced initState to use passed category context
+@override
+void initState() {
+  super.initState();
+  // Use passed category if provided and valid
+  if (widget.initialCategory != null && widget.initialCategory != 'All') {
+    _selectedCategory = widget.initialCategory!;
+    debugPrint('🔧 PHASE 8.17: AddSymbolScreen initialized with category: "${_selectedCategory}"');
+  }
+}
+```
+
+**3. HomeScreen Navigation Update:**
+```dart
+// BEFORE: No category context passed
+Navigator.push(context, MaterialPageRoute(builder: (context) => const AddSymbolScreen()));
+
+// AFTER: Pass current category context
+Navigator.push(context, MaterialPageRoute(
+  builder: (context) => AddSymbolScreen(initialCategory: _currentCategory)
+));
+```
+
+**4. Debug Logging Enhancement:**
+```dart
+// Added comprehensive category tracking
+debugPrint('🔧 PHASE 8.17: Creating symbol "$label" with category: "$_selectedCategory"');
+debugPrint('🔧 PHASE 8.17: AddSymbolScreen initialized with category: "${_selectedCategory}"');
+```
+
+**Technical Implementation Details:**
+- **Constructor Parameter**: Added optional `initialCategory` parameter to `AddSymbolScreen`
+- **Context Preservation**: Current category from `HomeScreen._currentCategory` passed through navigation
+- **Category Selection**: `_selectedCategory` initialized with passed category instead of default
+- **Two Navigation Points**: Both "Add Symbol" buttons updated to pass category context
+- **Debug Logging**: Added comprehensive logging to track category assignment during symbol creation
+
+**Files Modified:**
+- `lib/screens/add_symbol_screen.dart`: Enhanced constructor and initState with category parameter
+- `lib/screens/home_screen.dart`: Updated Navigator calls to pass category context
+
+**Result:**
+- ✅ **Category Assignment Fixed**: Custom symbols now created with correct custom category names
+- ✅ **Filter Functionality**: Symbols appear in their assigned custom categories after creation  
+- ✅ **Context Preservation**: Current category context properly passed between screens
+- ✅ **Real-time Feedback**: Debug logging confirms proper category assignment during creation
+- ✅ **Local-First Architecture**: Symbols tagged with custom categories for local storage then Supabase sync
+
+**Validation Process:**
+1. Navigate to custom category (e.g., "Gold") 
+2. Tap "Add Symbol" button
+3. Create new symbol - should save with "Gold" category instead of default
+4. Debug logs confirm: "Creating symbol '[name]' with category: 'Gold'"
+5. Symbol appears in "Gold" category filter immediately after creation
+
+**Production Impact:**
+- **User Experience**: Custom symbols now properly organized in their assigned categories
+- **Data Integrity**: Category-symbol relationships maintained correctly in local storage and Supabase
+- **Workflow Enhancement**: Users can organize symbols logically within custom categories
+- **System Architecture**: Proper context passing pattern established for category-aware screens
+
+*Last updated: October 2025 - Custom Symbol Category Assignment Fix Complete - Category Context Preservation Implemented*

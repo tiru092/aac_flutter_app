@@ -45,10 +45,10 @@ class SettingsService extends ChangeNotifier {
       final userProfile = await _userDataManager.getUserProfile();
       if (userProfile != null) {
         _currentSettings = userProfile.appSettings;
-        AACLogger.info('Settings loaded from user profile for user: ${_userDataManager.currentUser?.uid}', tag: 'SettingsService');
+        AACLogger.info('Settings loaded from user profile for user: ${_userDataManager.currentUser?.id}', tag: 'SettingsService');
       } else {
         _currentSettings = AppSettings();
-        AACLogger.info('Default settings created for user: ${_userDataManager.currentUser?.uid}', tag: 'SettingsService');
+        AACLogger.info('Default settings created for user: ${_userDataManager.currentUser?.id}', tag: 'SettingsService');
       }
       notifyListeners();
     } catch (e) {
@@ -72,7 +72,7 @@ class SettingsService extends ChangeNotifier {
       if (userProfile != null) {
         final updatedProfile = userProfile.copyWith(appSettings: newSettings);
         await _userDataManager.saveUserProfile(updatedProfile);
-        AACLogger.info('Settings updated and saved for user: ${_userDataManager.currentUser?.uid}', tag: 'SettingsService');
+        AACLogger.info('Settings updated and saved for user: ${_userDataManager.currentUser?.id}', tag: 'SettingsService');
       } else {
          AACLogger.warning('Could not update settings, user profile is null.', tag: 'SettingsService');
       }

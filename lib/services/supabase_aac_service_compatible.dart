@@ -131,36 +131,38 @@ class SupabaseAACService {
   // FAVORITES MANAGEMENT
   // ============================================================================
 
-  /// Get user's favorite symbols
+  /// Get user's favorite symbols from enhanced user_favorites table
   static Future<List<Map<String, dynamic>>> getUserFavorites() async {
     _ensureAuthenticated();
     
     final response = await client
         .from('user_favorites')
-        .select('*, symbols(*)')
+        .select('symbol_id, symbol_label, symbol_data, is_custom, added_at')
         .eq('user_id', currentUser!.id)
         .order('added_at', ascending: false);
     
     return List<Map<String, dynamic>>.from(response);
   }
 
-  /// Add symbol to favorites
-  static Future<void> addToFavorites(String symbolId) async {
+  /// Add symbol to favorites with complete symbol data
+  static Future<void> addToFavorites(String symbolId, {
+    String? symbolLabel,
+    Map<String, dynamic>? symbolData,
+    bool isCustom = false,
+  }) async {
     _ensureAuthenticated();
     
     await client.from('user_favorites').upsert({
       'user_id': currentUser!.id,
       'symbol_id': symbolId,
+      'symbol_label': symbolLabel ?? symbolId,
+      'symbol_data': symbolData,
+      'is_custom': isCustom,
       'added_at': DateTime.now().toIso8601String(),
-    });
-    
-    // Update usage count in symbols table
-    await client.rpc('increment_symbol_usage', params: {
-      'symbol_id': symbolId,
-    });
+    }, onConflict: 'user_id,symbol_id');
   }
 
-  /// Remove symbol from favorites
+  /// Remove symbol from favorites using proper user isolation
   static Future<void> removeFromFavorites(String symbolId) async {
     _ensureAuthenticated();
     

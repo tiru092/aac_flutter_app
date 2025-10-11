@@ -180,22 +180,80 @@ class LocalDataManager {
       final userFavoritesBox = 'user_favorites_$userId';
       final userHistoryBox = 'user_history_$userId';
       
-      // Open or create boxes
-      if (!Hive.isBoxOpen(userSymbolsBox)) {
-        await Hive.openBox(userSymbolsBox);
-      }
-      if (!Hive.isBoxOpen(userCategoriesBox)) {
-        await Hive.openBox(userCategoriesBox);
-      }
-      if (!Hive.isBoxOpen(userFavoritesBox)) {
-        await Hive.openBox(userFavoritesBox);
-      }
-      if (!Hive.isBoxOpen(userHistoryBox)) {
-        await Hive.openBox(userHistoryBox);
-      }
+      print('🔧 LocalDataManager: Opening Hive boxes for user: $userId');
+      
+      // Open or create boxes with corrupted data handling
+      await _openBoxSafely(userSymbolsBox);
+      await _openBoxSafely(userCategoriesBox);
+      await _openBoxSafely(userFavoritesBox);
+      await _openBoxSafely(userHistoryBox);
+      
+      print('✅ LocalDataManager: Successfully opened all Hive boxes for user: $userId');
       
     } catch (e) {
-      print('LocalDataManager: Error ensuring user boxes: $e');
+      print('❌ LocalDataManager: CRITICAL ERROR in _ensureUserBoxes: $e');
+      
+      // If we have a typeId error, clear ALL boxes for this user
+      if (e.toString().toLowerCase().contains('typeid') || 
+          e.toString().toLowerCase().contains('cannot read')) {
+        print('🧹 LocalDataManager: Clearing ALL corrupted boxes for user: $userId');
+        try {
+          final boxesToClear = [
+            'user_symbols_$userId',
+            'user_categories_$userId', 
+            'user_favorites_$userId',
+            'user_history_$userId'
+          ];
+          
+          for (final boxName in boxesToClear) {
+            try {
+              await Hive.deleteBoxFromDisk(boxName);
+              print('🧹 Cleared box: $boxName');
+            } catch (deleteError) {
+              print('⚠️ Could not delete box $boxName: $deleteError');
+            }
+          }
+          print('✅ LocalDataManager: Cleared all corrupted boxes, continuing...');
+        } catch (clearAllError) {
+          print('❌ LocalDataManager: Failed to clear all boxes: $clearAllError');
+        }
+      }
+    }
+  }
+
+  /// Safely open a Hive box, handling corrupted data by clearing it
+  Future<void> _openBoxSafely(String boxName) async {
+    try {
+      if (!Hive.isBoxOpen(boxName)) {
+        await Hive.openBox(boxName);
+      }
+    } catch (e) {
+      final errorStr = e.toString().toLowerCase();
+      // Check for various corruption indicators
+      if (errorStr.contains('unknown typeid') || 
+          errorStr.contains('cannot read') ||
+          errorStr.contains('register an adapter') ||
+          errorStr.contains('typeid: 32')) {
+        print('🧹 LocalDataManager: Corrupted data detected in $boxName, clearing it...');
+        print('🧹 Error details: $e');
+        try {
+          // Delete the corrupted box file completely
+          await Hive.deleteBoxFromDisk(boxName);
+          print('🧹 LocalDataManager: Deleted corrupted box from disk: $boxName');
+          
+          // Try to open a fresh box
+          await Hive.openBox(boxName);
+          print('✅ LocalDataManager: Successfully cleared and recreated $boxName');
+        } catch (clearError) {
+          print('❌ LocalDataManager: Failed to clear corrupted box $boxName: $clearError');
+          
+          // Try an alternative approach - just skip this box
+          print('⚠️ LocalDataManager: Skipping box $boxName due to corruption');
+        }
+      } else {
+        print('❌ LocalDataManager: Error opening box $boxName: $e');
+        rethrow;
+      }
     }
   }
 

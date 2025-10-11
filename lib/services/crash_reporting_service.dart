@@ -2,7 +2,7 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../services/unified_supabase_auth_service.dart';
 import '../services/auth_service.dart';
 
 /// Custom exception for crash reporting-related errors
@@ -37,7 +37,7 @@ class CrashReportingService {
       _setUserIdentifier();
       
       // Listen for auth state changes to update user identifier
-      _authService.authStateChanges.listen((user) {
+      UnifiedSupabaseAuthService.userChanges.listen((user) {
         _setUserIdentifier();
       });
       
@@ -54,9 +54,9 @@ class CrashReportingService {
   /// Set user identifier for crash reports
   void _setUserIdentifier() {
     try {
-      final user = _authService.currentUser;
+      final user = UnifiedSupabaseAuthService.currentUser;
       if (user != null) {
-        FirebaseCrashlytics.instance.setUserIdentifier(user.uid);
+        FirebaseCrashlytics.instance.setUserIdentifier(user.id);
         FirebaseCrashlytics.instance.setCustomKey('user_email', user.email ?? 'unknown');
       }
     } catch (e) {

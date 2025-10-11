@@ -64,14 +64,14 @@ class _GoalDetailScreenState extends State<GoalDetailScreen>
 
   Future<void> _loadProgress() async {
     try {
-      final progress = await GoalProgressService.getGoalProgress(widget.goal.id);
+      final progress = await GoalProgressService.getGoalProgressStatic(widget.goal.id);
       final objectiveProgress = await GoalProgressService.getObjectiveProgress(widget.goal.id);
       
       setState(() {
-        _currentProgress = progress;
-        _isCompleted = progress >= 100;
-        if (objectiveProgress.isNotEmpty) {
-          _objectiveChecklist = objectiveProgress;
+        _currentProgress = progress?['progress'] ?? 0;
+        _isCompleted = (_currentProgress ?? 0) >= 100;
+        if (objectiveProgress != null && objectiveProgress.isNotEmpty) {
+          _objectiveChecklist = List<bool>.from(objectiveProgress['objectives'] ?? []);
         }
       });
     } catch (e) {
@@ -94,8 +94,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen>
     });
 
     // Save progress
-    await GoalProgressService.updateGoalProgress(widget.goal.id, newProgress);
-    await GoalProgressService.updateObjectiveProgress(widget.goal.id, _objectiveChecklist);
+    await GoalProgressService.updateGoalProgress(widget.goal.id, {'progress': newProgress});
+    await GoalProgressService.updateObjectiveProgress(widget.goal.id, {'objectives': _objectiveChecklist});
 
     // Celebrate completion
     if (_isCompleted && completedCount == _objectiveChecklist.length) {

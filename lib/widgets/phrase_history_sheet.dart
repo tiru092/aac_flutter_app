@@ -1,7 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../services/data_services_initializer_robust.dart';
+import '../services/phrase_history_service.dart';
+
 import '../utils/aac_helper.dart';
 
 class PhraseHistorySheet extends StatefulWidget {
@@ -14,13 +15,14 @@ class PhraseHistorySheet extends StatefulWidget {
 class _PhraseHistorySheetState extends State<PhraseHistorySheet>
     with TickerProviderStateMixin {
   late TabController _tabController;
-  final PhraseHistoryService _historyService = DataServicesInitializer.instance.phraseHistoryService;
+  late PhraseHistoryService _historyService;
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
+    _historyService = DataServicesInitializer.instance.phraseHistoryService ?? PhraseHistoryService();
     _tabController = TabController(length: 2, vsync: this);
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 300),
@@ -163,34 +165,47 @@ class _PhraseHistorySheetState extends State<PhraseHistorySheet>
       onRefresh: () async {
         setState(() {});
       },
-      child: _historyService.history.isEmpty
-          ? _buildEmptyHistory()
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _historyService.history.length,
-              itemBuilder: (context, index) {
-                final item = _historyService.history[index];
-                return _buildHistoryItem(item, index);
-              },
-            ),
+      child: StreamBuilder<List<PhraseHistoryItem>>(
+        stream: _historyService.historyStream,
+        initialData: _historyService.history,
+        builder: (context, snapshot) {
+          final history = snapshot.data ?? [];
+          return history.isEmpty
+              ? _buildEmptyHistory()
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: history.length,
+                  itemBuilder: (context, index) {
+                    final item = history[index];
+                    return _buildHistoryItem(item, index);
+                  },
+                );
+        },
+      ),
     );
   }
 
   Widget _buildFavoritesTab() {
-    return _historyService.favorites.isEmpty
-        ? _buildEmptyFavorites()
-        : ReorderableListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: _historyService.favorites.length,
-            onReorder: (oldIndex, newIndex) async {
-              await _historyService.reorderFavorites(oldIndex, newIndex);
-              setState(() {});
-            },
-            itemBuilder: (context, index) {
-              final item = _historyService.favorites[index];
-              return _buildFavoriteItem(item, index);
-            },
-          );
+    return StreamBuilder<List<PhraseHistoryItem>>(
+      stream: _historyService.favoritesStream,
+      initialData: _historyService.favorites,
+      builder: (context, snapshot) {
+        final favorites = snapshot.data ?? [];
+        return favorites.isEmpty
+            ? _buildEmptyFavorites()
+            : ReorderableListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: favorites.length,
+                onReorder: (oldIndex, newIndex) async {
+                  await _historyService.reorderFavorites(oldIndex, newIndex);
+                },
+                itemBuilder: (context, index) {
+                  final item = favorites[index];
+                  return _buildFavoriteItem(item, index);
+                },
+              );
+      },
+    );
   }
 
   Widget _buildHistoryItem(PhraseHistoryItem item, int index) {

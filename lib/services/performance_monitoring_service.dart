@@ -216,13 +216,36 @@ class PerformanceMonitoringService {
   Future<HttpMetric?> startNetworkTrace(String url, String method) async {
     try {
       if (!_isFirebasePerformanceEnabled) return null;
-      
-      final metric = _firebasePerformance.newHttpMetric(url, HttpMethod.valueOf(method));
+      // Convert string method to HttpMethod enum in a safe, backwards-compatible way
+      final httpMethod = _httpMethodFromString(method);
+      final metric = _firebasePerformance.newHttpMetric(url, httpMethod);
       await metric.start();
       return metric;
     } catch (e) {
       print('Error starting network trace: $e');
       return null;
+    }
+  }
+
+  HttpMethod _httpMethodFromString(String method) {
+    final m = method.trim().toUpperCase();
+    switch (m) {
+      case 'GET':
+        return HttpMethod.Get;
+      case 'POST':
+        return HttpMethod.Post;
+      case 'PUT':
+        return HttpMethod.Put;
+      case 'DELETE':
+        return HttpMethod.Delete;
+      case 'PATCH':
+        return HttpMethod.Patch;
+      case 'HEAD':
+        return HttpMethod.Head;
+      case 'OPTIONS':
+        return HttpMethod.Options;
+      default:
+        return HttpMethod.Get;
     }
   }
   

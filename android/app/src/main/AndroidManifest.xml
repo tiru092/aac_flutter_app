@@ -26,7 +26,6 @@
     <!-- Google Play Billing permission -->
     <uses-permission android:name="com.android.vending.BILLING" />
     <!-- URL launcher permission for newer Android versions -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     
     <!-- Camera features -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />

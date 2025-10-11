@@ -1,7 +1,7 @@
 // Simple profile sync fix for the main app
 // Add this to your home_screen.dart or create a button to run this
 
-import 'package:firebase_auth/firebase_auth.dart';
+import '../services/unified_supabase_auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -10,30 +10,30 @@ class ProfileSyncFix {
     try {
       print('🔧 Starting profile sync fix...');
       
-      final user = FirebaseAuth.instance.currentUser;
+      final user = UnifiedSupabaseAuthService.currentUser;
       if (user == null) {
         print('❌ No user signed in');
         return;
       }
       
       print('👤 Current user: ${user.email}');
-      print('🆔 Firebase UID: ${user.uid}');
+      print('🆔 Supabase User ID: ${user.id}');
       
-      // Fix local profile ID to match Firebase UID
+      // Fix local profile ID to match Supabase User ID
       final prefs = await SharedPreferences.getInstance();
       final currentProfileId = prefs.getString('current_profile_id');
       
       print('📝 Current local profile ID: ${currentProfileId ?? 'None'}');
       
-      if (currentProfileId != user.uid) {
+      if (currentProfileId != user.id) {
         print('🔧 Fixing profile ID mismatch...');
-        await prefs.setString('current_profile_id', user.uid);
-        print('✅ Profile ID updated to Firebase UID');
+        await prefs.setString('current_profile_id', user.id);
+        print('✅ Profile ID updated to Supabase User ID');
       }
       
       // Check Firebase data
       final firestore = FirebaseFirestore.instance;
-      final profileDoc = await firestore.collection('user_profiles').doc(user.uid).get();
+      final profileDoc = await firestore.collection('user_profiles').doc(user.id).get();
       
       if (profileDoc.exists) {
         print('✅ Found Firebase profile data');

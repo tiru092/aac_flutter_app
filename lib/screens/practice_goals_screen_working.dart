@@ -72,36 +72,35 @@ class _PracticeGoalsScreenWorkingState extends State<PracticeGoalsScreenWorking>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(
-              CupertinoIcons.back,
-              color: Color(0xFF2D4356),
-              size: 24,
-            ),
-            onPressed: () => Navigator.of(context).pop(),
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            CupertinoIcons.back,
+            color: Color(0xFF2D4356),
+            size: 24,
           ),
-          centerTitle: true,
-          title: const Text(
-            'Practice Goals',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF2D4356),
-            ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        centerTitle: true,
+        title: const Text(
+          'Practice Goals',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF2D4356),
           ),
         ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildGoalsSection(context),
-                const SizedBox(height: 20),
-              ],
-            ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildGoalsSection(context),
+              const SizedBox(height: 20),
+            ],
           ),
         ),
       ),
@@ -148,7 +147,7 @@ class _PracticeGoalsScreenWorkingState extends State<PracticeGoalsScreenWorking>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF667eea).withValues(alpha: 0.3),
+            color: const Color(0xFF667eea).withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -158,8 +157,8 @@ class _PracticeGoalsScreenWorkingState extends State<PracticeGoalsScreenWorking>
         children: [
           Container(
             padding: EdgeInsets.all(screenSize.width * 0.025),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -187,7 +186,7 @@ class _PracticeGoalsScreenWorkingState extends State<PracticeGoalsScreenWorking>
                   'Fun activities to improve communication',
                   style: GoogleFonts.nunito(
                     fontSize: headerFontSize * 0.6,
-                    color: Colors.white.withValues(alpha: 0.9),
+                    color: Colors.white.withOpacity(0.9),
                   ),
                   maxLines: 1,
                   minFontSize: 10,
@@ -283,8 +282,8 @@ class _PracticeGoalsScreenWorkingState extends State<PracticeGoalsScreenWorking>
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              BoxShadow(
+              color: Colors.black.withOpacity(0.1),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),

@@ -295,7 +295,7 @@ class PermissionsService {
   Future<bool> _checkUserPermission(String userId, Permission permission) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final permissionsJson = prefs.getString('$_userPermissionsKey_$userId');
+  final permissionsJson = prefs.getString('${_userPermissionsKey}_$userId');
       
       if (permissionsJson == null) {
         return false;
@@ -325,7 +325,7 @@ class PermissionsService {
   Future<List<Permission>> _getUserSpecificPermissions(String userId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final permissionsJson = prefs.getString('$_userPermissionsKey_$userId');
+  final permissionsJson = prefs.getString('${_userPermissionsKey}_$userId');
       
       if (permissionsJson == null) {
         return [];
@@ -348,7 +348,7 @@ class PermissionsService {
   Future<List<Permission>> _getUserDeniedPermissions(String userId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final permissionsJson = prefs.getString('$_userPermissionsKey_$userId');
+  final permissionsJson = prefs.getString('${_userPermissionsKey}_$userId');
       
       if (permissionsJson == null) {
         return [];
@@ -377,7 +377,7 @@ class PermissionsService {
       final prefs = await SharedPreferences.getInstance();
       
       // Get existing permissions
-      final permissionsJson = prefs.getString('$_userPermissionsKey_$userId');
+  final permissionsJson = prefs.getString('${_userPermissionsKey}_$userId');
       final permissions = permissionsJson != null
           ? (jsonDecode(permissionsJson) as List)
               .map((data) => UserPermission.fromJson(Map<String, dynamic>.from(data)))
@@ -400,7 +400,7 @@ class PermissionsService {
           .toList();
       
       await prefs.setString(
-        '$_userPermissionsKey_$userId',
+        '${_userPermissionsKey}_$userId',
         jsonEncode(updatedPermissionsJson),
       );
     } catch (e) {
@@ -414,7 +414,7 @@ class PermissionsService {
       final prefs = await SharedPreferences.getInstance();
       
       // Get existing permissions
-      final permissionsJson = prefs.getString('$_userPermissionsKey_$userId');
+  final permissionsJson = prefs.getString('${_userPermissionsKey}_$userId');
       
       if (permissionsJson == null) {
         return;
@@ -433,7 +433,7 @@ class PermissionsService {
           .toList();
       
       await prefs.setString(
-        '$_userPermissionsKey_$userId',
+        '${_userPermissionsKey}_$userId',
         jsonEncode(updatedPermissionsJson),
       );
     } catch (e) {

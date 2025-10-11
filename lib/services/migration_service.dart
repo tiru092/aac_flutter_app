@@ -1,6 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'unified_supabase_auth_service.dart';
 import '../utils/aac_logger.dart';
 import '../utils/sample_data.dart';
 import '../models/symbol.dart';
@@ -8,11 +8,11 @@ import '../models/user_profile.dart';
 import 'shared_resource_service.dart';
 import 'user_profile_service.dart';
 
-/// Migration service to transition from old per-user storage to new shared architecture
+/// Migration service to transition from Firebase to Supabase architecture
 /// 
 /// This handles the critical transition from:
-/// OLD: user_profiles/{uid}/symbols + user_profiles/{uid}/categories (massive duplication)
-/// NEW: global_default_symbols + global_default_categories + user_profiles/{uid}/custom_* (efficient)
+/// OLD: Firebase Firestore collections with per-user storage
+/// NEW: Supabase tables with shared global resources and user-specific customizations
 class MigrationService {
   static const String _migrationKey = 'shared_architecture_migration_v1';
   static const String _migrationCompleteKey = 'migration_complete_v1';
@@ -99,27 +99,26 @@ class MigrationService {
   /// Migrate categories to global collection in batches
   static Future<void> _migrateCategoriesInBatches(List<Category> categories) async {
     try {
-      final firestore = FirebaseFirestore.instance;
-      const batchSize = 500; // Firestore limit
+      const batchSize = 500; // Supabase batch limit
       
       for (int i = 0; i < categories.length; i += batchSize) {
-        final batch = firestore.batch();
-        final collection = firestore.collection('global_default_categories');
-        
         final end = (i + batchSize < categories.length) ? i + batchSize : categories.length;
         final batchCategories = categories.sublist(i, end);
         
-        for (final category in batchCategories) {
-          final categoryData = category.toJson();
-          categoryData['isDefault'] = true;
-          categoryData['createdAt'] = FieldValue.serverTimestamp();
-          categoryData['updatedAt'] = FieldValue.serverTimestamp();
-          
-          final docRef = collection.doc(); // Auto-generate ID
-          batch.set(docRef, categoryData);
-        }
+        final categoryData = batchCategories.map((category) {
+          final data = category.toJson();
+          data['is_default'] = true;
+          data['created_at'] = DateTime.now().toIso8601String();
+          data['updated_at'] = DateTime.now().toIso8601String();
+          return data;
+        }).toList();
         
-        await batch.commit();
+        await Supabase.instance.client
+            .from('global_default_categories')
+            .insert(categoryData);
+        
+        // Commit the batch (Supabase doesn't use batch commits like Firestore)
+        // Individual operations are already committed
         AACLogger.debug('Migrated categories batch: ${i + 1}-${end}', tag: 'MigrationService');
       }
       
@@ -132,27 +131,24 @@ class MigrationService {
   /// Migrate symbols to global collection in batches
   static Future<void> _migrateSymbolsInBatches(List<Symbol> symbols) async {
     try {
-      final firestore = FirebaseFirestore.instance;
-      const batchSize = 500; // Firestore limit
+      const batchSize = 500; // Supabase batch limit
       
       for (int i = 0; i < symbols.length; i += batchSize) {
-        final batch = firestore.batch();
-        final collection = firestore.collection('global_default_symbols');
-        
         final end = (i + batchSize < symbols.length) ? i + batchSize : symbols.length;
         final batchSymbols = symbols.sublist(i, end);
         
-        for (final symbol in batchSymbols) {
-          final symbolData = symbol.toJson();
-          symbolData['isDefault'] = true;
-          symbolData['createdAt'] = FieldValue.serverTimestamp();
-          symbolData['updatedAt'] = FieldValue.serverTimestamp();
-          
-          final docRef = collection.doc(); // Auto-generate ID
-          batch.set(docRef, symbolData);
-        }
+        final symbolData = batchSymbols.map((symbol) {
+          final data = symbol.toJson();
+          data['is_default'] = true;
+          data['created_at'] = DateTime.now().toIso8601String();
+          data['updated_at'] = DateTime.now().toIso8601String();
+          return data;
+        }).toList();
         
-        await batch.commit();
+        await Supabase.instance.client
+            .from('global_default_symbols')
+            .insert(symbolData);
+        
         AACLogger.debug('Migrated symbols batch: ${i + 1}-${end}', tag: 'MigrationService');
       }
       
@@ -165,13 +161,13 @@ class MigrationService {
   /// Migrate user's custom data from old structure to new structure
   static Future<void> _migrateUserData() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = UnifiedSupabaseAuthService.currentUser;
       if (user == null) {
         AACLogger.info('No authenticated user, skipping user data migration', tag: 'MigrationService');
         return;
       }
       
-      AACLogger.info('Migrating user data for: ${user.uid}', tag: 'MigrationService');
+      AACLogger.info('Migrating user data for: ${user.id}', tag: 'MigrationService');
       
       // Get current user profile
       final profile = await UserProfileService.getActiveProfile();
@@ -181,15 +177,15 @@ class MigrationService {
       }
       
       // Migrate custom symbols (non-default ones only)
-      await _migrateUserCustomSymbols(user.uid, profile.userSymbols);
+      await _migrateUserCustomSymbols(user.id, profile.userSymbols);
       
       // Migrate custom categories (non-default ones only)
-      await _migrateUserCustomCategories(user.uid, profile.userCategories);
+      await _migrateUserCustomCategories(user.id, profile.userCategories);
       
       // Clean up old data from profile
       await _cleanupOldProfileData(profile);
       
-      AACLogger.info('User data migration completed for: ${user.uid}', tag: 'MigrationService');
+      AACLogger.info('User data migration completed for: ${user.id}', tag: 'MigrationService');
       
     } catch (e) {
       AACLogger.error('Error migrating user data: $e', tag: 'MigrationService');
@@ -326,9 +322,9 @@ class MigrationService {
         };
       }
       
-      final user = FirebaseAuth.instance.currentUser;
+      final user = UnifiedSupabaseAuthService.currentUser;
       if (user != null) {
-        final stats = await SharedResourceService.getStorageStats(user.uid);
+        final stats = await SharedResourceService.getStorageStats(user.id);
         return {
           'complete': true,
           'status': 'Migration completed successfully',

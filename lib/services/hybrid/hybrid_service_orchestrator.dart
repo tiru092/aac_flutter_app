@@ -33,8 +33,18 @@ class HybridServiceOrchestrator {
     }
     
     try {
-      // Initialize migration service first
-      await migrationService.enableMigration();
+      // Try to initialize migration service - continue even if it fails
+      try {
+        await migrationService.enableMigration();
+        if (kDebugMode) {
+          print('HybridServiceOrchestrator: Migration enabled successfully');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('HybridServiceOrchestrator: Migration failed (continuing in offline mode): $e');
+        }
+        // Don't rethrow - continue with Firebase-only mode
+      }
       
       // Initialize hybrid services
       _authService = HybridAuthService();
@@ -51,7 +61,8 @@ class HybridServiceOrchestrator {
       if (kDebugMode) {
         print('HybridServiceOrchestrator ERROR: Failed to initialize: $e');
       }
-      rethrow;
+      // Don't rethrow - allow app to continue without hybrid services
+      _initialized = false;
     }
   }
   

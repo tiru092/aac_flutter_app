@@ -49,19 +49,6 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
 
     // Start animations with staggered timing
     _startStaggeredAnimations();
-    }
-
-    // Robust color parsing for hex strings like 'FF6B6B' or '4ECDC4'
-    Color _parseColor(String hex) {
-      final cleanHex = hex.replaceAll('#', '').toUpperCase();
-      final buffer = StringBuffer();
-      if (cleanHex.length == 6) buffer.write('FF');
-      buffer.write(cleanHex);
-      final hexString = buffer.toString();
-      final value = int.tryParse(hexString, radix: 16);
-      if (value == null) return const Color(0xFF6B7280);
-      return Color(value);
-    }
   }
 
   void _startStaggeredAnimations() {
@@ -80,42 +67,41 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
     for (var controller in _cardControllers) {
       controller.dispose();
     }
-    @override
-    Widget build(BuildContext context) {
-      return Scaffold(
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(
-              CupertinoIcons.back,
-              color: Color(0xFF2D4356),
-              size: 24,
-            ),
-            title: const Text(
-              'Practice Goals',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF2D4356),
-              ),
-            ),
-              color: Color(0xFF2D4356),
-            ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            CupertinoIcons.back,
+            color: Color(0xFF2D4356),
+            size: 24,
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        centerTitle: true,
+        title: const Text(
+          'Practice Goals',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF2D4356),
           ),
         ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildGoalsSection(context),
-                const SizedBox(height: 20),
-        ),
-      );
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildGoalsSection(context),
+              const SizedBox(height: 20),
+            ],
           ),
         ),
       ),
@@ -162,7 +148,7 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF667eea).withValues(alpha: 0.3),
+            color: const Color(0xFF667eea).withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -173,7 +159,7 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
           Container(
             padding: EdgeInsets.all(screenSize.width * 0.025),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -201,7 +187,7 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
                   'Fun activities to improve communication',
                   style: GoogleFonts.nunito(
                     fontSize: headerFontSize * 0.6,
-                    color: Colors.white.withValues(alpha: 0.9),
+                    color: Colors.white.withOpacity(0.9),
                   ),
                   maxLines: 1,
                   minFontSize: 10,
@@ -297,8 +283,8 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              BoxShadow(
+              color: Colors.black.withOpacity(0.1),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -397,7 +383,7 @@ class _PracticeGoalsScreenState extends State<PracticeGoalsScreen> with TickerPr
         children: [
           Icon(
               CupertinoIcons.play_circle_fill,
-              color: _parseColor(goal.color),
+              color: ColorUtils.fromHex(goal.color),
             size: isLandscape ? 14 : 16,
           ),
           const SizedBox(width: 4),

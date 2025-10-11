@@ -238,6 +238,11 @@ class PhraseHistoryService extends ChangeNotifier {
     }
   }
 
+  /// Sync from Supabase to local (alias for syncFromCloud for compatibility)
+  Future<void> syncFromSupabase() async {
+    return await syncFromCloud();
+  }
+
   void disposeService() {
     _historyController.close();
     _favoritesController.close();

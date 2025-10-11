@@ -9,8 +9,171 @@
 			"problemMatcher": [],
 			"group": "build",
 			"options": {
-				"cwd": "${workspaceFolder}/aac_flutter_app"
+				"cwd": "${workspaceFolder}"
 			}
+		},
+		{
+			"label": "Supabase: Start Local Development",
+			"type": "shell",
+			"command": "npx",
+			"args": ["supabase", "start"],
+			"group": "build",
+			"isBackground": true,
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Supabase: Stop Local Development",
+			"type": "shell",
+			"command": "npx",
+			"args": ["supabase", "stop"],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Supabase: Reset Local Database",
+			"type": "shell",
+			"command": "npx",
+			"args": ["supabase", "db", "reset"],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Supabase: Generate Migration",
+			"type": "shell",
+			"command": "npx",
+			"args": ["supabase", "db", "diff", "--schema", "public", "--file", "${input:migrationName}"],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Supabase: Push Local Changes",
+			"type": "shell",
+			"command": "npx",
+			"args": ["supabase", "db", "push"],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Supabase: Pull Remote Changes",
+			"type": "shell",
+			"command": "npx",
+			"args": ["supabase", "db", "pull"],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Flutter: Run App (Development)",
+			"type": "shell",
+			"command": "flutter",
+			"args": ["run", "--dart-define=ENVIRONMENT=development"],
+			"group": "build",
+			"isBackground": true,
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Flutter: Run App (Production)",
+			"type": "shell",
+			"command": "flutter",
+			"args": ["run", "--dart-define=ENVIRONMENT=production"],
+			"group": "build",
+			"isBackground": true,
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		}
+	],
+	"inputs": [
+		{
+			"id": "migrationName",
+			"description": "Migration file name",
+			"default": "migration_name",
+			"type": "promptString"
 		}
 	]
 }

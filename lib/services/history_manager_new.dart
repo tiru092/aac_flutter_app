@@ -29,10 +29,10 @@ class HistoryManager {
     }
 
     try {
-      final historyBox = await _userDataManager!.getHistoryBox();
+      final historyBox = _userDataManager!.userPhraseHistoryBox;
       final historyData = historyBox.get('phrases', defaultValue: <Map<String, dynamic>>[]);
-      
-      return historyData
+
+      return (historyData as List)
           .map<PhraseHistory>((item) => PhraseHistory.fromJson(Map<String, dynamic>.from(item)))
           .toList();
     } catch (e) {
@@ -47,8 +47,8 @@ class HistoryManager {
     }
 
     try {
-      final historyBox = await _userDataManager!.getHistoryBox();
-      final history = await getHistory();
+  final historyBox = _userDataManager!.userPhraseHistoryBox;
+  final history = await getHistory();
       
       history.insert(0, phrase);
       
@@ -77,9 +77,9 @@ class HistoryManager {
       final history = await getHistory();
       history.removeWhere((phrase) => phrase.id == phraseId);
       
-      final historyBox = await _userDataManager!.getHistoryBox();
-      final historyData = history.map((h) => h.toJson()).toList();
-      await historyBox.put('phrases', historyData);
+  final historyBox = _userDataManager!.userPhraseHistoryBox;
+  final historyData = history.map((h) => h.toJson()).toList();
+  await historyBox.put('phrases', historyData);
       
       // Sync to cloud
       await _syncToCloud();
@@ -95,8 +95,8 @@ class HistoryManager {
     }
 
     try {
-      final historyBox = await _userDataManager!.getHistoryBox();
-      await historyBox.put('phrases', <Map<String, dynamic>>[]);
+  final historyBox = _userDataManager!.userPhraseHistoryBox;
+  await historyBox.put('phrases', <Map<String, dynamic>>[]);
       
       // Sync to cloud
       await _syncToCloud();
@@ -113,7 +113,7 @@ class HistoryManager {
     try {
       final cloudHistory = await _userDataManager!.getCloudData('history');
       if (cloudHistory != null) {
-        final historyBox = await _userDataManager!.getHistoryBox();
+        final historyBox = _userDataManager!.userPhraseHistoryBox;
         await historyBox.put('phrases', cloudHistory);
       }
     } catch (e) {
