@@ -11,6 +11,7 @@ import '../services/user_profile_service.dart';
 import '../services/user_data_service.dart';  // NEW: Add user data service for local storage
 import '../services/data_services_initializer_robust.dart';
 import '../services/custom_categories_service.dart';
+import '../services/custom_symbols_service.dart';  // ADD: Import CustomSymbolsService for session persistence
 
 class AddSymbolScreen extends StatefulWidget {
   const AddSymbolScreen({super.key});
@@ -32,14 +33,16 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
   List<Category> _customCategories = [];
   bool _isCreatingCustomCategory = false;
   
-  // Access to CustomCategoriesService
+  // Access to Custom Services
   CustomCategoriesService? _customCategoriesService;
+  CustomSymbolsService? _customSymbolsService;
 
   @override
   void initState() {
     super.initState();
     _categories = SampleData.getSampleCategories();
     _customCategoriesService = DataServicesInitializer.instance.customCategoriesService;
+    _customSymbolsService = DataServicesInitializer.instance.customSymbolsService;
     _loadCustomCategories();
   }
 
@@ -670,11 +673,16 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
         dateCreated: DateTime.now(),
       );
 
-      // Save to user profile
-      await UserProfileService.addSymbolToActiveProfile(newSymbol);
-      
-      // Also save to local data manager for offline-first storage and cloud sync
-      await UserDataService().addUserSymbol(newSymbol);
+      // 🔥 NEW: Use CustomSymbolsService for session persistence (same service HomeScreen uses)
+      if (_customSymbolsService != null && _customSymbolsService!.isInitialized) {
+        await _customSymbolsService!.addCustomSymbol(newSymbol);
+        print('🔥 ADD SYMBOL: Custom symbol added via CustomSymbolsService for session persistence');
+      } else {
+        print('🔥 ADD SYMBOL: ⚠️ CustomSymbolsService not available, falling back to legacy services');
+        // Fallback to old services if CustomSymbolsService unavailable
+        await UserProfileService.addSymbolToActiveProfile(newSymbol);
+        await UserDataService().addUserSymbol(newSymbol);
+      }
       
       await AACHelper.speak('New symbol ${newSymbol.label} added successfully to ${_selectedCategory} category');
       
