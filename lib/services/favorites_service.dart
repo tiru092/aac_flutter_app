@@ -64,7 +64,9 @@ class FavoritesService extends ChangeNotifier {
       await _loadFavorites();
       print('🔥 FavoritesService: Favorites loaded, about to load history...');
       await _loadHistory();
-      print('🔥 FavoritesService: History loaded, setting initialized flag...');
+      print('🔥 FavoritesService: History loaded, cleaning up old synced items...');
+      await _cleanupOldSyncedItems();
+      print('🔥 FavoritesService: Cleanup completed, setting initialized flag...');
 
       _isInitialized = true;
       print('🔥 FavoritesService: ✅ Initialization completed successfully for UID: $uid');
@@ -194,13 +196,13 @@ class FavoritesService extends ChangeNotifier {
           }
         }
         
-        // Merge new items with existing (avoid duplicates by timestamp + symbol)
+        // Merge new items with existing (avoid duplicates by timestamp + symbol + action)
         final Set<String> existingKeys = existingHistory
-            .map((item) => '${item.timestamp.millisecondsSinceEpoch}_${item.symbol.id ?? item.symbol.label}')
+            .map((item) => '${item.timestamp.millisecondsSinceEpoch}_${item.symbol.id ?? item.symbol.label}_${item.action}')
             .toSet();
             
         final List<HistoryItem> trulyNewItems = newItems.where((item) {
-          final key = '${item.timestamp.millisecondsSinceEpoch}_${item.symbol.id ?? item.symbol.label}';
+          final key = '${item.timestamp.millisecondsSinceEpoch}_${item.symbol.id ?? item.symbol.label}_${item.action}';
           return !existingKeys.contains(key);
         }).toList();
         
@@ -309,32 +311,34 @@ class FavoritesService extends ChangeNotifier {
     );
   }
 
-  /// Add an item to the usage history, now with a required action.
+  /// Add an item to the usage history with DIRECT real-time Supabase insertion
   Future<void> recordUsage(Symbol symbol, {required String action}) async {
-    print('🔥 FavoritesService.recordUsage: Called for ${symbol.label} with action: $action, initialized: $_isInitialized');
-    AACLogger.info('🔥 FavoritesService.recordUsage called - initialized: $_isInitialized, symbol: ${symbol.label}, action: $action', tag: 'FavoritesService');
+    print('🔥 DIRECT INSERT: Called for ${symbol.label} with action: $action, initialized: $_isInitialized');
+    AACLogger.info('🔥 DIRECT INSERT: recordUsage called - symbol: ${symbol.label}, action: $action', tag: 'FavoritesService');
+    
     if (!_isInitialized) {
-      print('🔥 FavoritesService.recordUsage: ❌ Service not initialized!');
+      print('🔥 DIRECT INSERT: ❌ Service not initialized!');
       AACLogger.warning('FavoritesService not initialized, cannot record usage.', tag: 'FavoritesService');
       return;
     }
+    
     try {
       final now = DateTime.now();
       final historyItem = HistoryItem(symbol: symbol, timestamp: now, action: action);
       
-      // DUPLICATE PREVENTION: Create unique key for recent processing
+      // DUPLICATE PREVENTION: Create unique key for recent processing (in-memory only)
       final itemKey = '${symbol.label}_${action}_${now.millisecondsSinceEpoch ~/ 1000}'; // Round to seconds
       
       if (_recentlyProcessed.contains(itemKey)) {
-        print('🔥 FavoritesService.recordUsage: ⚠️  Skipping duplicate item: $itemKey');
+        print('🔥 DIRECT INSERT: ⚠️  Skipping duplicate item within same second: $itemKey');
         AACLogger.warning('FavoritesService: Skipping duplicate item within same second: $itemKey', tag: 'FavoritesService');
         return;
       }
       
-      // Add to recent processing set
+      // Add to recent processing set (short-term duplicate prevention)
       _recentlyProcessed.add(itemKey);
       
-      // Clean up old entries (keep only last 10 seconds)
+      // Clean up old entries (keep only last 10 seconds for memory management)
       final cutoffTime = now.millisecondsSinceEpoch ~/ 1000 - 10;
       _recentlyProcessed.removeWhere((key) {
         final parts = key.split('_');
@@ -345,34 +349,31 @@ class FavoritesService extends ChangeNotifier {
         return false;
       });
       
+      // 1. Add to local memory IMMEDIATELY (for instant UI updates)
       _usageHistory.insert(0, historyItem);
-      print('🔥 FavoritesService.recordUsage: Added item, total count: ${_usageHistory.length}');
-      AACLogger.info('🔥 FavoritesService: Added history item, total count: ${_usageHistory.length}', tag: 'FavoritesService');
+      print('🔥 DIRECT INSERT: Added to local history, total count: ${_usageHistory.length}');
       
-      // Keep history trimmed to 100 items (increased for better user experience)
+      // Keep history trimmed to 100 items
       if (_usageHistory.length > 100) {
         _usageHistory = _usageHistory.sublist(0, 100);
       }
-      print('🔥 FavoritesService.recordUsage: About to save history...');
       
-      // FIXED: Only sync the new item to avoid re-processing entire history
-      await _saveNewHistoryItem(historyItem);
-      print('🔥 FavoritesService.recordUsage: ✅ Successfully saved new history item');
+      // 2. Update UI stream IMMEDIATELY (for real-time display)
+      _historyController.add(_usageHistory);
       
-      // Update last sync time since we added new local data
-      try {
-        final localBox = await _userDataManager.getFavoritesBox();
-        await localBox.put(_historyLastSyncKey, DateTime.now().toIso8601String());
-        print('🔥 FavoritesService.recordUsage: Updated last sync timestamp');
-      } catch (e) {
-        print('🔥 FavoritesService.recordUsage: Warning - could not update last sync time: $e');
-      }
+      // 3. Save to local storage IMMEDIATELY (for persistence)
+      await _saveHistoryToLocal();
       
-      AACLogger.info('🔥 FavoritesService: Successfully recorded and saved usage of ${symbol.label} with action: $action', tag: 'FavoritesService');
+      // 4. DIRECT INSERT to Supabase (no complex sync logic, no batching)
+      await _insertDirectlyToSupabase(historyItem);
+      
+      print('🔥 DIRECT INSERT: ✅ Successfully completed all operations for ${symbol.label}');
+      AACLogger.info('🔥 DIRECT INSERT: Successfully recorded usage of ${symbol.label} with action: $action', tag: 'FavoritesService');
+      
     } catch (e) {
-      print('🔥 FavoritesService.recordUsage: ❌ Error: $e');
-      AACLogger.error('🔥 FavoritesService: Error recording usage: $e', tag: 'FavoritesService');
-      rethrow;
+      print('🔥 DIRECT INSERT: ❌ Error: $e');
+      AACLogger.error('🔥 DIRECT INSERT: Error recording usage: $e', tag: 'FavoritesService');
+      // Don't rethrow - let the app continue working even if cloud sync fails
     }
   }
 
@@ -412,14 +413,14 @@ class FavoritesService extends ChangeNotifier {
     }
   }
 
-  /// Save history to both local and cloud storage.
+  /// Save history to local storage only (cloud sync uses direct insertion now)
   Future<void> _saveHistory() async {
     _historyController.add(_usageHistory);
     await _saveHistoryToLocal();
-    await _userDataManager.setCloudData(_historyKey, _usageHistory.map((h) => h.toJson()).toList());
+    // 🔥 REMOVED: await _userDataManager.setCloudData(...) - History now uses direct insertion
   }
 
-  /// Save only a new history item (prevents re-processing entire history)
+  /// Save only a new history item to local storage (cloud sync uses direct insertion now)
   Future<void> _saveNewHistoryItem(HistoryItem newItem) async {
     // Update UI stream with full history
     _historyController.add(_usageHistory);
@@ -427,8 +428,11 @@ class FavoritesService extends ChangeNotifier {
     // Save all history to local storage
     await _saveHistoryToLocal();
     
-    // FIXED: Only sync the new item to Supabase to prevent duplicates
-    await _userDataManager.setCloudData('single_history_item', [newItem.toJson()]);
+    // Track for local duplicate prevention
+    await _trackSyncedItem(newItem);
+    
+    // 🔥 REMOVED: Cloud sync logic - History now uses direct insertion via recordUsage()
+    print('🔥 FavoritesService._saveNewHistoryItem: Saved locally (cloud sync via direct insertion)');
   }
 
   Future<void> _saveHistoryToLocal() async {
@@ -449,16 +453,50 @@ class FavoritesService extends ChangeNotifier {
     }
   }
 
+  /// DIRECT INSERT to Supabase - bypasses all sync complexity
+  Future<void> _insertDirectlyToSupabase(HistoryItem historyItem) async {
+    try {
+      print('🔥 DIRECT SUPABASE: Starting direct insert for ${historyItem.symbol.label}');
+      
+      // Use the static methods from SupabaseAACService directly
+      // Note: communication_type must be 'phrase', 'word', or 'sentence' per DB constraint
+      await SupabaseAACService.saveCommunication(
+        messageText: historyItem.symbol.label,
+        symbolsUsed: [historyItem.symbol.id ?? historyItem.symbol.label],
+        communicationType: 'word', // ✅ Use 'word' instead of 'symbol_tap' (DB constraint compliant)
+        contextInfo: {
+          'action': historyItem.action,
+          'category': historyItem.symbol.category,
+          'is_custom': historyItem.symbol.isDefault != true,
+          'image_path': historyItem.symbol.imagePath,
+          'direct_insert': true, // Mark as direct insert to distinguish from batch sync
+          'insertion_timestamp': DateTime.now().toIso8601String(),
+          'used_at': historyItem.timestamp.toIso8601String(),
+          'symbol_tap': true, // Store the fact that this was a symbol tap in context
+        },
+      );
+      
+      print('🔥 DIRECT SUPABASE: ✅ Successfully inserted ${historyItem.symbol.label} to Supabase');
+      AACLogger.info('🔥 DIRECT SUPABASE: Successfully inserted ${historyItem.symbol.label} directly to Supabase', tag: 'FavoritesService');
+      
+    } catch (e) {
+      print('🔥 DIRECT SUPABASE: ❌ Error inserting to Supabase: $e');
+      AACLogger.error('🔥 DIRECT SUPABASE: Error inserting to Supabase: $e', tag: 'FavoritesService');
+      // Don't rethrow - let local operations continue even if cloud sync fails
+    }
+  }
+
   /// Sync from cloud to local (useful after login or when data changes elsewhere)
+  /// NOTE: Only syncs favorites, NOT history (history uses direct insertion now)
   Future<void> syncFromCloud() async {
     if (!_isInitialized) return;
     
     try {
       await _loadFavorites();
-      await _loadHistory();
-      AACLogger.info('FavoritesService: Synced from cloud.', tag: 'FavoritesService');
+      // 🔥 REMOVED: await _loadHistory(); - History now uses direct insertion, no need to sync on login
+      AACLogger.info('FavoritesService: Synced favorites from cloud (history uses direct insertion).', tag: 'FavoritesService');
     } catch (e) {
-      AACLogger.error('FavoritesService: Error syncing from cloud: $e', tag: 'FavoritesService');
+      AACLogger.error('FavoritesService: Error syncing favorites from cloud: $e', tag: 'FavoritesService');
     }
   }
 
@@ -570,11 +608,9 @@ class FavoritesService extends ChangeNotifier {
         AACLogger.info('ℹ️  No favorites to sync', tag: 'FavoritesService');
       }
       
-      // Force sync history if we have any
+      // 🔥 REMOVED: History sync - History now uses direct insertion via recordUsage()
       if (_usageHistory.isNotEmpty) {
-        AACLogger.info('🔄 Syncing ${_usageHistory.length} history items to Supabase', tag: 'FavoritesService');
-        await _userDataManager.setCloudData(_historyKey, _usageHistory.map((h) => h.toJson()).toList());
-        AACLogger.info('✅ History synced to Supabase', tag: 'FavoritesService');
+        AACLogger.info('ℹ️  History sync skipped (${_usageHistory.length} items) - using direct insertion', tag: 'FavoritesService');
       } else {
         AACLogger.info('ℹ️  No history to sync', tag: 'FavoritesService');
       }
@@ -586,7 +622,87 @@ class FavoritesService extends ChangeNotifier {
     }
   }
 
+  /// Track synced items persistently to prevent duplicates after app restart
+  Future<void> _trackSyncedItem(HistoryItem item) async {
+    try {
+      final box = await _userDataManager.getFavoritesBox();
+      final syncedItemsKey = 'synced_history_items';
+      
+      // Get existing synced items
+      final existingSynced = box.get(syncedItemsKey, defaultValue: <String>[]);
+      final syncedItems = List<String>.from(existingSynced);
+      
+      // Create unique key for the item (timestamp + symbol + action)
+      final itemKey = '${item.timestamp.millisecondsSinceEpoch}_${item.symbol.id ?? item.symbol.label}_${item.action}';
+      
+      // Add to synced items if not already present
+      if (!syncedItems.contains(itemKey)) {
+        syncedItems.add(itemKey);
+        
+        // Keep only recent items (last 1000) to prevent unlimited growth
+        if (syncedItems.length > 1000) {
+          syncedItems.removeRange(0, syncedItems.length - 1000);
+        }
+        
+        await box.put(syncedItemsKey, syncedItems);
+        print('🔥 FavoritesService._trackSyncedItem: Tracked synced item: $itemKey');
+      }
+    } catch (e) {
+      AACLogger.warning('FavoritesService: Failed to track synced item: $e', tag: 'FavoritesService');
+    }
+  }
 
+  /// Check if item is already synced to prevent duplicates
+  Future<bool> _isItemAlreadySynced(HistoryItem item) async {
+    try {
+      final box = await _userDataManager.getFavoritesBox();
+      final syncedItemsKey = 'synced_history_items';
+      
+      // Get existing synced items
+      final existingSynced = box.get(syncedItemsKey, defaultValue: <String>[]);
+      final syncedItems = List<String>.from(existingSynced);
+      
+      // Create unique key for the item (timestamp + symbol + action)
+      final itemKey = '${item.timestamp.millisecondsSinceEpoch}_${item.symbol.id ?? item.symbol.label}_${item.action}';
+      
+      final isAlreadySynced = syncedItems.contains(itemKey);
+      if (isAlreadySynced) {
+        print('🔥 FavoritesService._isItemAlreadySynced: Item already synced: $itemKey');
+      }
+      
+      return isAlreadySynced;
+    } catch (e) {
+      AACLogger.warning('FavoritesService: Failed to check if item synced: $e', tag: 'FavoritesService');
+      return false; // If we can't check, assume not synced to be safe
+    }
+  }
+
+  /// Clean up old synced items to prevent unlimited growth
+  Future<void> _cleanupOldSyncedItems() async {
+    try {
+      final box = await _userDataManager.getFavoritesBox();
+      final syncedItemsKey = 'synced_history_items';
+      
+      // Get existing synced items
+      final existingSynced = box.get(syncedItemsKey, defaultValue: <String>[]);
+      final syncedItems = List<String>.from(existingSynced);
+      
+      final int maxItems = 1000; // Keep only last 1000 synced items
+      if (syncedItems.length > maxItems) {
+        // Keep only the most recent items (assuming they're added chronologically)
+        final recentItems = syncedItems.sublist(syncedItems.length - maxItems);
+        await box.put(syncedItemsKey, recentItems);
+        
+        final removedCount = syncedItems.length - recentItems.length;
+        print('🧹 FavoritesService._cleanupOldSyncedItems: Cleaned up $removedCount old synced item records');
+        AACLogger.info('FavoritesService: Cleaned up $removedCount old synced item records', tag: 'FavoritesService');
+      } else {
+        print('🧹 FavoritesService._cleanupOldSyncedItems: No cleanup needed (${syncedItems.length}/$maxItems items)');
+      }
+    } catch (e) {
+      AACLogger.warning('FavoritesService: Failed to cleanup old synced items: $e', tag: 'FavoritesService');
+    }
+  }
 
   /// Dispose the service and close streams.
   void dispose() {

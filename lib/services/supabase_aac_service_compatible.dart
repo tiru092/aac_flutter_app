@@ -194,7 +194,7 @@ class SupabaseAACService {
   // COMMUNICATION HISTORY
   // ============================================================================
 
-  /// Save communication to history
+  /// Save communication to history with SCD merge logic (schema-compatible)
   static Future<Map<String, dynamic>> saveCommunication({
     required String messageText,
     List<String> symbolsUsed = const [],
@@ -203,21 +203,103 @@ class SupabaseAACService {
   }) async {
     _ensureAuthenticated();
     
+    final now = DateTime.now();
+    
+    // Enhanced context info with SCD metadata (stored in existing context_info JSONB column)
+    final enhancedContextInfo = {
+      ...contextInfo,
+      'scd_metadata': {
+        'composite_key': '${currentUser!.id}_${messageText}_${(now.millisecondsSinceEpoch ~/ 1000)}',
+        'sync_method': 'supabase_aac_service',
+        'version': 1,
+      }
+    };
+    
     final historyData = {
       'user_id': currentUser!.id,
       'message_text': messageText,
       'symbols_used': symbolsUsed,
       'communication_type': communicationType,
-      'context_info': contextInfo,
+      'context_info': enhancedContextInfo,
+      'created_at': now.toIso8601String(),
     };
     
-    final response = await client
-        .from('communication_history')
-        .insert(historyData)
-        .select()
-        .single();
-    
-    return response;
+    try {
+      // SCD Logic: Check for duplicates within 5-minute window using existing columns
+      final existing = await client
+          .from('communication_history')
+          .select('id, created_at, context_info')
+          .eq('user_id', currentUser!.id)
+          .eq('message_text', messageText)
+          .gte('created_at', now.subtract(Duration(minutes: 5)).toIso8601String())
+          .maybeSingle();
+      
+      if (existing != null) {
+        print('🔄 SCD MERGE: Found duplicate within 5min window, updating existing record ${existing['id']}');
+        
+        // Merge context info from existing record
+        final existingContext = existing['context_info'] as Map<String, dynamic>? ?? {};
+        final mergedContext = {
+          ...existingContext,
+          ...enhancedContextInfo,
+          'scd_metadata': {
+            ...((existingContext['scd_metadata'] as Map<String, dynamic>?) ?? {}),
+            ...enhancedContextInfo['scd_metadata'],
+            'updated_count': ((existingContext['scd_metadata']?['updated_count'] as int?) ?? 0) + 1,
+            'last_updated': now.toIso8601String(),
+          }
+        };
+        
+        // Update existing record (SCD Type 1 strategy)
+        final response = await client
+            .from('communication_history')
+            .update({
+              'symbols_used': symbolsUsed,
+              'context_info': mergedContext,
+            })
+            .eq('id', existing['id'])
+            .select()
+            .single();
+        
+        return response;
+      } else {
+        // Insert new record (no duplicate found)
+        print('✅ SCD INSERT: Creating new communication history record');
+        
+        final response = await client
+            .from('communication_history')
+            .insert(historyData)
+            .select()
+            .single();
+        
+        return response;
+      }
+    } catch (e) {
+      print('❌ SCD ERROR: Failed to save communication with merge logic: $e');
+      // Fallback: Try simple insert without SCD logic
+      try {
+        print('🔄 SCD FALLBACK: Attempting simple insert...');
+        final fallbackData = {
+          'user_id': currentUser!.id,
+          'message_text': messageText,
+          'symbols_used': symbolsUsed,
+          'communication_type': communicationType,
+          'context_info': contextInfo, // Use original context without SCD metadata
+        };
+        
+        final response = await client
+            .from('communication_history')
+            .insert(fallbackData)
+            .select()
+            .single();
+        
+        print('✅ SCD FALLBACK: Simple insert successful');
+        return response;
+      } catch (fallbackError) {
+        print('❌ SCD FALLBACK FAILED: $fallbackError');
+        rethrow;
+      }
+    }
   }
 
   /// Get communication history

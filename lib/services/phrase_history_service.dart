@@ -206,7 +206,7 @@ class PhraseHistoryService extends ChangeNotifier {
   Future<void> _saveHistory() async {
     _historyController.add(_history);
     await _saveHistoryToLocal();
-    await _userDataManager.setCloudData(_historyKey, _history.map((h) => h.toJson()).toList());
+    // 🔥 REMOVED: await _userDataManager.setCloudData(...) - History now uses direct insertion
   }
 
   Future<void> _saveHistoryToLocal() async {
@@ -226,15 +226,16 @@ class PhraseHistoryService extends ChangeNotifier {
   }
 
   /// Sync from cloud to local (useful after login or when data changes elsewhere)
+  /// NOTE: Only syncs favorites, NOT history (history uses direct insertion now)
   Future<void> syncFromCloud() async {
     if (!_isInitialized) return;
     
     try {
-      await _loadHistory();
+      // 🔥 REMOVED: await _loadHistory(); - History now uses direct insertion, no need to sync on login
       await _loadFavorites();
-      AACLogger.info('PhraseHistoryService: Synced from cloud.', tag: 'PhraseHistoryService');
+      AACLogger.info('PhraseHistoryService: Synced favorites from cloud (history uses direct insertion).', tag: 'PhraseHistoryService');
     } catch (e) {
-      AACLogger.error('PhraseHistoryService: Error syncing from cloud: $e', tag: 'PhraseHistoryService');
+      AACLogger.error('PhraseHistoryService: Error syncing favorites from cloud: $e', tag: 'PhraseHistoryService');
     }
   }
 

@@ -238,27 +238,107 @@ class SupabaseDatabaseService {
     }
   }
   
-  /// Add communication history entry
+  /// Add communication history entry with schema-compatible SCD merge logic
   Future<void> addCommunicationHistory(Map<String, dynamic> historyData) async {
     try {
+      final now = DateTime.now();
+      final messageText = historyData['message_text'] ?? 'Unknown';
+      
+      // Schema-compatible SCD: Store metadata in existing context_info JSONB column
+      final originalContext = historyData['context_info'] as Map<String, dynamic>? ?? {};
+      final timeHash = (now.millisecondsSinceEpoch ~/ 1000).toString();
+      
+      final enhancedContext = {
+        ...originalContext,
+        'scd_metadata': {
+          'composite_key': '${_currentUserId}_${messageText}_$timeHash',
+          'sync_method': 'supabase_database_service',
+          'version': 1,
+          'created_timestamp': now.toIso8601String(),
+        }
+      };
+      
       final data = {
         'user_id': _currentUserId,
         ...historyData,
-        'created_at': DateTime.now().toIso8601String(),
+        'context_info': enhancedContext,
+        'created_at': historyData['created_at'] ?? now.toIso8601String(),
       };
       
-      await _client
+      // SCD Strategy: Check for duplicates within 5-minute window using existing columns
+      final existing = await _client
           .from('communication_history')
-          .insert(data);
+          .select('id, created_at, context_info')
+          .eq('user_id', _currentUserId!)
+          .eq('message_text', messageText)
+          .gte('created_at', now.subtract(Duration(minutes: 5)).toIso8601String())
+          .maybeSingle();
       
-      if (kDebugMode) {
-        print('Communication history added successfully');
+      if (existing != null) {
+        // SCD Type 1: Update existing record by merging context
+        final existingContext = existing['context_info'] as Map<String, dynamic>? ?? {};
+        final mergedContext = {
+          ...existingContext,
+          ...enhancedContext,
+          'scd_metadata': {
+            ...((existingContext['scd_metadata'] as Map<String, dynamic>?) ?? {}),
+            ...enhancedContext['scd_metadata'],
+            'update_count': ((existingContext['scd_metadata']?['update_count'] as int?) ?? 0) + 1,
+            'last_updated': now.toIso8601String(),
+          }
+        };
+        
+        await _client
+            .from('communication_history')
+            .update({
+              ...historyData,
+              'context_info': mergedContext,
+            })
+            .eq('id', existing['id']);
+        
+        if (kDebugMode) {
+          print('🔄 SCD: Communication history updated (merged duplicate): ${existing['id']}');
+        }
+      } else {
+        // Insert new record
+        await _client
+            .from('communication_history')
+            .insert(data);
+        
+        if (kDebugMode) {
+          print('✅ SCD: Communication history added successfully (new entry)');
+        }
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error adding communication history: $e');
+        print('❌ SCD Error adding communication history: $e');
       }
-      rethrow;
+      
+      // Fallback: Try simple insert without SCD logic
+      try {
+        if (kDebugMode) {
+          print('🔄 SCD FALLBACK: Attempting simple insert...');
+        }
+        
+        final fallbackData = {
+          'user_id': _currentUserId,
+          ...historyData,
+          'created_at': historyData['created_at'] ?? DateTime.now().toIso8601String(),
+        };
+        
+        await _client
+            .from('communication_history')
+            .insert(fallbackData);
+        
+        if (kDebugMode) {
+          print('✅ SCD FALLBACK: Simple insert successful');
+        }
+      } catch (fallbackError) {
+        if (kDebugMode) {
+          print('❌ SCD FALLBACK FAILED: $fallbackError');
+        }
+        rethrow;
+      }
     }
   }
   

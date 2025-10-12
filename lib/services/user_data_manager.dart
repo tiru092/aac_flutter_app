@@ -575,14 +575,81 @@ class UserDataManager {
         }
         
         if (newHistoryRecords.isNotEmpty) {
-          await Supabase.instance.client
-              .from('communication_history')
-              .insert(newHistoryRecords);
+          // Schema-compatible SCD: Use existing columns with enhanced context metadata
+          final enhancedRecords = newHistoryRecords.map((record) {
+            final messageText = record['message_text'];
+            final timestamp = record['created_at'];
+            final parsedTime = DateTime.tryParse(timestamp) ?? DateTime.now();
+            final timeHash = (parsedTime.millisecondsSinceEpoch ~/ 1000).toString();
+            
+            // Store SCD metadata in context_info JSONB field (existing column)
+            final originalContext = record['context_info'] as Map<String, dynamic>? ?? {};
+            final enhancedContext = {
+              ...originalContext,
+              'scd_metadata': {
+                'composite_key': '${_currentUserId}_${messageText}_$timeHash',
+                'sync_method': 'bulk_history_sync',
+                'version': 1,
+                'sync_timestamp': DateTime.now().toIso8601String(),
+              }
+            };
+            
+            return {
+              ...record,
+              'context_info': enhancedContext,
+            };
+          }).toList();
           
-          print('📤 INCREMENTAL SYNC: Added ${newHistoryRecords.length} NEW history items (skipped ${historyData.length - newHistoryRecords.length} existing)');
-          AACLogger.info('UserDataManager: 📤 INCREMENTAL: Added ${newHistoryRecords.length} new history items to communication_history', tag: 'UserDataManager');
+          // Use simple insert with duplicate checking (schema-compatible approach)
+          try {
+            await Supabase.instance.client
+                .from('communication_history')
+                .insert(enhancedRecords);
+            
+            print('📤 SCD BULK INSERT: Added ${enhancedRecords.length} history items with metadata tracking');
+            AACLogger.info('UserDataManager: 🚀 SCD: Bulk inserted ${enhancedRecords.length} history items with SCD metadata', tag: 'UserDataManager');
+          } catch (bulkError) {
+            // Fallback to individual inserts with duplicate checking
+            print('⚠️  SCD FALLBACK: Bulk insert failed, using individual insert with duplicate check');
+            
+            int successCount = 0;
+            for (final record in enhancedRecords) {
+              try {
+                // Check for existing record before inserting
+                final messageText = record['message_text'];
+                final createdAt = record['created_at'];
+                
+                final existing = await Supabase.instance.client
+                    .from('communication_history')
+                    .select('id')
+                    .eq('user_id', _currentUserId!)
+                    .eq('message_text', messageText)
+                    .eq('created_at', createdAt)
+                    .maybeSingle();
+                
+                if (existing == null) {
+                  await Supabase.instance.client
+                      .from('communication_history')
+                      .insert(record);
+                  successCount++;
+                } else {
+                  print('🔄 SCD SKIP: Duplicate detected for $messageText');
+                }
+              } catch (insertError) {
+                // Skip duplicates (likely constraint violations or other conflicts)
+                if (!insertError.toString().contains('duplicate') && 
+                    !insertError.toString().contains('constraint') &&
+                    !insertError.toString().contains('violates')) {
+                  print('❌ Individual insert failed for ${record['message_text']}: $insertError');
+                }
+              }
+            }
+            
+            print('📤 SCD INDIVIDUAL: Successfully inserted $successCount/${enhancedRecords.length} history items');
+            AACLogger.info('UserDataManager: ✅ SCD: Individual insert completed $successCount/${enhancedRecords.length}', tag: 'UserDataManager');
+          }
         } else {
-          print('✅ SYNC STATUS: All ${historyData.length} history items already synced - no new data to upload');
+          print('✅ SCD STATUS: All ${historyData.length} history items already synced - no new data to upload');
         }
         
       } catch (e) {
@@ -605,23 +672,80 @@ class UserDataManager {
             final timestamp = item['timestamp'] ?? DateTime.now().toIso8601String();
             final messageText = symbolData['label'] ?? 'Unknown';
             
-            // Create unique record for single item
-            final newRecord = {
-              'user_id': _currentUserId,
-              'message_text': messageText,
-              'symbols_used': [symbolData],
-              'communication_type': item['action'] == 'phrase' ? 'phrase' : 'word',
-              'context_info': {'action': item['action']},
-              'created_at': timestamp,
-            };
+            // Schema-Compatible SCD MERGE: Check for duplicates using existing columns
+            final parsedTimestamp = DateTime.tryParse(timestamp) ?? DateTime.now();
+            final timeWindow = parsedTimestamp.subtract(Duration(minutes: 5));
             
-            // Insert single item without duplicate checking (assumes FavoritesService manages uniqueness)
-            await Supabase.instance.client
-                .from('communication_history')
-                .insert(newRecord);
-            
-            print('📤 SINGLE ITEM SYNC: Added 1 new history item: $messageText');
-            AACLogger.info('UserDataManager: 📤 SINGLE: Added new history item "$messageText" to communication_history', tag: 'UserDataManager');
+            try {
+              // Check if this exact item already exists within 5-minute window
+              final existing = await Supabase.instance.client
+                  .from('communication_history')
+                  .select('id, created_at, context_info')
+                  .eq('user_id', _currentUserId!)
+                  .eq('message_text', messageText)
+                  .gte('created_at', timeWindow.toIso8601String())
+                  .lte('created_at', parsedTimestamp.add(Duration(minutes: 5)).toIso8601String())
+                  .maybeSingle();
+              
+              if (existing != null) {
+                print('🔄 SCD MERGE: Single item "$messageText" already exists, updating context');
+                
+                // Merge existing context with new SCD metadata
+                final existingContext = existing['context_info'] as Map<String, dynamic>? ?? {};
+                final enhancedContext = {
+                  ...existingContext,
+                  'action': item['action'],
+                  'scd_metadata': {
+                    ...((existingContext['scd_metadata'] as Map<String, dynamic>?) ?? {}),
+                    'sync_method': 'single_item_sync',
+                    'last_sync': DateTime.now().toIso8601String(),
+                    'update_count': ((existingContext['scd_metadata']?['update_count'] as int?) ?? 0) + 1,
+                    'composite_key': '${_currentUserId}_${messageText}_${parsedTimestamp.millisecondsSinceEpoch ~/ 1000}',
+                  }
+                };
+                
+                // Update existing record with enhanced context (SCD Type 1 strategy)
+                await Supabase.instance.client
+                    .from('communication_history')
+                    .update({
+                      'symbols_used': [symbolData],
+                      'context_info': enhancedContext,
+                    })
+                    .eq('id', existing['id']);
+                
+                print('📤 SCD UPDATE: Updated existing single item: $messageText');
+                AACLogger.info('UserDataManager: 🔄 SCD: Updated existing history item "$messageText"', tag: 'UserDataManager');
+              } else {
+                // Create new record with SCD metadata in context_info (schema-compatible)
+                final newRecord = {
+                  'user_id': _currentUserId,
+                  'message_text': messageText,
+                  'symbols_used': [symbolData],
+                  'communication_type': item['action'] == 'phrase' ? 'phrase' : 'word',
+                  'context_info': {
+                    'action': item['action'],
+                    'scd_metadata': {
+                      'sync_method': 'single_item_sync',
+                      'composite_key': '${_currentUserId}_${messageText}_${parsedTimestamp.millisecondsSinceEpoch ~/ 1000}',
+                      'version': 1,
+                      'created_via': 'user_data_manager',
+                    }
+                  },
+                  'created_at': timestamp,
+                };
+                
+                await Supabase.instance.client
+                    .from('communication_history')
+                    .insert(newRecord);
+                
+                print('📤 SCD INSERT: Added new single history item: $messageText');
+                AACLogger.info('UserDataManager: ✅ SCD: Created new history item "$messageText"', tag: 'UserDataManager');
+              }
+            } catch (duplicateError) {
+              // Fallback: If duplicate check fails, skip this item to prevent duplication
+              print('⚠️  SCD FALLBACK: Skipping potential duplicate "$messageText" due to check error: $duplicateError');
+              AACLogger.warning('UserDataManager: ⚠️  SCD: Skipped potential duplicate "$messageText"', tag: 'UserDataManager');
+            }
           }
         }
       } catch (e) {
