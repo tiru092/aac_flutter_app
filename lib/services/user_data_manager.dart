@@ -1167,32 +1167,16 @@ class UserDataManager {
     }
   }
   
-  /// Queue category for background sync to Supabase
+  /// Queue category for background sync to Supabase (DISABLED - using direct insertion)
   Future<void> _queueCategoryForSync(Category category) async {
-    try {
-      await setCloudData('custom_categories_queue', {
-        'action': 'add',
-        'category': category.toJson(),
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-      AACLogger.info('UserDataManager: Queued category "${category.name}" for Supabase sync', tag: 'UserDataManager');
-    } catch (e) {
-      AACLogger.warning('UserDataManager: Failed to queue category for sync: $e', tag: 'UserDataManager');
-    }
+    // 🔥 REMOVED: Batch sync disabled - CustomCategoriesService now uses direct insertion
+    AACLogger.info('UserDataManager: Category sync disabled - using direct insertion for "${category.name}"', tag: 'UserDataManager');
   }
   
-  /// Queue category for background deletion from Supabase
+  /// Queue category for background deletion from Supabase (DISABLED - using direct insertion)
   Future<void> _queueCategoryForDeletion(String categoryId) async {
-    try {
-      await setCloudData('custom_categories_queue', {
-        'action': 'delete',
-        'categoryId': categoryId,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-      AACLogger.info('UserDataManager: Queued category $categoryId for Supabase deletion', tag: 'UserDataManager');
-    } catch (e) {
-      AACLogger.warning('UserDataManager: Failed to queue category for deletion: $e', tag: 'UserDataManager');
-    }
+    // 🔥 REMOVED: Batch sync disabled - CustomCategoriesService now uses direct deletion
+    AACLogger.info('UserDataManager: Category deletion sync disabled - using direct deletion for $categoryId', tag: 'UserDataManager');
   }
   
   /// LOCAL-FIRST CUSTOM SYMBOLS METHODS
@@ -1249,32 +1233,16 @@ class UserDataManager {
     }
   }
   
-  /// Queue symbol for background sync to Supabase
+  /// Queue symbol for background sync to Supabase (DISABLED - using direct insertion)
   Future<void> _queueSymbolForSync(Symbol symbol) async {
-    try {
-      await setCloudData('custom_symbols_queue', {
-        'action': 'add',
-        'symbol': symbol.toJson(),
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-      AACLogger.info('UserDataManager: Queued symbol "${symbol.label}" for Supabase sync', tag: 'UserDataManager');
-    } catch (e) {
-      AACLogger.warning('UserDataManager: Failed to queue symbol for sync: $e', tag: 'UserDataManager');
-    }
+    // 🔥 REMOVED: Batch sync disabled - CustomSymbolsService now uses direct insertion
+    AACLogger.info('UserDataManager: Symbol sync disabled - using direct insertion for "${symbol.label}"', tag: 'UserDataManager'); 
   }
   
-  /// Queue symbol for background deletion from Supabase
+  /// Queue symbol for background deletion from Supabase (DISABLED - using direct insertion)
   Future<void> _queueSymbolForDeletion(String symbolId) async {
-    try {
-      await setCloudData('custom_symbols_queue', {
-        'action': 'delete',
-        'symbolId': symbolId,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
-      AACLogger.info('UserDataManager: Queued symbol $symbolId for Supabase deletion', tag: 'UserDataManager');
-    } catch (e) {
-      AACLogger.warning('UserDataManager: Failed to queue symbol for deletion: $e', tag: 'UserDataManager');
-    }
+    // 🔥 REMOVED: Batch sync disabled - CustomSymbolsService now uses direct deletion
+    AACLogger.info('UserDataManager: Symbol deletion sync disabled - using direct deletion for $symbolId', tag: 'UserDataManager');
   }
 
   /// Generate unique ID for custom categories and symbols

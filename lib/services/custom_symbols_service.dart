@@ -4,6 +4,7 @@ import '../utils/aac_logger.dart';
 import 'user_data_manager.dart';
 import 'shared_resource_service.dart';
 import 'symbols_migration_service.dart';
+import 'supabase_aac_service_compatible.dart';
 
 /// Service for managing custom symbols with bidirectional Hive-Firebase sync
 /// Ensures custom symbols persist across sign-out/sign-in cycles
@@ -175,7 +176,7 @@ class CustomSymbolsService {
     }
   }
 
-  /// Add a new custom symbol - LOCAL FIRST APPROACH
+  /// Add a new custom symbol - DIRECT INSERTION APPROACH (no batch sync)
   Future<bool> addCustomSymbol(Symbol symbol) async {
     if (!_isInitialized) {
       AACLogger.warning('CustomSymbolsService: Cannot add symbol - service not initialized', tag: 'CustomSymbolsService');
@@ -191,14 +192,17 @@ class CustomSymbolsService {
       
       AACLogger.info('🔥 CustomSymbolsService: Adding custom symbol: ${symbol.label}', tag: 'CustomSymbolsService');
       
-      // LOCAL FIRST: Use UserDataManager for immediate local storage + background sync
-      await _userDataManager!.addCustomSymbol(symbol);
+      // 1. LOCAL FIRST: Save to local storage immediately
+      await _saveSymbolToLocal(symbol);
       
-      // Update in-memory list and notify listeners immediately
+      // 2. Update in-memory list and notify listeners immediately
       _customSymbols.add(symbol);
       _symbolsController.add(_customSymbols);
       
-      AACLogger.info('🔥✅ CustomSymbolsService: Successfully added symbol "${symbol.label}" using local-first approach', tag: 'CustomSymbolsService');
+      // 3. DIRECT INSERT to Supabase (no complex sync logic, no batching)
+      await _insertDirectlyToSupabase(symbol);
+      
+      AACLogger.info('🔥✅ CustomSymbolsService: Successfully added symbol "${symbol.label}" with direct insertion', tag: 'CustomSymbolsService');
       return true;
       
     } catch (e, stackTrace) {
@@ -281,6 +285,51 @@ class CustomSymbolsService {
     _currentUid = null;
     _userDataManager = null;
     _isInitialized = false;
+  }
+
+  /// Save symbol to local storage only
+  Future<void> _saveSymbolToLocal(Symbol symbol) async {
+    try {
+      // Generate ID if needed
+      final key = symbol.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+      if (symbol.id == null) {
+        symbol.id = key;
+      }
+      
+      // Save to local Hive box via UserDataManager (local only, no cloud sync)
+      final box = _userDataManager!.userSymbolsBox;
+      await box.put(key, symbol);
+      
+      AACLogger.info('🔥 LOCAL STORAGE: Symbol "${symbol.label}" saved locally', tag: 'CustomSymbolsService');
+    } catch (e) {
+      AACLogger.error('🔥 LOCAL STORAGE: Error saving symbol locally: $e', tag: 'CustomSymbolsService');
+      rethrow;
+    }
+  }
+
+  /// Insert symbol directly to Supabase (bypassing batch sync)
+  Future<void> _insertDirectlyToSupabase(Symbol symbol) async {
+    try {
+      print('🔥 DIRECT INSERT: Inserting custom symbol to Supabase: ${symbol.label}');
+      
+      await SupabaseAACService.createCustomSymbol(
+        label: symbol.label,
+        description: symbol.description,
+        imagePath: symbol.imagePath,
+        categoryId: symbol.category, // category is String, not Category object
+        speechText: symbol.speechText ?? symbol.label,
+        colorCode: symbol.colorCode,
+        tags: const [], // Symbol model doesn't have tags, use empty list
+        isShared: false, // Symbol model doesn't have isShared, default to false
+      );
+      
+      print('🔥 DIRECT INSERT: ✅ Custom symbol inserted successfully to Supabase');
+      AACLogger.info('🔥 DIRECT INSERT: Custom symbol "${symbol.label}" inserted to Supabase', tag: 'CustomSymbolsService');
+    } catch (e) {
+      print('🔥 DIRECT INSERT: ❌ Error inserting custom symbol to Supabase: $e');
+      AACLogger.error('🔥 DIRECT INSERT: Error inserting custom symbol to Supabase: $e', tag: 'CustomSymbolsService');
+      // Don't rethrow - let local operations continue even if cloud sync fails
+    }
   }
 
   /// Dispose resources
