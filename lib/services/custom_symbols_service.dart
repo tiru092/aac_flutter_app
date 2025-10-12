@@ -55,88 +55,53 @@ class CustomSymbolsService {
     }
   }
 
-  /// Load custom symbols from storage - prioritize Hive first, then sync with Firebase
+  /// Load custom symbols with Supabase-first approach for session persistence
   Future<void> _loadCustomSymbols() async {
     AACLogger.info('🔥🚀 CustomSymbolsService: _loadCustomSymbols() method STARTED for UID: $_currentUid', tag: 'CustomSymbolsService');
-    List<Symbol> hiveSymbols = [];
-    List<Symbol> firebaseSymbols = [];
-    bool hiveDataExists = false;
+    List<Symbol> supabaseSymbols = [];
+    List<Symbol> localSymbols = [];
     
     try {
-      // STEP 0: Check for and perform migration if needed
-      AACLogger.info('🔥🔄 CustomSymbolsService: Starting migration check for UID: $_currentUid', tag: 'CustomSymbolsService');
-      
+      // STEP 1: Load from Supabase FIRST for session persistence
+      AACLogger.info('🔥� CustomSymbolsService: Loading from Supabase for session persistence...', tag: 'CustomSymbolsService');
       try {
-        final needsMigration = await SymbolsMigrationService.needsMigration(_currentUid!);
-        AACLogger.info('🔥🔄 CustomSymbolsService: Migration check result: $needsMigration', tag: 'CustomSymbolsService');
-        
-        if (needsMigration) {
-          AACLogger.info('🔥🔄 CustomSymbolsService: Migration needed - migrating symbols from old path...', tag: 'CustomSymbolsService');
-          final migrationSuccess = await SymbolsMigrationService.migrateUserSymbols(_currentUid!);
-          
-          if (migrationSuccess) {
-            AACLogger.info('🔥✅ CustomSymbolsService: Symbols migration completed successfully', tag: 'CustomSymbolsService');
-          } else {
-            AACLogger.warning('🔥⚠️ CustomSymbolsService: Symbols migration failed, continuing with available data', tag: 'CustomSymbolsService');
-          }
-        } else {
-          AACLogger.info('🔥✅ CustomSymbolsService: No migration needed', tag: 'CustomSymbolsService');
-        }
-      } catch (migrationError) {
-        AACLogger.error('🔥❌ CustomSymbolsService: Migration check/execution failed: $migrationError', tag: 'CustomSymbolsService');
-        // Continue with normal loading process
+        supabaseSymbols = await SharedResourceService.getUserCustomSymbols(_currentUid!);
+        AACLogger.info('🔥💾 CustomSymbolsService: Found ${supabaseSymbols.length} symbols in Supabase.', tag: 'CustomSymbolsService');
+      } catch (supabaseError) {
+        AACLogger.warning('🔥💾 CustomSymbolsService: Supabase load failed: $supabaseError', tag: 'CustomSymbolsService');
       }
       
-      // STEP 1: Use UserDataManager's local-first getCustomSymbols method 
-      AACLogger.info('CustomSymbolsService: Loading symbols using UserDataManager.getCustomSymbols()...', tag: 'CustomSymbolsService');
+      // STEP 2: Load from local storage as backup (for offline scenarios)
       try {
-        hiveSymbols = await _userDataManager!.getCustomSymbols();
-        hiveDataExists = hiveSymbols.isNotEmpty;
-        AACLogger.info('CustomSymbolsService: Found ${hiveSymbols.length} symbols from UserDataManager.', tag: 'CustomSymbolsService');
+        AACLogger.info('🔥📱 CustomSymbolsService: Loading from local storage as backup...', tag: 'CustomSymbolsService');
+        localSymbols = await _userDataManager!.getCustomSymbols();
+        AACLogger.info('🔥📱 CustomSymbolsService: Found ${localSymbols.length} symbols locally.', tag: 'CustomSymbolsService');
       } catch (localError) {
-        AACLogger.error('CustomSymbolsService: Error loading from UserDataManager: $localError', tag: 'CustomSymbolsService');
-        hiveSymbols = [];
-        hiveDataExists = false;
+        AACLogger.error('🔥📱 CustomSymbolsService: Local load failed: $localError', tag: 'CustomSymbolsService');
       }
       
-      // STEP 2: Try to load from Firebase (for validation/sync)
-      try {
-        AACLogger.info('CustomSymbolsService: Loading from Firebase for sync validation...', tag: 'CustomSymbolsService');
-        firebaseSymbols = await SharedResourceService.getUserCustomSymbols(_currentUid!);
-        AACLogger.info('CustomSymbolsService: Found ${firebaseSymbols.length} symbols in Firebase.', tag: 'CustomSymbolsService');
-      } catch (firebaseError) {
-        AACLogger.warning('CustomSymbolsService: Firebase load failed: $firebaseError', tag: 'CustomSymbolsService');
-        // Continue with Hive data only
-      }
-      
-      // STEP 3: Determine final data source with clear priority
-      if (hiveDataExists && hiveSymbols.isNotEmpty) {
-        // PRIORITY: Use Hive data (local data has highest priority)
-        _customSymbols = hiveSymbols;
-        AACLogger.info('CustomSymbolsService: ✅ Using Hive data (${_customSymbols.length} symbols) - Local data takes priority', tag: 'CustomSymbolsService');
-        
-        // Background sync: if Firebase has data, check for any new items
-        if (firebaseSymbols.isNotEmpty) {
-          // Run background sync asynchronously to not block UI
-          _performBackgroundSync(firebaseSymbols);
-        }
-      } else if (firebaseSymbols.isNotEmpty) {
-        // FALLBACK: Use Firebase data if no local data exists
-        _customSymbols = firebaseSymbols;
-        await _saveToLocal(); // Cache Firebase data locally
-        AACLogger.info('CustomSymbolsService: ✅ Using Firebase data (${_customSymbols.length} symbols) - No local data, downloading from cloud', tag: 'CustomSymbolsService');
+      // STEP 3: SUPABASE FIRST strategy for session persistence
+      if (supabaseSymbols.isNotEmpty) {
+        // PRIMARY: Use Supabase data for persistence across sessions
+        _customSymbols = supabaseSymbols;
+        await _saveToLocal(); // Update local cache
+        AACLogger.info('🔥✅ CustomSymbolsService: Using Supabase data (${_customSymbols.length} symbols) - Ensures session persistence', tag: 'CustomSymbolsService');
+      } else if (localSymbols.isNotEmpty) {
+        // FALLBACK: Use local data if Supabase is unavailable (offline mode)
+        _customSymbols = localSymbols;
+        AACLogger.info('🔥✅ CustomSymbolsService: Using local data (${_customSymbols.length} symbols) - Offline fallback', tag: 'CustomSymbolsService');
       } else {
         // FALLBACK: No data anywhere, start fresh
         _customSymbols = [];
-        AACLogger.info('CustomSymbolsService: ✅ Starting fresh - No data found in Hive or Firebase', tag: 'CustomSymbolsService');
+        AACLogger.info('🔥✅ CustomSymbolsService: Starting fresh - No data found anywhere', tag: 'CustomSymbolsService');
       }
       
       // STEP 4: Update UI with loaded data
       _symbolsController.add(_customSymbols);
-      AACLogger.info('CustomSymbolsService: ✅ Data loading completed - ${_customSymbols.length} symbols available', tag: 'CustomSymbolsService');
+      AACLogger.info('🔥✅ CustomSymbolsService: Data loading completed - ${_customSymbols.length} symbols available for persistent sessions', tag: 'CustomSymbolsService');
       
     } catch (e, stackTrace) {
-      AACLogger.error('CustomSymbolsService: Error loading symbols: $e', stackTrace: stackTrace, tag: 'CustomSymbolsService');
+      AACLogger.error('🔥❌ CustomSymbolsService: Error loading symbols: $e', stackTrace: stackTrace, tag: 'CustomSymbolsService');
       _customSymbols = []; // Fallback to empty list
       _symbolsController.add(_customSymbols);
     }
@@ -176,7 +141,7 @@ class CustomSymbolsService {
     }
   }
 
-  /// Add a new custom symbol - DIRECT INSERTION APPROACH (no batch sync)
+  /// Add a new custom symbol - DIRECT INSERTION WITH SESSION PERSISTENCE
   Future<bool> addCustomSymbol(Symbol symbol) async {
     if (!_isInitialized) {
       AACLogger.warning('CustomSymbolsService: Cannot add symbol - service not initialized', tag: 'CustomSymbolsService');
@@ -190,23 +155,32 @@ class CustomSymbolsService {
         return false;
       }
       
-      AACLogger.info('🔥 CustomSymbolsService: Adding custom symbol: ${symbol.label}', tag: 'CustomSymbolsService');
+      AACLogger.info('🔥💾 CustomSymbolsService: Adding custom symbol: ${symbol.label}', tag: 'CustomSymbolsService');
       
-      // 1. LOCAL FIRST: Save to local storage immediately
-      await _saveSymbolToLocal(symbol);
-      
-      // 2. Update in-memory list and notify listeners immediately
+      // 1. IMMEDIATE UI UPDATE: Add to in-memory list and notify listeners
       _customSymbols.add(symbol);
       _symbolsController.add(_customSymbols);
+      AACLogger.info('🔥📱 CustomSymbolsService: UI updated immediately with new symbol', tag: 'CustomSymbolsService');
       
-      // 3. DIRECT INSERT to Supabase (no complex sync logic, no batching)
+      // 2. DIRECT INSERT to Supabase for session persistence
       await _insertDirectlyToSupabase(symbol);
+      AACLogger.info('🔥💾 CustomSymbolsService: Symbol inserted to Supabase for persistence', tag: 'CustomSymbolsService');
       
-      AACLogger.info('🔥✅ CustomSymbolsService: Successfully added symbol "${symbol.label}" with direct insertion', tag: 'CustomSymbolsService');
+      // 3. UPDATE LOCAL CACHE for offline access
+      await _saveToLocal();
+      AACLogger.info('🔥📱 CustomSymbolsService: Local cache updated', tag: 'CustomSymbolsService');
+      
+      AACLogger.info('🔥✅ CustomSymbolsService: Successfully added symbol "${symbol.label}" with session persistence', tag: 'CustomSymbolsService');
       return true;
       
     } catch (e, stackTrace) {
       AACLogger.error('🔥❌ CustomSymbolsService: Failed to add symbol: $e', stackTrace: stackTrace, tag: 'CustomSymbolsService');
+      
+      // Rollback UI changes if Supabase insert failed
+      _customSymbols.removeWhere((s) => s.id == symbol.id);
+      _symbolsController.add(_customSymbols);
+      AACLogger.info('🔥🔄 CustomSymbolsService: Rolled back UI changes due to error', tag: 'CustomSymbolsService');
+      
       return false;
     }
   }
