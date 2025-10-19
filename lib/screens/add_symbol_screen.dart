@@ -636,6 +636,12 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
   }
 
   Future<void> _saveSymbol() async {
+    print('🔥 ADD SYMBOL: Starting symbol save process');
+    print('🔥 ADD SYMBOL: CustomSymbolsService available: ${_customSymbolsService != null}');
+    if (_customSymbolsService != null) {
+      print('🔥 ADD SYMBOL: CustomSymbolsService initialized: ${_customSymbolsService!.isInitialized}');
+    }
+    
     if (_labelController.text.trim().isEmpty) {
       _showErrorDialog('Please enter a label for the symbol');
       return;
@@ -656,11 +662,14 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
       final imageFileName = 'symbol_${DateTime.now().millisecondsSinceEpoch}${path.extension(_selectedImage!.path)}';
       final imageDestination = File('${appDir.path}/symbols/$imageFileName');
       
+      print('🔥 ADD SYMBOL: Image destination: ${imageDestination.path}');
+      
       // Create the symbols directory if it doesn't exist
       await Directory('${appDir.path}/symbols').create(recursive: true);
       
       // Copy the image to the app's directory
       final copiedImage = await _selectedImage!.copy(imageDestination.path);
+      print('🔥 ADD SYMBOL: Image copied successfully to: ${copiedImage.path}');
       
       // Create new symbol with the copied image path
       final newSymbol = Symbol(
@@ -672,11 +681,20 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
         isDefault: false,
         dateCreated: DateTime.now(),
       );
+      
+      print('🔥 ADD SYMBOL: Created new symbol: ${newSymbol.label} (ID: ${newSymbol.id})');
 
       // 🔥 NEW: Use CustomSymbolsService for session persistence (same service HomeScreen uses)
       if (_customSymbolsService != null && _customSymbolsService!.isInitialized) {
+        print('🔥 ADD SYMBOL: Adding symbol via CustomSymbolsService...');
         await _customSymbolsService!.addCustomSymbol(newSymbol);
-        print('🔥 ADD SYMBOL: Custom symbol added via CustomSymbolsService for session persistence');
+        print('🔥 ADD SYMBOL: ✅ Custom symbol added via CustomSymbolsService for session persistence');
+        
+        // Verify it was saved
+        final currentSymbols = _customSymbolsService!.customSymbols;
+        print('🔥 ADD SYMBOL: Current symbols count after save: ${currentSymbols.length}');
+        final foundSymbol = currentSymbols.any((s) => s.id == newSymbol.id);
+        print('🔥 ADD SYMBOL: Symbol found in current list: $foundSymbol');
       } else {
         print('🔥 ADD SYMBOL: ⚠️ CustomSymbolsService not available, falling back to legacy services');
         // Fallback to old services if CustomSymbolsService unavailable
@@ -690,6 +708,7 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
         Navigator.pop(context, newSymbol);
       }
     } catch (e) {
+      print('🔥 ADD SYMBOL: ❌ Error during save: $e');
       _showErrorDialog('Failed to save symbol: ${e.toString()}');
     } finally {
       setState(() {

@@ -514,7 +514,17 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _categories = defaultCategories;
           // Don't override _customCategories here - let it be loaded from user data
-          _allSymbols = defaultSymbols;
+          
+          // 🔥 CRITICAL FIX: Don't overwrite _allSymbols if custom symbols are already merged
+          // This prevents losing custom symbols that were loaded via CustomSymbolsService
+          if (_allSymbols.length <= defaultSymbols.length) {
+            // Only set if we haven't already merged custom symbols
+            _allSymbols = defaultSymbols;
+            debugPrint('🔄 LOAD ASYNC: Set _allSymbols to default symbols (${defaultSymbols.length}) - no custom symbols merged yet');
+          } else {
+            debugPrint('🔥 LOAD ASYNC: Preserving merged symbols (${_allSymbols.length}) - custom symbols already loaded');
+          }
+          
           _isLoading = false;
         });
       }
@@ -534,7 +544,15 @@ class _HomeScreenState extends State<HomeScreen> {
           _isLoading = false;
           // Fallback to sample data
           _categories = SampleData.getSampleCategories();
-          _allSymbols = SampleData.getSampleSymbols();
+          
+          // 🔥 CRITICAL FIX: Don't overwrite _allSymbols if custom symbols are already merged
+          final defaultSymbols = SampleData.getSampleSymbols();
+          if (_allSymbols.length <= defaultSymbols.length) {
+            _allSymbols = defaultSymbols;
+            debugPrint('🔄 ERROR FALLBACK: Set _allSymbols to default symbols - no custom symbols to preserve');
+          } else {
+            debugPrint('🔥 ERROR FALLBACK: Preserving merged symbols (${_allSymbols.length}) - custom symbols already loaded');
+          }
         });
       }
     }
