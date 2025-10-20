@@ -1,5 +1,9 @@
 {
   "devDependencies": {
     "supabase": "^2.40.7"
+  },
+  "dependencies": {
+    "cli": "^1.0.1",
+    "copilot": "^0.0.2"
   }
 }

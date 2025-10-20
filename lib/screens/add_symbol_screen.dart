@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -37,36 +38,124 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
   CustomCategoriesService? _customCategoriesService;
   CustomSymbolsService? _customSymbolsService;
 
+  StreamSubscription<List<Category>>? _customCategoriesSubscription;
+
   @override
   void initState() {
     super.initState();
+    debugPrint('🚀 ADD_SYMBOL: initState() called - starting initialization');
     _categories = SampleData.getSampleCategories();
-    _customCategoriesService = DataServicesInitializer.instance.customCategoriesService;
-    _customSymbolsService = DataServicesInitializer.instance.customSymbolsService;
-    _loadCustomCategories();
+
+    // CRITICAL FIX: Wait for DataServicesInitializer to complete before accessing services
+    _waitForServicesAndInitialize();
   }
 
-  void _loadCustomCategories() async {
-    // Load user-specific categories from CustomCategoriesService (Firebase synced)
-    if (_customCategoriesService != null && _customCategoriesService!.isInitialized) {
-      setState(() {
-        _customCategories = _customCategoriesService!.customCategories;
+  /// Wait for DataServicesInitializer to complete, then initialize services
+  Future<void> _waitForServicesAndInitialize() async {
+    debugPrint('🚀 ADD_SYMBOL: _waitForServicesAndInitialize() called');
+
+    // Wait for DataServicesInitializer to complete (with timeout)
+    int attempts = 0;
+    const maxAttempts = 20; // 10 seconds max wait
+    const delayMs = 500;
+
+    while (attempts < maxAttempts) {
+      final services = DataServicesInitializer.instance;
+      debugPrint('🚀 ADD_SYMBOL: Attempt ${attempts + 1}/$maxAttempts - DataServicesInitializer.isInitialized: ${services.isInitialized}');
+
+      if (services.isInitialized) {
+        debugPrint('🚀 ADD_SYMBOL: ✅ DataServicesInitializer is ready! Initializing services...');
+        _initializeServices();
+        return;
+      }
+
+      attempts++;
+      await Future.delayed(const Duration(milliseconds: delayMs));
+    }
+
+    debugPrint('🚀 ADD_SYMBOL: ⚠️ Timeout waiting for DataServicesInitializer - proceeding anyway');
+    _initializeServices();
+  }
+
+  void _initializeServices() {
+    debugPrint('🚀 ADD_SYMBOL: _initializeServices() called');
+
+    final services = DataServicesInitializer.instance;
+    debugPrint('🚀 ADD_SYMBOL: DataServicesInitializer.instance obtained - isInitialized: ${services.isInitialized}');
+
+    _customCategoriesService = services.customCategoriesService;
+    _customSymbolsService = services.customSymbolsService;
+
+    debugPrint('🚀 ADD_SYMBOL: Services assigned - CustomCategoriesService: ${_customCategoriesService != null ? "AVAILABLE" : "NULL"}');
+
+    _loadCustomCategories();
+    _setupCategoriesStreamListener();
+  }
+
+  void _setupCategoriesStreamListener() {
+    debugPrint('🚀 ADD_SYMBOL: Setting up stream listeners...');
+
+    if (_customCategoriesService != null) {
+      debugPrint('🎯 ADD_SYMBOL: Setting up CustomCategoriesService stream listener...');
+      _customCategoriesSubscription = _customCategoriesService!.categoriesStream.listen((categories) {
+        debugPrint('🎯 ADD_SYMBOL: Received ${categories.length} categories from stream');
+        if (mounted) {
+          setState(() {
+            _customCategories = categories;
+          });
+        }
       });
+
+      // CRITICAL FIX: If service is already initialized, get current categories immediately
+      if (_customCategoriesService!.isInitialized) {
+        final currentCategories = _customCategoriesService!.customCategories;
+        debugPrint('🎯 ADD_SYMBOL: SERVICE ALREADY INITIALIZED: Loading ${currentCategories.length} existing custom categories immediately');
+        if (mounted) {
+          setState(() {
+            _customCategories = currentCategories;
+          });
+        }
+      } else {
+        debugPrint('🎯 ADD_SYMBOL: Categories service not yet initialized - will wait for stream updates');
+      }
     } else {
-      // Fallback to user profile if service not available
-      final userCategories = await UserProfileService.getUserCategories();
-      setState(() {
-        _customCategories = userCategories;
-      });
+      debugPrint('🚫 ADD_SYMBOL: CustomCategoriesService not available for stream setup');
     }
   }
 
   @override
   void dispose() {
+    _customCategoriesSubscription?.cancel();
     _labelController.dispose();
     _descriptionController.dispose();
     _customCategoryController.dispose();
     super.dispose();
+  }
+
+  void _loadCustomCategories() async {
+    debugPrint('🎯 LOAD_CATEGORIES: Loading custom categories...');
+
+    // Load user-specific categories from CustomCategoriesService (Firebase synced)
+    if (_customCategoriesService != null && _customCategoriesService!.isInitialized) {
+      final categories = _customCategoriesService!.customCategories;
+      debugPrint('🎯 LOAD_CATEGORIES: ✅ Loaded ${categories.length} categories from CustomCategoriesService');
+
+      setState(() {
+        _customCategories = categories;
+      });
+
+      debugPrint('🎯 LOAD_CATEGORIES: ✅ Updated UI with ${_customCategories.length} custom categories');
+    } else {
+      debugPrint('🎯 LOAD_CATEGORIES: ⚠️ CustomCategoriesService not available - Service: ${_customCategoriesService != null ? "EXISTS" : "NULL"}, Initialized: ${_customCategoriesService?.isInitialized ?? false}');
+
+      // Fallback to user profile if service not available
+      final userCategories = await UserProfileService.getUserCategories();
+      debugPrint('🎯 LOAD_CATEGORIES: ⚠️ Fallback to UserProfileService - Loaded ${userCategories.length} categories');
+
+      setState(() {
+        _customCategories = userCategories;
+      });
+    }
   }
 
   @override
@@ -696,10 +785,8 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
         final foundSymbol = currentSymbols.any((s) => s.id == newSymbol.id);
         print('🔥 ADD SYMBOL: Symbol found in current list: $foundSymbol');
       } else {
-        print('🔥 ADD SYMBOL: ⚠️ CustomSymbolsService not available, falling back to legacy services');
-        // Fallback to old services if CustomSymbolsService unavailable
-        await UserProfileService.addSymbolToActiveProfile(newSymbol);
-        await UserDataService().addUserSymbol(newSymbol);
+        print('🔥 ADD SYMBOL: ❌ CustomSymbolsService not available - cannot save symbol');
+        throw Exception('CustomSymbolsService not initialized - cannot save symbol');
       }
       
       await AACHelper.speak('New symbol ${newSymbol.label} added successfully to ${_selectedCategory} category');
@@ -794,11 +881,16 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
   }
 
   void _createCustomCategory(String name) async {
+    debugPrint('🎯 CREATE_CATEGORY: Starting creation of category "$name"');
+
     // Check if category already exists
     final allCategories = [..._categories, ..._customCategories];
     final exists = allCategories.any((cat) => cat.name.toLowerCase() == name.toLowerCase());
-    
+
+    debugPrint('🎯 CREATE_CATEGORY: Checking if category exists - Total categories: ${allCategories.length}, Exists: $exists');
+
     if (exists) {
+      debugPrint('🎯 CREATE_CATEGORY: ❌ Category "$name" already exists');
       _showErrorDialog('A category with this name already exists.');
       return;
     }
@@ -817,33 +909,39 @@ class _AddSymbolScreenState extends State<AddSymbolScreen> {
     final randomColor = colors[DateTime.now().millisecond % colors.length];
 
     final newCategory = Category(
+      id: 'category_${DateTime.now().millisecondsSinceEpoch}', // Generate unique ID like symbols
       name: name,
       iconPath: 'custom', // Custom categories use emoji icon
       colorCode: randomColor,
     );
 
+    debugPrint('🎯 CREATE_CATEGORY: Created category object - Name: ${newCategory.name}, Color: ${newCategory.colorCode}');
+
     // Use CustomCategoriesService to save properly
     if (_customCategoriesService != null && _customCategoriesService!.isInitialized) {
-      await _customCategoriesService!.addCustomCategory(newCategory);
-      
-      // The service will update via stream, but update local state immediately for UI responsiveness
-      setState(() {
-        _selectedCategory = name; // Auto-select the new category
-      });
-      
-      // Refresh local categories list from service
-      _loadCustomCategories();
+      debugPrint('🎯 CREATE_CATEGORY: ✅ CustomCategoriesService is available and initialized');
+
+      try {
+        await _customCategoriesService!.addCustomCategory(newCategory);
+        debugPrint('🎯 CREATE_CATEGORY: ✅ Category "$name" added to service successfully');
+
+        // The service will update via stream, but update local state immediately for UI responsiveness
+        setState(() {
+          _selectedCategory = name; // Auto-select the new category
+        });
+        debugPrint('🎯 CREATE_CATEGORY: ✅ Selected category set to "$name"');
+
+        // Refresh local categories list from service
+        _loadCustomCategories();
+        debugPrint('🎯 CREATE_CATEGORY: ✅ Refreshed local categories list');
+
+      } catch (e) {
+        debugPrint('🎯 CREATE_CATEGORY: ❌ Error adding category to service: $e');
+        throw e;
+      }
     } else {
-      // Fallback to old method if service not available
-      await UserProfileService.addCategoryToActiveProfile(newCategory);
-      await AACHelper.addCategory(newCategory);
-      
-      // Refresh categories
-      _loadCustomCategories();
-      
-      setState(() {
-        _selectedCategory = name; // Auto-select the new category
-      });
+      debugPrint('🎯 CREATE_CATEGORY: ❌ CustomCategoriesService not available - Service: ${_customCategoriesService != null ? "EXISTS" : "NULL"}, Initialized: ${_customCategoriesService?.isInitialized ?? false}');
+      throw Exception('CustomCategoriesService not initialized - cannot save category');
     }
 
     // Show success message

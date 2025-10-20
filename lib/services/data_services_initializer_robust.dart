@@ -274,16 +274,11 @@ class DataServicesInitializer {
         AACLogger.warning('PhraseHistoryService not available for sync');
       }
 
-      // Sync custom categories if service is available
+      // Custom categories are now local-only (no cloud sync needed)
       if (hasCustomCategoriesService) {
-        try {
-          await customCategoriesService!.syncFromCloud();
-          AACLogger.info('✅ Custom categories synced from cloud');
-        } catch (e) {
-          AACLogger.warning('⚠️ Custom categories sync failed: $e');
-        }
+        AACLogger.info('✅ Custom categories service available (local-only storage)');
       } else {
-        AACLogger.warning('CustomCategoriesService not available for sync');
+        AACLogger.warning('CustomCategoriesService not available');
       }
 
       AACLogger.info('✅ User data sync completed (available services synced)');

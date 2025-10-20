@@ -114,8 +114,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeServices();
+    debugPrint('🚀 HOME_SCREEN: initState() called - starting initialization');
     _initializeImmediately();
+
+    // CRITICAL FIX: Wait for DataServicesInitializer to complete before accessing services
+    _waitForServicesAndInitialize();
+
     // DEFER: Load async data much later
     Timer(const Duration(milliseconds: 500), () {
       _loadDataAsync();
@@ -131,9 +135,40 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  /// Wait for DataServicesInitializer to complete, then initialize services
+  Future<void> _waitForServicesAndInitialize() async {
+    debugPrint('🚀 HOME_SCREEN: _waitForServicesAndInitialize() called');
+
+    // Wait for DataServicesInitializer to complete (with timeout)
+    int attempts = 0;
+    const maxAttempts = 20; // 10 seconds max wait
+    const delayMs = 500;
+
+    while (attempts < maxAttempts) {
+      final services = DataServicesInitializer.instance;
+      debugPrint('🚀 HOME_SCREEN: Attempt ${attempts + 1}/$maxAttempts - DataServicesInitializer.isInitialized: ${services.isInitialized}');
+
+      if (services.isInitialized) {
+        debugPrint('🚀 HOME_SCREEN: ✅ DataServicesInitializer is ready! Initializing services...');
+        _initializeServices();
+        return;
+      }
+
+      attempts++;
+      await Future.delayed(const Duration(milliseconds: delayMs));
+    }
+
+    debugPrint('🚀 HOME_SCREEN: ⚠️ Timeout waiting for DataServicesInitializer - proceeding anyway');
+    _initializeServices();
+  }
+
   void _initializeServices() {
+    debugPrint('🚀 HOME_SCREEN: _initializeServices() called');
+
     // Services may not be available if initialization failed - handle gracefully
     final services = DataServicesInitializer.instance;
+    debugPrint('🚀 HOME_SCREEN: DataServicesInitializer.instance obtained - isInitialized: ${services.isInitialized}');
+
     _favoritesService = services.favoritesService;
     try {
       _userDataManager = services.userDataManager;
@@ -144,12 +179,23 @@ class _HomeScreenState extends State<HomeScreen> {
     _settingsService = services.settingsService;
     _customCategoriesService = services.customCategoriesService;
     _customSymbolsService = services.customSymbolsService;
+
+    debugPrint('🚀 HOME_SCREEN: Services assigned - CustomSymbolsService: ${_customSymbolsService != null ? "AVAILABLE" : "NULL"}');
     
     // If services are not available yet, try again after a short delay
     if (_favoritesService == null && mounted) {
       Timer(const Duration(milliseconds: 1000), () {
         if (mounted) _initializeServices();
       });
+      return; // Don't set up stream listeners yet
+    }
+
+    // If CustomSymbolsService exists but is not initialized, wait and retry
+    if (_customSymbolsService != null && !_customSymbolsService!.isInitialized && mounted) {
+      Timer(const Duration(milliseconds: 500), () {
+        if (mounted) _initializeServices();
+      });
+      return; // Don't set up stream listeners yet
     }
     
     // Debug CustomSymbolsService state
@@ -172,17 +218,24 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint('🚫 CustomCategoriesService NOT available');
     }
     
+    debugPrint('🚀 HOME_SCREEN: Setting up stream listeners...');
+
     // Set up CustomCategoriesService stream listener
     if (_customCategoriesService != null) {
       debugPrint('🎯 Setting up CustomCategoriesService stream listener...');
       
       // Set up stream listener for future updates
       _customCategoriesSubscription = _customCategoriesService!.categoriesStream.listen((categories) {
+        debugPrint('🎯 STREAM UPDATE: Received ${categories.length} custom categories from stream');
         if (mounted) {
           setState(() {
             _customCategories = categories;
           });
           debugPrint('🎯 CustomCategories updated via stream: ${categories.length} categories');
+          // Force UI refresh to ensure new categories appear
+          setState(() {
+            // Trigger rebuild to ensure UI shows updated categories
+          });
         }
       }, onError: (error) {
         debugPrint('🚫 CustomCategories stream error: $error');
@@ -209,42 +262,66 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_customSymbolsService != null) {
       debugPrint('🔥 Setting up CustomSymbolsService stream listener...');
       
-      // Helper function to merge symbols with deduplication
+      // Helper function to add custom symbols to existing default symbols
       void _mergeCustomSymbols(List<Symbol> symbols) {
         if (mounted) {
           setState(() {
-            // Combine default symbols with user's custom symbols WITH DEDUPLICATION
-            final defaultSymbols = SampleData.getSampleSymbols();
-            
-            // Use Map-based deduplication to prevent duplicate symbols by ID
-            final Map<String, Symbol> uniqueSymbols = {};
-            
-            // Add default symbols first
-            for (final symbol in defaultSymbols) {
-              uniqueSymbols[symbol.id ?? symbol.label] = symbol;
+            // 🔥 CRITICAL FIX: Keep default symbols separate - only add custom symbols to existing list
+            // Default symbols should never be touched or modified
+
+            // Start with current symbols (which should include defaults)
+            final currentSymbols = List<Symbol>.from(_allSymbols);
+
+            // Remove any existing custom symbols first (to handle updates)
+            currentSymbols.removeWhere((symbol) => symbol.id?.startsWith('symbol_') == true);
+
+            // Use Set-based deduplication by symbol ID to prevent duplicates
+            final Set<String> seenIds = {};
+            final List<Symbol> uniqueSymbols = [];
+
+            // Add current symbols (defaults) first
+            for (final symbol in currentSymbols) {
+              final symbolId = symbol.id ?? symbol.label;
+              if (!seenIds.contains(symbolId)) {
+                seenIds.add(symbolId);
+                uniqueSymbols.add(symbol);
+              }
             }
-            
-            // Add custom symbols (will override duplicates by ID)
+
+            // Add custom symbols (skip if ID already exists)
             for (final symbol in symbols) {
-              uniqueSymbols[symbol.id ?? symbol.label] = symbol;
+              final symbolId = symbol.id ?? symbol.label;
+              if (!seenIds.contains(symbolId)) {
+                seenIds.add(symbolId);
+                uniqueSymbols.add(symbol);
+              } else {
+                debugPrint('⚠️ DUPLICATE SKIPPED: Symbol "${symbol.label}" (ID: $symbolId) already exists');
+              }
             }
-            
-            _allSymbols = uniqueSymbols.values.toList();
+
+            _allSymbols = uniqueSymbols;
             _filteredSymbols = _allSymbols; // Update filtered symbols too
-            
+
             // Log deduplication results with detailed info
-            final duplicatesRemoved = (defaultSymbols.length + symbols.length) - _allSymbols.length;
-            debugPrint('🔍 SYMBOL MERGE: Default (${defaultSymbols.length}) + Custom (${symbols.length}) = ${_allSymbols.length} unique symbols');
+            final duplicatesRemoved = (currentSymbols.length + symbols.length) - _allSymbols.length;
+            debugPrint('🔍 SYMBOL MERGE: Current (${currentSymbols.length}) + Custom (${symbols.length}) = ${_allSymbols.length} unique symbols');
             if (duplicatesRemoved > 0) {
               debugPrint('🔧 DEDUPLICATION: Removed $duplicatesRemoved duplicate symbols');
             } else {
               debugPrint('✅ NO DUPLICATES: All symbols are unique');
             }
-            
+
             // Additional debug for custom symbol additions
             if (symbols.isNotEmpty) {
               final newSymbolLabels = symbols.map((s) => s.label).join(', ');
               debugPrint('🆕 CUSTOM SYMBOLS: ${symbols.length} custom symbols - [$newSymbolLabels]');
+
+              // Debug: Check if symbols are in the correct categories
+              final symbolsByCategory = <String, List<String>>{};
+              for (final symbol in symbols) {
+                symbolsByCategory.putIfAbsent(symbol.category, () => []).add(symbol.label);
+              }
+              debugPrint('📂 SYMBOLS BY CATEGORY: $symbolsByCategory');
             }
           });
           debugPrint('🔥 CustomSymbols updated: ${symbols.length} custom symbols (${_allSymbols.length} total unique)');
@@ -253,7 +330,14 @@ class _HomeScreenState extends State<HomeScreen> {
       
       // Set up stream listener for future updates
       _customSymbolsSubscription = _customSymbolsService!.symbolsStream.listen((symbols) {
+        debugPrint('🔥 STREAM UPDATE: Received ${symbols.length} custom symbols from stream');
         _mergeCustomSymbols(symbols);
+        // Force UI refresh to ensure new symbols appear
+        if (mounted) {
+          setState(() {
+            // Trigger rebuild to ensure UI shows updated symbols
+          });
+        }
       }, onError: (error) {
         debugPrint('🚫 CustomSymbols stream error: $error');
       });
@@ -273,13 +357,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _initializeImmediately() {
-    // Load sample data immediately for instant UI - real data loads in background
-    _allSymbols = SampleData.getSampleSymbols();
+    // 🔥 CRITICAL FIX: Always load default symbols immediately - they should never be restricted
+    // Default symbols are separate from custom symbols and should always be available
+
+    // Load default data immediately for instant UI
+    _allSymbols = SampleData.getSampleSymbols(); // Always load default symbols
     _categories = SampleData.getSampleCategories();
     _filteredSymbols = _allSymbols; // Initialize filtered symbols
+
     _isLoading = false;
     _servicesInitialized = true; // Enable all UI interactions immediately
-    
+
     // Load speech settings synchronously with defaults
     _speechRate = 0.3; // Slower default speed for Indian users
     _speechPitch = 1.0; // More natural pitch
@@ -515,14 +603,14 @@ class _HomeScreenState extends State<HomeScreen> {
           _categories = defaultCategories;
           // Don't override _customCategories here - let it be loaded from user data
           
-          // 🔥 CRITICAL FIX: Don't overwrite _allSymbols if custom symbols are already merged
-          // This prevents losing custom symbols that were loaded via CustomSymbolsService
-          if (_allSymbols.length <= defaultSymbols.length) {
-            // Only set if we haven't already merged custom symbols
+          // 🔥 CRITICAL FIX: Always ensure default symbols are loaded
+          // Default symbols should always be available regardless of custom symbols
+          if (_allSymbols.length < defaultSymbols.length) {
+            // If we have fewer symbols than defaults, reload defaults (preserving any custom symbols)
             _allSymbols = defaultSymbols;
-            debugPrint('🔄 LOAD ASYNC: Set _allSymbols to default symbols (${defaultSymbols.length}) - no custom symbols merged yet');
+            debugPrint('🔄 LOAD ASYNC: Loaded default symbols (${defaultSymbols.length}) - custom symbols will be added via streams');
           } else {
-            debugPrint('🔥 LOAD ASYNC: Preserving merged symbols (${_allSymbols.length}) - custom symbols already loaded');
+            debugPrint('🔥 LOAD ASYNC: Default symbols already loaded (${_allSymbols.length}) - preserving existing symbols');
           }
           
           _isLoading = false;
@@ -746,26 +834,39 @@ class _HomeScreenState extends State<HomeScreen> {
   
   
   List<Symbol> _getFilteredSymbols() {
-    try      {
+    try {
       List<Symbol> baseSymbols;
-      
+
       // First filter by category
       if (_currentCategory == 'All') {
         baseSymbols = _allSymbols;
       } else {
         baseSymbols = _allSymbols.where((symbol) => symbol.category == _currentCategory).toList();
       }
-      
+
+      // Debug logging for filtering
+      debugPrint('🔍 FILTERING: Category="$_currentCategory", Search="$_searchQuery"');
+      debugPrint('   Total symbols: ${_allSymbols.length}');
+      debugPrint('   After category filter: ${baseSymbols.length}');
+
       // Then filter by search query
+      List<Symbol> finalSymbols;
       if (_searchQuery.isEmpty) {
-        return baseSymbols;
+        finalSymbols = baseSymbols;
       } else {
-        return baseSymbols.where((symbol) {
+        finalSymbols = baseSymbols.where((symbol) {
           return symbol.label.toLowerCase().contains(_searchQuery.toLowerCase()) ||
                  (symbol.description?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
                  symbol.category.toLowerCase().contains(_searchQuery.toLowerCase());
         }).toList();
       }
+
+      debugPrint('   After search filter: ${finalSymbols.length}');
+      if (finalSymbols.length <= 10) {
+        debugPrint('   Filtered symbols: ${finalSymbols.map((s) => s.label).join(', ')}');
+      }
+
+      return finalSymbols;
     } catch (e) {
       AACLogger.error('Error filtering symbols: $e', tag: 'HomeScreen');
       return _allSymbols; // Return all symbols if filtering fails
@@ -774,9 +875,14 @@ class _HomeScreenState extends State<HomeScreen> {
   
   void _changeCategory(String category) {
     try {
+      debugPrint('🔄 CATEGORY CHANGE: From "$_currentCategory" to "$category"');
       setState(() {
         _currentCategory = category;
       });
+
+      // Debug: Show how many symbols will be visible in this category
+      final filteredCount = _getFilteredSymbols().length;
+      debugPrint('   Symbols in "$category": $filteredCount');
     } catch (e) {
       AACLogger.error('Error changing category: $e', tag: 'HomeScreen');
       // Show error to user
@@ -1591,12 +1697,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                           
                                           // If user created a new symbol, add it to our symbols list
                                           if (newSymbol != null && mounted) {
-                                            setState(() {
-                                              _allSymbols.add(newSymbol);
-                                              
-                                              // Also refresh custom categories in case a new category was created
-                                              _refreshCustomCategories();
-                                            });
+                                            // 🔥 CRITICAL FIX: Don't add symbol directly - stream-based architecture handles all symbol updates
+                                            // The CustomSymbolsService stream will automatically update _allSymbols via _mergeCustomSymbols
+
+                                            // Only refresh custom categories in case a new category was created
+                                            _refreshCustomCategories();
                                           }
                                         } catch (e) {
                                           _showErrorDialog('Error opening Add Symbol screen: $e');
@@ -1943,10 +2048,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                             ),
                                           );
                                           if (newSymbol != null && mounted) {
-                                            setState(() {
-                                              _allSymbols.add(newSymbol);
-                                              _refreshCustomCategories();
-                                            });
+                                            // 🔥 CRITICAL FIX: Don't add symbol directly - stream-based architecture handles all symbol updates
+                                            // The CustomSymbolsService stream will automatically update _allSymbols via _mergeCustomSymbols
+
+                                            // Only refresh custom categories in case a new category was created
+                                            _refreshCustomCategories();
                                           }
                                         } catch (e) {
                                           _showErrorDialog('Error opening Add Symbol screen: $e');

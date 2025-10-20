@@ -1114,57 +1114,25 @@ class UserDataManager {
   }
 
   /// LOCAL-FIRST CUSTOM CATEGORIES METHODS
-  
-  /// Add a custom category to local storage immediately
+  ///
+  /// NOTE: These methods are DEPRECATED and should not be used.
+  /// Use CustomCategoriesService instead, which uses getCustomCategoriesBox()
+  /// These methods use _userCategoriesBox (categories_{uid}) which conflicts
+  /// with CustomCategoriesService that uses custom_categories_{uid}
+
+  @Deprecated('Use CustomCategoriesService.addCustomCategory() instead')
   Future<void> addCustomCategory(Category category) async {
-    if (!_isInitialized) throw Exception('UserDataManager not initialized');
-    
-    try {
-      // Save to local Hive box
-      final key = category.id ?? _generateUniqueId();
-      if (category.id == null) {
-        category.id = key;
-      }
-      
-      await _userCategoriesBox.put(key, category);
-      AACLogger.info('UserDataManager: Added custom category "${category.name}" to local storage', tag: 'UserDataManager');
-      
-      // Queue for Supabase sync in background
-      await _queueCategoryForSync(category);
-    } catch (e) {
-      AACLogger.error('UserDataManager: Failed to add custom category: $e', tag: 'UserDataManager');
-      rethrow;
-    }
+    throw Exception('DEPRECATED: Use CustomCategoriesService.addCustomCategory() instead. This method uses conflicting storage.');
   }
-  
-  /// Get all custom categories from local storage
+
+  @Deprecated('Use CustomCategoriesService.customCategories instead')
   Future<List<Category>> getCustomCategories() async {
-    if (!_isInitialized) throw Exception('UserDataManager not initialized');
-    
-    try {
-      final categories = _userCategoriesBox.values.where((cat) => !cat.isDefault).toList();
-      AACLogger.info('UserDataManager: Retrieved ${categories.length} custom categories from local storage', tag: 'UserDataManager');
-      return categories;
-    } catch (e) {
-      AACLogger.error('UserDataManager: Failed to get custom categories: $e', tag: 'UserDataManager');
-      return [];
-    }
+    throw Exception('DEPRECATED: Use CustomCategoriesService.customCategories instead. This method uses conflicting storage.');
   }
-  
-  /// Remove a custom category from local storage
+
+  @Deprecated('Use CustomCategoriesService.removeCustomCategory() instead')
   Future<void> removeCustomCategory(String categoryId) async {
-    if (!_isInitialized) throw Exception('UserDataManager not initialized');
-    
-    try {
-      await _userCategoriesBox.delete(categoryId);
-      AACLogger.info('UserDataManager: Removed custom category $categoryId from local storage', tag: 'UserDataManager');
-      
-      // Queue for Supabase delete in background
-      await _queueCategoryForDeletion(categoryId);
-    } catch (e) {
-      AACLogger.error('UserDataManager: Failed to remove custom category: $e', tag: 'UserDataManager');
-      rethrow;
-    }
+    throw Exception('DEPRECATED: Use CustomCategoriesService.removeCustomCategory() instead. This method uses conflicting storage.');
   }
   
   /// Queue category for background sync to Supabase (DISABLED - using direct insertion)
@@ -1180,57 +1148,25 @@ class UserDataManager {
   }
   
   /// LOCAL-FIRST CUSTOM SYMBOLS METHODS
-  
-  /// Add a custom symbol to local storage immediately  
+  ///
+  /// NOTE: These methods are DEPRECATED and should not be used.
+  /// Use CustomSymbolsService instead, which uses getCustomSymbolsBox()
+  /// These methods use _userSymbolsBox (symbols_{uid}) which conflicts
+  /// with CustomSymbolsService that uses custom_symbols_{uid}
+
+  @Deprecated('Use CustomSymbolsService.addCustomSymbol() instead')
   Future<void> addCustomSymbol(Symbol symbol) async {
-    if (!_isInitialized) throw Exception('UserDataManager not initialized');
-    
-    try {
-      // Save to local Hive box
-      final key = symbol.id ?? _generateUniqueId();
-      if (symbol.id == null) {
-        symbol.id = key;
-      }
-      
-      await _userSymbolsBox.put(key, symbol);
-      AACLogger.info('UserDataManager: Added custom symbol "${symbol.label}" to local storage', tag: 'UserDataManager');
-      
-      // Queue for Supabase sync in background
-      await _queueSymbolForSync(symbol);
-    } catch (e) {
-      AACLogger.error('UserDataManager: Failed to add custom symbol: $e', tag: 'UserDataManager');
-      rethrow;
-    }
+    throw Exception('DEPRECATED: Use CustomSymbolsService.addCustomSymbol() instead. This method uses conflicting storage.');
   }
-  
-  /// Get all custom symbols from local storage
+
+  @Deprecated('Use CustomSymbolsService.customSymbols instead')
   Future<List<Symbol>> getCustomSymbols() async {
-    if (!_isInitialized) throw Exception('UserDataManager not initialized');
-    
-    try {
-      final symbols = _userSymbolsBox.values.where((sym) => !sym.isDefault).toList();
-      AACLogger.info('UserDataManager: Retrieved ${symbols.length} custom symbols from local storage', tag: 'UserDataManager');
-      return symbols;
-    } catch (e) {
-      AACLogger.error('UserDataManager: Failed to get custom symbols: $e', tag: 'UserDataManager');
-      return [];
-    }
+    throw Exception('DEPRECATED: Use CustomSymbolsService.customSymbols instead. This method uses conflicting storage.');
   }
-  
-  /// Remove a custom symbol from local storage
+
+  @Deprecated('Use CustomSymbolsService.removeCustomSymbol() instead')
   Future<void> removeCustomSymbol(String symbolId) async {
-    if (!_isInitialized) throw Exception('UserDataManager not initialized');
-    
-    try {
-      await _userSymbolsBox.delete(symbolId);
-      AACLogger.info('UserDataManager: Removed custom symbol $symbolId from local storage', tag: 'UserDataManager');
-      
-      // Queue for Supabase delete in background
-      await _queueSymbolForDeletion(symbolId);
-    } catch (e) {
-      AACLogger.error('UserDataManager: Failed to remove custom symbol: $e', tag: 'UserDataManager');
-      rethrow;
-    }
+    throw Exception('DEPRECATED: Use CustomSymbolsService.removeCustomSymbol() instead. This method uses conflicting storage.');
   }
   
   /// Queue symbol for background sync to Supabase (DISABLED - using direct insertion)
